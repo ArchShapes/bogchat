@@ -42,7 +42,7 @@
     padding: 12px 16px; box-sizing: border-box;
     font-family: "Nunito", "Segoe UI", "Helvetica Neue", Arial, sans-serif; font-weight: 600; letter-spacing: .01em; -webkit-font-smoothing: antialiased;
     font-size: var(--size, 20px); line-height: 1.35; color: #fff;
-    text-shadow: 0 2px 4px rgba(0,0,0,.85), 0 0 3px rgba(0,0,0,.9), 0 0 8px rgba(0,0,0,.45);
+    text-shadow: 0 2px 6px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.95), 0 0 12px rgba(0,0,0,.8), 0 0 24px rgba(0,0,0,.6);
   }
   .msg {
     padding: 3px 0; word-wrap: break-word; overflow-wrap: anywhere;
@@ -174,6 +174,7 @@
     gap: 8px; pointer-events: none; padding: 18px; box-sizing: border-box;
     font-family: "Nunito", "Segoe UI", "Helvetica Neue", Arial, sans-serif; font-weight: 600; letter-spacing: .01em; -webkit-font-smoothing: antialiased;
     font-size: var(--size, 20px); color: #fff;
+    text-shadow: 0 2px 6px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.95), 0 0 12px rgba(0,0,0,.8), 0 0 24px rgba(0,0,0,.6);
   }
   .alert {
     --ac: #9147ff;
@@ -297,14 +298,19 @@
     animation: msgIn .35s ease-out backwards;
     margin: 2px 0; padding: 3px 0 3px 10px; max-width: 100%; box-sizing: border-box; text-align: left;
     background: none; border: 0; border-left: 2px solid rgba(255,255,255,.28); border-radius: 0;
-    box-shadow: none; text-shadow: 0 2px 4px rgba(0,0,0,.85), 0 0 3px rgba(0,0,0,.9);
+    box-shadow: none; text-shadow: 0 2px 6px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.95), 0 0 12px rgba(0,0,0,.8), 0 0 24px rgba(0,0,0,.6);
   }
   body.viewchat .msg.cheer, body.viewchat .msg.cookie, body.viewchat .msg.hype, body.viewchat .msg.alertc, body.viewchat .msg.tts, body.viewchat .msg.welcome { text-shadow: none; }
   .msg.cheer { border-left-color: #ffcf4a; }
   .msg.tts { border-left-color: #ffc46b; }
   .msg.alertc { border-left-color: var(--ac); }
   .msg.cookie { border-left-color: #a970ff; }
-  .msg.hype { border-left-color: var(--hc); }
+  /* big raids / big cheers / big bits: a rounded label behind the text */
+  .msg.hype {
+    display: block; width: fit-content; max-width: 100%; margin: 6px 0; padding: 9px 16px;
+    background: rgba(14,12,20,.86); border: 1px solid color-mix(in srgb, var(--hc) 50%, transparent);
+    border-left: 4px solid var(--hc); border-radius: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.4);
+  }
   .msg.alertc .ai, .alert .ai { width: 1.5em; height: 1.5em; flex-basis: 1.5em; background: none; border: 0; }
   .msg.alertc { gap: 8px; align-items: flex-start; }
   .alertc .at { font-weight: 700; }
@@ -688,16 +694,41 @@
   // browsers need one click before sound; OBS browser sources don't
   addEventListener("pointerdown", audio, { once: true });
 
+  // Sound files are loaded ahead of time so they start instantly (no network/decoding wait when played).
+  const sfxPool = new Map();                   // name -> { el, missing, busy }
+  function preloadSfx(name) {
+    if (sfxPool.has(name)) return;
+    const rec = { el: new Audio(), missing: false, busy: false };
+    rec.el.preload = "auto";
+    rec.el.addEventListener("error", () => { rec.missing = true; });
+    rec.el.src = name + ".mp3";
+    try { rec.el.load(); } catch (e) {}
+    sfxPool.set(name, rec);
+  }
+  // returns a ready-to-play element, or null when there is no file (caller uses the built-in sound immediately)
+  function takeAudio(name) {
+    preloadSfx(name);
+    const rec = sfxPool.get(name);
+    if (rec.missing) return null;
+    if (rec.busy) { const c = new Audio(name + ".mp3"); c._rec = null; return c; }   // already playing: use a fresh copy
+    rec.busy = true;
+    const a = rec.el; a._rec = rec;
+    try { a.currentTime = 0; } catch (e) {}
+    return a;
+  }
+
   // plays <name>.mp3 from this folder; if the file is missing, runs the built-in sound instead
   function playFileOr(name, fallback) {
     if (MUTE || sfxMuted || SFX_VOL === 0) return;
     let a = null, finished = false, tried = false;
-    const stop = () => { finished = true; sfxStops.delete(stop); try { if (a) a.pause(); } catch (e) {} };
-    const fb = () => { if (tried) return; tried = true; sfxStops.delete(stop); if (!finished) fallback(); };
-    try { a = new Audio(name + ".mp3"); } catch (e) { return fallback(); }
+    const release = () => { if (a && a._rec) { a._rec.busy = false; a._rec = null; } };
+    const stop = () => { finished = true; sfxStops.delete(stop); try { if (a) a.pause(); } catch (e) {} release(); };
+    const fb = () => { if (tried) return; tried = true; sfxStops.delete(stop); release(); if (!finished) fallback(); };
+    a = takeAudio(name);
+    if (!a) return fallback();                 // file known to be missing: built-in sound right away
     sfxStops.add(stop);
     a.volume = Math.min(1, SFX_VOL);
-    a.onended = () => sfxStops.delete(stop);
+    a.onended = () => { sfxStops.delete(stop); release(); };
     a.onerror = fb;
     a.play().catch(fb);
     setTimeout(stop, 60000);                 // sound limit: 60 seconds
@@ -740,8 +771,13 @@
   /* ---------- Cookies ---------- */
   const STORE_KEY = "cookies:" + CHANNEL;
   let cookies = {};
-  // Every fresh launch starts a new cookie season.
-  try { localStorage.setItem(STORE_KEY, "{}"); } catch (e) {}
+  // Every fresh launch starts a new cookie season, except after !refreshchat (balances are kept).
+  try {
+    if (sessionStorage.getItem("keep-cookies") === "1") {
+      sessionStorage.removeItem("keep-cookies");
+      cookies = JSON.parse(localStorage.getItem(STORE_KEY) || "{}") || {};
+    } else localStorage.setItem(STORE_KEY, "{}");
+  } catch (e) {}
   const saveCookies = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify(cookies)); } catch (e) {} };
   const bal = (u) => cookies[u.toLowerCase()] || 0;
   const addCookies = (u, n) => {
@@ -1192,6 +1228,7 @@
   /* ---------- SFX (used inside TTS) ---------- */
   const SFX_NAMES = new Set(["meow", "gunshot", "lotsofgunshots", "vineboom", "airhorns", "knocking", "ambienceone", "ambiencetwo", "bwomp", "fireinthehole", "geometrydash", "loudtojump", "metalpipe", "spongebobfail", ...EXTRA_SFX]);
   const SFX_MAX = 3;
+  [...SFX_NAMES, "cheer", "lowcheer", "follow", "raid", "gift", "request", "lowraid"].forEach(preloadSfx);
   const SFX_COSTS = { loudtojump: 1000 };          // price per sound (anything not listed uses SFX_CMD_COST)
   const CMD_ONLY_SFX = new Set(["loudtojump"]);    // can't be used inside !tts
 
@@ -1457,7 +1494,7 @@
     return new Promise(resolve => {
       if (SFX_VOL === 0 || sfxMuted) return resolve();
       let finished = false, started = false, fell = false, a = null, capTimer = null;
-      const done = () => { if (!finished) { finished = true; sfxStops.delete(stop); resolve(); } };
+      const done = () => { if (!finished) { finished = true; sfxStops.delete(stop); if (a && a._rec) { a._rec.busy = false; a._rec = null; } resolve(); } };
       const stop = () => { try { if (a) a.pause(); } catch (e) {} done(); };
       sfxStops.add(stop);
       const synth = () => {
@@ -1478,7 +1515,8 @@
         else c.resume().then(run, done);          // TTS plays sounds before anything has woken the audio engine
       };
       const fallback = () => { if (fell) return; fell = true; started ? done() : synth(); };
-      try { a = new Audio(name + ".mp3"); } catch (e) { return synth(); }
+      a = takeAudio(name);
+      if (!a) return synth();                                              // no file: built-in sound with zero wait
       a.volume = SFX_VOL;
       a.onended = done;
       a.onerror = fallback;
@@ -1523,7 +1561,7 @@
     if (cost > 0) { if (!canPay(tags, user, cost, "a sound effect")) return; pay(tags, user, cost); }
     sfxGlobalLast = now; sfxCmdLast.set(user, now);
     audio();
-    playSfx(name);
+    if (ttsQueue.length < TTS_QUEUE_MAX * 2) { ttsQueue.push([{ sfx: name }]); runTts(); }   // plays right after whatever is speaking/playing finishes
     const am = /^ambience(one|two)$/.exec(name);
     sfxNotice(am ? `played ambience sound ${am[1]}` : `played ${name}`, tags, user);
   }
@@ -1769,7 +1807,7 @@
       setStatus("Click anywhere on this page once to enable text-to-speech");
       return;
     }
-    setTimeout(runTts, 20);
+    runTts();                                       // next item starts the instant this one ends
   }
 
   // Called on the first click/keypress: lets queued speech start if the browser had blocked it.
@@ -1984,6 +2022,15 @@
     plainNotice(had > 0 ? `Reset ${CURRENCY_NAME} for ${target} (had ${had}).` : `${target} has no ${CURRENCY_NAME} to reset.`);
   }
 
+  // !refreshchat: streamer + lead mods reload the overlay page (balances are kept)
+  function doRefreshChat(tags, user) {
+    if (!canControlSfx(tags, user)) return;
+    saveCookies();
+    try { sessionStorage.setItem("keep-cookies", "1"); } catch (e) {}
+    plainNotice("Refreshing the overlay…");
+    setTimeout(() => location.reload(), 400);
+  }
+
   function handleCommand(tags, user, message) {
     const cm = message.match(/^!([a-z0-9]+)(?:\s+(.*))?$/i);
     if (!cm) return false;
@@ -1995,6 +2042,7 @@
       case "gift":        doGift(tags, user, arg); return true;
       case "mutesfx":     doMuteSfx(tags, user, true); return true;
       case "unmutesfx":   doMuteSfx(tags, user, false); return true;
+      case "refreshchat": doRefreshChat(tags, user); return true;
       case "resetcookies": doResetCookies(tags, user, arg); return true;
       case "requests":    showRequests(tags); return true;
       case "donerequest": doneRequest(tags); return true;
