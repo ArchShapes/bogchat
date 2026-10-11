@@ -127,28 +127,25 @@
   @keyframes hypeBlink { 50% { opacity: .35; } }
   @keyframes hypeBit { 0% { opacity: 1; transform: translate(-50%,-50%) scale(.3) rotate(0); } 100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1.1) rotate(var(--rot)); } }
 
-  /* ---------- #viewchat: plain chat reader (black, like Twitch) ---------- */
+  /* ---------- #viewchat: the same overlay on a black page, easier to read ---------- */
   body.viewchat { background: #0e0e10; }
-  body.viewchat #alerts, body.viewchat #demo { display: none !important; }
   body.viewchat #chat {
-    --size: 17px; overflow-y: auto; justify-content: flex-start; padding: 0 0 10px;
+    --size: 18px; overflow-y: auto; justify-content: flex-start; padding: 0 0 12px;
     scrollbar-width: thin; scrollbar-color: #3a3a3d transparent;
-    font-weight: 500; text-shadow: none; color: #efeff1;
+    font-weight: 600; text-shadow: none; color: #efeff1; line-height: 1.5;
   }
   body.viewchat #chat::-webkit-scrollbar { width: 10px; }
   body.viewchat #chat::-webkit-scrollbar-thumb { background: #3a3a3d; border-radius: 6px; }
+  body.viewchat #chat > * { flex: 0 0 auto; }
   #vc-head {
-    position: sticky; top: 0; z-index: 4; flex: 0 0 auto; padding: 11px 14px; text-align: center;
+    position: sticky; top: 0; z-index: 4; padding: 11px 14px; text-align: center;
     background: #18181b; border-bottom: 1px solid #2f2f35; color: #efeff1; font-size: .72em; font-weight: 800; letter-spacing: .1em;
   }
-  .vc-info { flex: 0 0 auto; padding: 18px 16px; color: #adadb8; font-size: .9em; text-align: center; }
-  .msg.vc { padding: 3px 14px; animation: none; line-height: 1.5; flex: 0 0 auto; }
+  .vc-info { padding: 18px 16px; color: #adadb8; font-size: .9em; text-align: center; }
+  .msg.vc { padding: 4px 14px; border-radius: 6px; }
   .msg.vc:hover { background: rgba(255,255,255,.05); }
-  .vc-time { color: #7d7d86; font-size: .72em; margin-right: 7px; font-weight: 600; }
+  .vc-time { color: #7d7d86; font-size: .7em; margin-right: 8px; font-weight: 700; }
   .msg.vc .name::after { color: #efeff1; }
-  .msg.vc.vc-sys { color: #bf94ff; border-left: 3px solid #9147ff; background: rgba(145,71,255,.1); margin: 3px 0; padding-left: 11px; font-weight: 700; }
-  .msg.vc.vc-deleted .text { color: #6a6a73; text-decoration: line-through; }
-  .msg.vc.vc-deleted::after { content: " (deleted)"; color: #6a6a73; font-size: .8em; }
 
   /* Minimal Twitch-inspired alerts */
   .msg.alertc {
@@ -538,11 +535,11 @@
   document.title = `${DISPLAY_ACCOUNT} chat overlay`;
   const LEADMOD_USERS = new Set(((params.get("leadmod") || "") + "," + (settings.leadMods || "")).toLowerCase().split(",").map(s => s.trim().replace(/^@/, "")).filter(Boolean));
   const SILENT_USERS = new Set((params.get("silent") || "").toLowerCase().split(",").map(s => s.trim()).filter(Boolean));
-  const FADE_S  = parseFloat(params.get("fade") ?? "30");
-  const MAX_MSG = Math.max(1, parseInt(params.get("max") || "6", 10));
-  const MUTE    = params.get("mute") === "1" || VIEWCHAT;
+  const FADE_S  = parseFloat(params.get("fade") ?? (VIEWCHAT ? "0" : "30"));     // the chat page keeps messages (no fading) so you can read back
+  const MAX_MSG = Math.max(1, parseInt(params.get("max") || (VIEWCHAT ? "200" : "6"), 10));
+  const MUTE    = params.get("mute") === "1";
   const SPAM_ON = params.get("spam") !== "0";
-  const TTS_ON = !VIEWCHAT && settings.tts && params.get("tts") !== "0";
+  const TTS_ON = settings.tts && params.get("tts") !== "0";
   const TTS_VOL = params.has("ttsvol") ? Math.min(1, Math.max(0, parseFloat(params.get("ttsvol")) || 0)) : 1;
   const TTS_VOICE = (params.get("ttsvoice") || "").toLowerCase();
   const DROP = (params.has("drop") ? Math.min(100, Math.max(0, parseFloat(params.get("drop")) || 0)) : 35) / 100;
@@ -1082,7 +1079,6 @@
   // subs, resubs, gifts and raids arrive as USERNOTICE lines
   const giftSeen = new Map();
   function handleUserNotice(tags, text) {
-    if (VIEWCHAT) { vcSystem((tags["system-msg"] || "").trim() + (text ? " — " + text : ""), tags); return; }
     const id = tags["msg-id"];
     const login = tags.login || "";
     const name = tags["display-name"] || login || "Someone";
@@ -2105,8 +2101,10 @@
 
   function push(el, tags, fade = FADE_S) {
     if (tags.id) el.dataset.id = tags.id;
+    const stick = VIEWCHAT && chat.scrollHeight - chat.scrollTop - chat.clientHeight < 120;
+    const wait = VIEWCHAT && document.getElementById("vc-wait"); if (wait) wait.remove();
     chat.appendChild(el);
-    const all = [...chat.children];
+    const all = [...chat.children].filter(e => e.id !== "vc-head");
     const norm = all.filter(e => !e.classList.contains("keep"));
     const keep = all.filter(e => e.classList.contains("keep"));
     while (norm.length > MAX_MSG) norm.shift().remove();
@@ -2114,6 +2112,7 @@
     if (fade > 0) {
       setTimeout(() => { el.classList.add("out"); setTimeout(() => el.remove(), 700); }, fade * 1000);
     }
+    if (stick) { chat.scrollTop = chat.scrollHeight; setTimeout(() => { chat.scrollTop = chat.scrollHeight; }, 60); }   // follow new lines unless you scrolled up
   }
 
   // !cheer 100 or !cheer<currency> 100 (e.g. !cheercookies 100)
@@ -2171,48 +2170,15 @@
     push(el, {});
   }
 
-  /* ---------- #viewchat: plain read-only chat ---------- */
-  function vcAppend(el, tags) {
-    const wait = document.getElementById("vc-wait"); if (wait) wait.remove();
-    if (tags && tags.id) el.dataset.id = tags.id;
-    const stick = chat.scrollHeight - chat.scrollTop - chat.clientHeight < 90;
-    chat.appendChild(el);
-    const lines = chat.querySelectorAll(".msg");
-    for (let i = 0; i < lines.length - 400; i++) lines[i].remove();
-    if (stick) chat.scrollTop = chat.scrollHeight;
-  }
+  /* ---------- #viewchat: same overlay, black page, easier to read ---------- */
   function vcTime(tags) {
     const t = document.createElement("span"); t.className = "vc-time";
     const ts = parseInt(tags["tmi-sent-ts"], 10);
     t.textContent = new Date(ts > 0 ? ts : Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     return t;
   }
-  function vcMessage(tags, user, message) {
-    let isAction = false;
-    const m = message.match(/^\x01ACTION (.*)\x01$/);
-    if (m) { isAction = true; message = m[1]; }
-    const el = document.createElement("div");
-    el.className = "msg vc" + (isAction ? " action" : "");
-    const displayName = tags["display-name"] || user;
-    const n = document.createElement("span"); n.className = "name"; n.textContent = displayName;
-    n.style.color = readable(tags.color, displayName);
-    const t = document.createElement("span"); t.className = "text"; t.appendChild(buildText(message, tags.emotes));
-    if (isAction) t.style.color = n.style.color;
-    el.append(vcTime(tags));
-    appendBadges(el, tags, user);
-    el.append(n, t);
-    vcAppend(el, tags);
-  }
-  function vcSystem(text, tags) {
-    if (!text) return;
-    const el = document.createElement("div");
-    el.className = "msg vc vc-sys";
-    el.append(vcTime(tags || {}), document.createTextNode(text));
-    vcAppend(el, {});
-  }
 
   function addMessage(tags, user, message) {
-    if (VIEWCHAT) { vcMessage(tags, user, message); return; }
     let isAction = false;
     const m = message.match(/^\x01ACTION (.*)\x01$/);
     if (m) { isAction = true; message = m[1]; }
@@ -2254,7 +2220,7 @@
     const displayName = tags["display-name"] || user;
     const name = displayName;
     const el = document.createElement("div");
-    el.className = "msg" + (isAction ? " action" : "");
+    el.className = "msg" + (isAction ? " action" : "") + (VIEWCHAT ? " vc" : "");
 
     const n = document.createElement("span");
     n.className = "name";
@@ -2265,6 +2231,7 @@
     t.className = "text";
     t.appendChild(buildText(message, tags.emotes));
 
+    if (VIEWCHAT) el.append(vcTime(tags));
     appendBadges(el, tags, user);
     el.append(n, t);
     push(el, tags);
@@ -2313,18 +2280,6 @@
           return;
         }
 
-        if (VIEWCHAT && / CLEARMSG /.test(rest) && tags["target-msg-id"]) {      // keep it visible but greyed, so you still see what was removed
-          const del = chat.querySelector(`[data-id="${tags["target-msg-id"]}"]`);
-          if (del) del.classList.add("vc-deleted");
-          return;
-        }
-        if (VIEWCHAT && / CLEARCHAT /.test(rest)) {
-          if (/CLEARCHAT #[^ ]+ :/.test(rest)) {
-            const target = rest.split(":").pop().toLowerCase();
-            chat.querySelectorAll(".msg.vc").forEach(e => { const n = e.querySelector(".name"); if (n && n.textContent.toLowerCase() === target) e.classList.add("vc-deleted"); });
-          } else vcSystem("Chat was cleared by a moderator.", tags);
-          return;
-        }
         if (/ CLEARMSG /.test(rest) && tags["target-msg-id"]) { removeBy(`[data-id="${tags["target-msg-id"]}"]`); return; }
         if (/ CLEARCHAT /.test(rest)) {
           if (/CLEARCHAT #[^ ]+ :/.test(rest)) {
@@ -2333,7 +2288,7 @@
               const n = e.querySelector(".name, .who");
               if (n && n.textContent.toLowerCase() === target) e.remove();
             });
-          } else chat.innerHTML = "";
+          } else chat.querySelectorAll(".msg").forEach(e => e.remove());
         }
       });
     };
@@ -2353,6 +2308,7 @@
     const info = document.createElement("div"); info.className = "vc-info"; info.id = "vc-wait"; info.textContent = "Connecting to " + CHANNEL + "'s chat…";
     chat.appendChild(info);
     connect();
+    startFollows();
   } else if (settings.configured) {
     connect();
     startFollows();
