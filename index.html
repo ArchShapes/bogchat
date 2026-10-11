@@ -1281,10 +1281,18 @@
       const synth = () => {
         if (finished) return;
         const fn = SYNTH[name], c = audio();
-        if (!fn || !c || c.state !== "running") return done();
-        const out = c.createGain(); out.gain.value = 0.85 * SFX_VOL; out.connect(sfxOut(c));
-        const dur = fn(c, out, c.currentTime + 0.02);
-        setTimeout(done, dur * 1000 + 20);
+        if (!fn || !c) return done();
+        const run = () => {
+          if (finished) return;
+          if (c.state !== "running") return done();
+          try {
+            const out = c.createGain(); out.gain.value = 0.85 * SFX_VOL; out.connect(sfxOut(c));
+            const dur = fn(c, out, c.currentTime + 0.02);
+            setTimeout(done, dur * 1000 + 20);
+          } catch (e) { console.error("sfx failed:", name, e); done(); }
+        };
+        if (c.state === "running") run();
+        else c.resume().then(run, done);          // TTS plays sounds before anything has woken the audio engine
       };
       const fallback = () => { if (fell) return; fell = true; started ? done() : synth(); };
       try { a = new Audio(name + ".mp3"); } catch (e) { return synth(); }
@@ -1835,6 +1843,10 @@
 
   // Custom emotes: the word (any capitalization) is replaced by the image next to this file.
   const CUSTOM_EMOTES = { ww: "ww.png", ll: "ll.png", normalface: "normalface.png", son: "son.png", hi: "hi.gif" };
+  const emoteSources = (file) => {
+    const base = file.replace(/\.[^.]+$/, "");
+    return [file, ...["png", "gif", "webp", "jpg", "jpeg", "avif", "svg"].map(e => `${base}.${e}`)].filter((v, i, a) => a.indexOf(v) === i);
+  };
   const EMOTE_WORD = /^([^\p{L}\p{N}]*)([\p{L}\p{N}_]+)([^\p{L}\p{N}]*)$/u;
   const customEmoteOf = (word) => { const m = word.match(EMOTE_WORD); return m && CUSTOM_EMOTES[m[2].toLowerCase()] ? { m, file: CUSTOM_EMOTES[m[2].toLowerCase()] } : null; };
   function emotifyText(str) {
@@ -1847,8 +1859,12 @@
       buf += hit.m[1]; flush();
       const img = document.createElement("img");
       img.className = "emote custom-emote";
-      img.src = hit.file; img.alt = hit.m[2]; img.title = hit.m[2];
-      img.onerror = () => img.replaceWith(document.createTextNode(hit.m[2]));   // image missing: show the plain word
+      const srcs = emoteSources(hit.file); let si = 0;
+      img.alt = hit.m[2]; img.title = hit.m[2];
+      img.onerror = () => {                                                      // wrong extension? try the other common ones, then show the plain word
+        if (++si < srcs.length) img.src = srcs[si]; else img.replaceWith(document.createTextNode(hit.m[2]));
+      };
+      img.src = srcs[0];
       frag.appendChild(img);
       buf = hit.m[3];
     }
