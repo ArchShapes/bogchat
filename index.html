@@ -32,7 +32,7 @@
      &leadmod=name1,name2  show a LeadMod badge for these logins
      &silent=name1,name2   show a Silent badge for these logins
      &demo=1         show test buttons
-     Commands:  !<currency> (e.g. !cookies)  !cheer <n>  !tts <text>  !resetcookies <name|all>  !knocking  !lotsofgunshots  !ambience1  !ambience2  or (knocking) (lotsofgunshots) (ambience1) inside !tts
+     Commands:  !<currency> (e.g. !cookies)  !cheer <n>  !tts <text>  !resetcookies <name|all>  !loudtojump (1000 cookies, command only)  !knocking  !lotsofgunshots  !ambienceone  !ambiencetwo  or (knocking) (lotsofgunshots) (ambienceone) inside !tts
                 !mutesfx / !unmutesfx  (streamer + lead mods only; lead mods are set in the setup panel or with &leadmod=)  */
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
   body.bg { background: #0e0e10; }
@@ -598,7 +598,25 @@
   // browsers need one click before sound; OBS browser sources don't
   addEventListener("pointerdown", audio, { once: true });
 
-  function playCheer(amount) {
+  // plays <name>.mp3 from this folder; if the file is missing, runs the built-in sound instead
+  function playFileOr(name, fallback) {
+    if (MUTE || sfxMuted || SFX_VOL === 0) return;
+    let a = null, finished = false, tried = false;
+    const stop = () => { finished = true; sfxStops.delete(stop); try { if (a) a.pause(); } catch (e) {} };
+    const fb = () => { if (tried) return; tried = true; sfxStops.delete(stop); if (!finished) fallback(); };
+    try { a = new Audio(name + ".mp3"); } catch (e) { return fallback(); }
+    sfxStops.add(stop);
+    a.volume = Math.min(1, SFX_VOL);
+    a.onended = () => sfxStops.delete(stop);
+    a.onerror = fb;
+    a.play().catch(fb);
+    setTimeout(stop, 15000);
+  }
+  const ALERT_FILES = { follow: "follow", raid: "raid", gift: "gift", bits: "cheer", request: "request" };
+
+  // 0-144 cookies plays lowcheer.mp3, 145 and up plays cheer.mp3 (built-in jingle if a file is missing)
+  function playCheer(amount) { playFileOr(amount < 145 ? "lowcheer" : "cheer", () => playCheerSynth(amount)); }
+  function playCheerSynth(amount) {
     if (MUTE || sfxMuted) return;
     const now = Date.now();
     if (now - lastSound < 600) return;       // don't stack sounds
@@ -846,6 +864,7 @@
     follow: ["user-plus", "#9147ff"], raid: ["users", "#a970ff"], sub: ["star", "#9147ff"], gift: ["gift", "#a970ff"], bits: ["spark", "#9147ff"],
     hydrate: ["water", "#a970ff"], request: ["box", "#9147ff"], cookie: ["cookie", "#a970ff"], wheel: ["dice", "#9147ff"]
   };
+  ALERT_STYLE.requestinfo = ALERT_STYLE.request;     // !requests list: same look, but no request.mp3
   const ALERT_NOTES = {
     follow: [783.99, 1046.5, 1318.5],
     sub:    [659.25, 830.61, 987.77, 1318.51],
@@ -853,6 +872,7 @@
     gift:   [880, 1108.7, 1318.5, 1760],
     bits:   [987.77, 1318.51, 1975.5],
     request:[783.99, 987.77, 1174.66],
+    requestinfo:[783.99, 987.77, 1174.66],
     cookie: [880, 1174.66, 1480]
   };
 
@@ -900,7 +920,8 @@
     const now = Date.now();
     if (now - lastAlertSnd < 120) return;                    // bursts share one sound
     lastAlertSnd = now;
-    if (kind === "hydrate") waterDrop(); else chime(ALERT_NOTES[kind] || ALERT_NOTES.sub);
+    const synthAlert = () => { if (kind === "hydrate") waterDrop(); else chime(ALERT_NOTES[kind] || ALERT_NOTES.sub); };
+    if (ALERT_FILES[kind]) playFileOr(ALERT_FILES[kind], synthAlert); else synthAlert();
   }
 
   // alert as a highlighted line in chat (not counted in the message limit)
@@ -1028,8 +1049,10 @@
   }
 
   /* ---------- SFX (used inside TTS) ---------- */
-  const SFX_NAMES = new Set(["meow", "gunshot", "lotsofgunshots", "vineboom", "airhorns", "knocking", "ambience1", "ambience2", ...EXTRA_SFX]);
+  const SFX_NAMES = new Set(["meow", "gunshot", "lotsofgunshots", "vineboom", "airhorns", "knocking", "ambienceone", "ambiencetwo", "bwomp", "fireinthehole", "geometrydash", "loudtojump", "metalpipe", "spongebobfail", ...EXTRA_SFX]);
   const SFX_MAX = 3;
+  const SFX_COSTS = { loudtojump: 1000 };          // price per sound (anything not listed uses SFX_CMD_COST)
+  const CMD_ONLY_SFX = new Set(["loudtojump"]);    // can't be used inside !tts
 
   function noiseBuf(c, secs) {
     const b = c.createBuffer(1, Math.ceil(c.sampleRate * secs), c.sampleRate);
@@ -1191,7 +1214,7 @@
       return 1.0;
     },
     // ---- ambient (scary) ----
-    ambience1(c, out, t) {
+    ambienceone(c, out, t) {
       // "Something is down there": rotting sub drone, heartbeat, rusty creaks, a thin wail.
       const D = 10.5, bus = c.createGain();
       bus.gain.setValueAtTime(0.0001, t);
@@ -1237,7 +1260,7 @@
       });
       return D;
     },
-    ambience2(c, out, t) {
+    ambiencetwo(c, out, t) {
       // "They're in the walls": whispers, a shrieking semitone cluster, a rising swell, and a dead bell.
       const D = 11, bus = c.createGain();
       bus.gain.setValueAtTime(0.0001, t);
@@ -1292,7 +1315,7 @@
   function playSfx(name) {
     return new Promise(resolve => {
       if (SFX_VOL === 0 || sfxMuted) return resolve();
-      let finished = false, started = false, fell = false, a = null;
+      let finished = false, started = false, fell = false, a = null, capTimer = null;
       const done = () => { if (!finished) { finished = true; sfxStops.delete(stop); resolve(); } };
       const stop = () => { try { if (a) a.pause(); } catch (e) {} done(); };
       sfxStops.add(stop);
@@ -1303,6 +1326,7 @@
         const run = () => {
           if (finished) return;
           if (c.state !== "running") return done();
+          clearTimeout(capTimer);                 // the built-in sound sets its own length
           try {
             const out = c.createGain(); out.gain.value = 0.85 * SFX_VOL; out.connect(sfxOut(c));
             const dur = fn(c, out, c.currentTime + 0.02);
@@ -1318,7 +1342,12 @@
       a.onended = done;
       a.onerror = fallback;
       a.play().then(() => { started = true; }).catch(fallback);
-      setTimeout(() => { try { a.pause(); } catch (e) {} done(); }, /^ambience/.test(name) ? 13000 : name === "lotsofgunshots" ? 7000 : 5000);   // normal sounds never run past 5s; ambients and the big gunfight get longer
+      const capStop = () => { try { a.pause(); } catch (e) {} done(); };
+      capTimer = setTimeout(capStop, 5000);                                // safety net while the file is still loading
+      a.onloadedmetadata = () => {                                             // then allow exactly as long as the file is
+        clearTimeout(capTimer);
+        capTimer = setTimeout(capStop, Math.min(40000, ((a.duration > 0 && isFinite(a.duration)) ? a.duration : 5) * 1000 + 600));
+      };
     });
   }
 
@@ -1349,12 +1378,13 @@
     const now = Date.now(), mod = isMod(tags);
     if (now - sfxGlobalLast < 1200) return;                                   // no pile-ups
     if (!mod && now - (sfxCmdLast.get(user) || 0) < SFX_CMD_CD) return;       // per-user cooldown
-    if (SFX_CMD_COST > 0) { if (!canPay(tags, user, SFX_CMD_COST, "a sound effect")) return; pay(tags, user, SFX_CMD_COST); }
+    const cost = SFX_COSTS[name] ?? SFX_CMD_COST;
+    if (cost > 0) { if (!canPay(tags, user, cost, "a sound effect")) return; pay(tags, user, cost); }
     sfxGlobalLast = now; sfxCmdLast.set(user, now);
     audio();
     playSfx(name);
-    const am = /^ambience([12])$/.exec(name);
-    sfxNotice(am ? `played ambience sound ${am[1] === "1" ? "one" : "two"}` : `played ${name}`, tags, user);
+    const am = /^ambience(one|two)$/.exec(name);
+    sfxNotice(am ? `played ambience sound ${am[1]}` : `played ${name}`, tags, user);
   }
   function doMuteSfx(tags, user, mute) {
     if (!canControlSfx(tags, user)) return;
@@ -1401,6 +1431,11 @@
     while ((m = re.exec(text))) {
       const name = m[1].toLowerCase();
       if (!SFX_NAMES.has(name)) continue;
+      if (CMD_ONLY_SFX.has(name)) {                       // command-only: drop it from the speech, never play it
+        if (m.index > last) segs.push({ say: text.slice(last, m.index) });
+        last = m.index + m[0].length;
+        continue;
+      }
       if (m.index > last) segs.push({ say: text.slice(last, m.index) });
       if (count++ < SFX_MAX) segs.push({ sfx: name });
       last = m.index + m[0].length;
@@ -1732,9 +1767,9 @@
 
   function showRequests(tags) {
     if (!isMod(tags)) return;
-    if (!requests.length) { queueAlert("request", "No pending level requests", "", 10); return; }
+    if (!requests.length) { queueAlert("requestinfo", "No pending level requests", "", 10); return; }
     const list = requests.slice(0, 5).map((r, i) => `${i + 1}. ${r.user}: ${r.text}`).join("\n");
-    queueAlert("request", `${requests.length} pending request${requests.length === 1 ? "" : "s"}`, list, 20);
+    queueAlert("requestinfo", `${requests.length} pending request${requests.length === 1 ? "" : "s"}`, list, 20);
   }
   function doneRequest(tags) {
     if (!isMod(tags)) return;
@@ -1851,10 +1886,12 @@
       "Request":  () => { rewardCd.clear(); doRequest(modTags, "demo", "Bloodbath by Riot"); },
       "Gift":     () => { rewardCd.clear(); doGift(modTags, "demo", "@SampleViewer 5"); },
       "!meow":    () => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "meow"); },
+      "!loudtojump":() => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "loudtojump"); },
+      "!bwomp":   () => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "bwomp"); },
       "!knocking":() => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "knocking"); },
       "!lotsofgunshots":() => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "lotsofgunshots"); },
-      "!ambience1":() => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "ambience1"); },
-      "!ambience2":() => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "ambience2"); },
+      "!ambienceone":() => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "ambienceone"); },
+      "!ambiencetwo":() => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "ambiencetwo"); },
       "First chat": () => welcomeFirstChatter({ "first-msg": "1", "display-name": "NewViewer" }, "newviewer" + Date.now()),
       "Reset all": () => doResetCookies(modTags, "demo", "all"),
       "Mute sfx": () => doMuteSfx(modTags, "demo", !sfxMuted),
@@ -1891,7 +1928,7 @@
   }
 
   // Custom emotes: the word (any capitalization) is replaced by the image next to this file.
-  const CUSTOM_EMOTES = { ww: "ww.png", ll: "ll.png", normalface: "normalface.png", son: "son.png", hi: "hi.gif", bogdanpfp: "bogdanpfp.png" };
+  const CUSTOM_EMOTES = { ww: "ww.png", ll: "ll.png", normalface: "normalface.png", son: "son.png", hi: "hi.gif" };
   const emoteSources = (file) => {
     const base = file.replace(/\.[^.]+$/, "");
     return [file, ...["png", "gif", "webp", "jpg", "jpeg", "avif", "svg"].map(e => `${base}.${e}`)].filter((v, i, a) => a.indexOf(v) === i);
