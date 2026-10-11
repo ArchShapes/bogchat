@@ -287,6 +287,44 @@
   .alert { background: #18181b; border-color: #393940; box-shadow: 0 12px 32px rgba(0,0,0,.3); }
   .alert::before { background: var(--ac); box-shadow: none; }
   .alert::after { display: none; }
+
+  /* ---------- Minimal chat-line look + smooth in/out ---------- */
+  .msg { animation: msgIn .35s ease-out backwards; transition: opacity .6s ease, transform .6s ease, max-height .5s ease .35s, padding .5s ease .35s, margin .5s ease .35s; }
+  .msg.out { opacity: 0 !important; transform: translateY(-6px); max-height: 0 !important; padding-top: 0 !important; padding-bottom: 0 !important; margin-top: 0 !important; margin-bottom: 0 !important; }
+  @keyframes msgIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  .msg.cheer, .msg.cookie, .msg.hype, .msg.alertc, .msg.tts, .msg.welcome {
+    animation: msgIn .35s ease-out backwards;
+    margin: 2px 0; padding: 3px 0 3px 10px; max-width: 100%; box-sizing: border-box; text-align: left;
+    background: none; border: 0; border-left: 2px solid rgba(255,255,255,.28); border-radius: 0;
+    box-shadow: none; text-shadow: 0 2px 4px rgba(0,0,0,.85), 0 0 3px rgba(0,0,0,.9);
+  }
+  body.viewchat .msg.cheer, body.viewchat .msg.cookie, body.viewchat .msg.hype, body.viewchat .msg.alertc, body.viewchat .msg.tts, body.viewchat .msg.welcome { text-shadow: none; }
+  .msg.cheer { border-left-color: #ffcf4a; }
+  .msg.tts { border-left-color: #ffc46b; }
+  .msg.alertc { border-left-color: var(--ac); }
+  .msg.cookie { border-left-color: #a970ff; }
+  .msg.hype { border-left-color: var(--hc); }
+  .msg.alertc .ai, .alert .ai { width: 1.5em; height: 1.5em; flex-basis: 1.5em; background: none; border: 0; }
+  .msg.alertc { gap: 8px; align-items: flex-start; }
+  .alertc .at { font-weight: 700; }
+  .alertc .as { font-size: .85em; opacity: .8; }
+
+  .cookie .chead { font-weight: 600; }
+  .cookie .cbig { font-size: 1.05em; font-weight: 700; color: #d5bfff; margin-top: 0; }
+  .cookie .chint { font-size: .75em; opacity: .7; }
+
+  /* hype cards: same size as a normal line, just accented */
+  .hype .hlabel { font-size: .7em; letter-spacing: .18em; animation: none; opacity: .85; }
+  .hype .hwho { font-size: 1em; margin: 0; text-shadow: none; }
+  .hype .hbig { font-size: 1.35em; margin: 0; display: block; white-space: normal; background: none; -webkit-text-fill-color: var(--hc); color: var(--hc); filter: none; animation: none; }
+  .hype .hbig .big-currency { width: 1em; height: 1em; }
+  .hype .hsub { font-size: .8em; font-weight: 600; opacity: .75; letter-spacing: .03em; }
+  .hype .hbit { display: none; }
+
+  /* top-banner alerts (&alertpos=top): quieter */
+  .alert { padding: 9px 14px; border-radius: 8px; box-shadow: none; transition: opacity .6s ease, transform .6s ease; }
+  .alert.out { opacity: 0; transform: translateY(-6px); }
   @keyframes setupPanelIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
   @media (prefers-reduced-motion: reduce) { #global-setup, #setup-hint { animation: none !important; transition: none !important; } }
   @media (max-width: 520px) {
@@ -1027,11 +1065,8 @@
     const fade = o.fade || 14;
     if (ALERT_TOP) {
       alertsEl.appendChild(el);
-      setTimeout(() => { el.classList.add("out"); setTimeout(() => el.remove(), 700); }, fade * 1000);
+      setTimeout(() => dismiss(el), fade * 1000);
     } else push(el, {}, fade);
-    const colors = [o.color || "#ffcf4a", "#ffffff", "#ff5fd2", "#5fd8ff", "#b6ff5f"];
-    const power = o.power || 1;
-    for (let k = 0; k < 2 + power * 2; k++) setTimeout(() => confetti(el, 28 + power * 12, colors), 250 + k * 700);
     return el;
   }
   function doRaidAlert(raider, n) {
@@ -1072,7 +1107,7 @@
     alertSound(a.kind);
     setTimeout(() => {
       el.classList.add("out");
-      setTimeout(() => { el.remove(); nextAlert(); }, 250);
+      setTimeout(() => { el.remove(); nextAlert(); }, 650);
     }, ALERT_SEC * 1000);
   }
 
@@ -2099,19 +2134,30 @@
     return frag;
   }
 
+  // smooth removal: fade out, then collapse the space so nothing jumps
+  function dismiss(el) {
+    if (!el || el._gone) return;
+    el._gone = true;
+    if (VIEWCHAT || !el.isConnected) { el.remove(); return; }
+    el.style.animation = "none";
+    el.style.maxHeight = el.offsetHeight + "px";
+    el.style.overflow = "hidden";
+    void el.offsetHeight;                      // commit the starting height before collapsing
+    el.classList.add("out");
+    setTimeout(() => el.remove(), 1200);
+  }
+
   function push(el, tags, fade = FADE_S) {
     if (tags.id) el.dataset.id = tags.id;
     const stick = VIEWCHAT && chat.scrollHeight - chat.scrollTop - chat.clientHeight < 120;
     const wait = VIEWCHAT && document.getElementById("vc-wait"); if (wait) wait.remove();
     chat.appendChild(el);
-    const all = [...chat.children].filter(e => e.id !== "vc-head");
+    const all = [...chat.children].filter(e => e.id !== "vc-head" && !e._gone);
     const norm = all.filter(e => !e.classList.contains("keep"));
     const keep = all.filter(e => e.classList.contains("keep"));
-    while (norm.length > MAX_MSG) norm.shift().remove();
-    while (keep.length > 4) keep.shift().remove();
-    if (fade > 0) {
-      setTimeout(() => { el.classList.add("out"); setTimeout(() => el.remove(), 700); }, fade * 1000);
-    }
+    while (norm.length > MAX_MSG) dismiss(norm.shift());
+    while (keep.length > 4) dismiss(keep.shift());
+    if (fade > 0) setTimeout(() => dismiss(el), fade * 1000);
     if (stick) { chat.scrollTop = chat.scrollHeight; setTimeout(() => { chat.scrollTop = chat.scrollHeight; }, 60); }   // follow new lines unless you scrolled up
   }
 
