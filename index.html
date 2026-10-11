@@ -2195,7 +2195,7 @@
   }
 
   // Custom emotes: the word (any capitalization) is replaced by the image next to this file.
-  const CUSTOM_EMOTES = { ww: "ww.gif", ll: "ll.png", normalface: "normalface.png", son: "son.png", sonion: "son.png", petthemods: "petmods.gif", petmods: "petmods.gif", hi: "hi.gif" };
+  const CUSTOM_EMOTES = { ww: "ww.gif", ll: "ll.png", normalface: "normalface.png", son: "son.png", sonion: "son.png", petthemods: "petmods.gif", petmods: "petmods.gif", hi: "hi.gif", scared: "speedscared.jpg", scared: "speedscared.jpg", bogdan: "bogdanpfp.png", pfp: "bogdanpfp.png", bogdanpfp: "bogdanpfp.png"};
   const emoteSources = (file) => {
     const base = file.replace(/\.[^.]+$/, "");
     return [file, ...["png", "gif", "webp", "jpg", "jpeg", "avif", "svg"].map(e => `${base}.${e}`)].filter((v, i, a) => a.indexOf(v) === i);
