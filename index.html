@@ -29,7 +29,7 @@
      &leadmod=name1,name2  show a LeadMod badge for these logins
      &silent=name1,name2   show a Silent badge for these logins
      &demo=1         show test buttons
-     Commands:  !<currency> (e.g. !cookies)  !cheer <n>  !tts <text>  !knocking  !lotsofgunshots  !ambient1  !ambient2  or (knocking) (lotsofgunshots) (ambient1) inside !tts
+     Commands:  !<currency> (e.g. !cookies)  !cheer <n>  !tts <text>  !knocking  !lotsofgunshots  !ambience1  !ambience2  or (knocking) (lotsofgunshots) (ambience1) inside !tts
                 !mutesfx / !unmutesfx  (streamer + lead mods only; lead mods are set in the setup panel or with &leadmod=)  */
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
   body.bg { background: #0e0e10; }
@@ -1173,7 +1173,7 @@
       return 1.0;
     },
     // ---- ambient (scary) ----
-    ambient1(c, out, t) {
+    ambience1(c, out, t) {
       // "Something is down there": rotting sub drone, heartbeat, rusty creaks, a thin wail.
       const D = 10.5, bus = c.createGain();
       bus.gain.setValueAtTime(0.0001, t);
@@ -1219,7 +1219,7 @@
       });
       return D;
     },
-    ambient2(c, out, t) {
+    ambience2(c, out, t) {
       // "They're in the walls": whispers, a shrieking semitone cluster, a rising swell, and a dead bell.
       const D = 11, bus = c.createGain();
       bus.gain.setValueAtTime(0.0001, t);
@@ -1292,7 +1292,7 @@
       a.onended = done;
       a.onerror = fallback;
       a.play().then(() => { started = true; }).catch(fallback);
-      setTimeout(() => { try { a.pause(); } catch (e) {} done(); }, /^ambient/.test(name) ? 13000 : name === "lotsofgunshots" ? 7000 : 5000);   // normal sounds never run past 5s; ambients and the big gunfight get longer
+      setTimeout(() => { try { a.pause(); } catch (e) {} done(); }, /^ambience/.test(name) ? 13000 : name === "lotsofgunshots" ? 7000 : 5000);   // normal sounds never run past 5s; ambients and the big gunfight get longer
     });
   }
 
@@ -1327,7 +1327,8 @@
     sfxGlobalLast = now; sfxCmdLast.set(user, now);
     audio();
     playSfx(name);
-    sfxNotice(`played ${name}`, tags, user);
+    const am = /^ambience([12])$/.exec(name);
+    sfxNotice(am ? `played ambience sound ${am[1] === "1" ? "one" : "two"}` : `played ${name}`, tags, user);
   }
   function doMuteSfx(tags, user, mute) {
     if (!canControlSfx(tags, user)) return;
@@ -1797,8 +1798,8 @@
       "!meow":    () => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "meow"); },
       "!knocking":() => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "knocking"); },
       "!lotsofgunshots":() => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "lotsofgunshots"); },
-      "!ambient1":() => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "ambient1"); },
-      "!ambient2":() => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "ambient2"); },
+      "!ambience1":() => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "ambience1"); },
+      "!ambience2":() => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "ambience2"); },
       "Mute sfx": () => doMuteSfx(modTags, "demo", !sfxMuted),
       "Ting":     () => ting()
     };
