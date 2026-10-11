@@ -32,7 +32,7 @@
      &leadmod=name1,name2  show a LeadMod badge for these logins
      &silent=name1,name2   show a Silent badge for these logins
      &demo=1         show test buttons
-     Commands:  !<currency> (e.g. !cookies)  !cheer <n>  !tts <text>  !knocking  !lotsofgunshots  !ambience1  !ambience2  or (knocking) (lotsofgunshots) (ambience1) inside !tts
+     Commands:  !<currency> (e.g. !cookies)  !cheer <n>  !tts <text>  !resetcookies <name|all>  !knocking  !lotsofgunshots  !ambience1  !ambience2  or (knocking) (lotsofgunshots) (ambience1) inside !tts
                 !mutesfx / !unmutesfx  (streamer + lead mods only; lead mods are set in the setup panel or with &leadmod=)  */
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
   body.bg { background: #0e0e10; }
@@ -1781,6 +1781,33 @@
     console.log("[cookies]", m[1], "now has", bal(m[1]));
   }
 
+  // !resetcookies <name>  or  !resetcookies all   (streamer + lead mods; mods and the streamer are never touched)
+  // also works as !reset<currency>, e.g. !resetcoins
+  const knownMods = new Set();
+  const isProtected = (login) => login === CHANNEL || LEADMOD_USERS.has(login) || knownMods.has(login);
+  function plainNotice(text) {
+    const el = document.createElement("div");
+    el.className = "msg tts";
+    const t = document.createElement("span"); t.className = "text"; t.textContent = text;
+    el.append(t); push(el, {});
+  }
+  function doResetCookies(tags, user, arg) {
+    if (!canControlSfx(tags, user)) return;
+    const target = arg.replace(/^@/, "").trim().toLowerCase().split(/\s+/)[0] || "";
+    if (!target) { plainNotice(`Use !resetcookies @name  or  !resetcookies all`); return; }
+    if (target === "all" || target === "everyone") {
+      let n = 0;
+      Object.keys(cookies).forEach(k => { if (!isProtected(k)) { if (cookies[k] > 0) n++; delete cookies[k]; } });
+      saveCookies();
+      plainNotice(`Reset ${CURRENCY_NAME} for ${n} ${n === 1 ? "viewer" : "viewers"}. Mods and the streamer were not touched.`);
+      return;
+    }
+    if (isProtected(target)) { plainNotice(`Can't reset ${CURRENCY_NAME} for mods or the streamer.`); return; }
+    const had = bal(target);
+    delete cookies[target]; saveCookies();
+    plainNotice(had > 0 ? `Reset ${CURRENCY_NAME} for ${target} (had ${had}).` : `${target} has no ${CURRENCY_NAME} to reset.`);
+  }
+
   function handleCommand(tags, user, message) {
     const cm = message.match(/^!([a-z0-9]+)(?:\s+(.*))?$/i);
     if (!cm) return false;
@@ -1792,9 +1819,11 @@
       case "gift":        doGift(tags, user, arg); return true;
       case "mutesfx":     doMuteSfx(tags, user, true); return true;
       case "unmutesfx":   doMuteSfx(tags, user, false); return true;
+      case "resetcookies": doResetCookies(tags, user, arg); return true;
       case "requests":    showRequests(tags); return true;
       case "donerequest": doneRequest(tags); return true;
     }
+    if (CUR_CMDS.some(c => cmd === "reset" + c)) { doResetCookies(tags, user, arg); return true; }
     if (CUR_CMDS.some(c => cmd === "give" + c)) { doGive(tags, arg); return true; }    // !give<currency> @name 20
     if (SFX_NAMES.has(cmd)) { doSfxCmd(tags, user, cmd); return true; }              // !meow, !gunshot, ...
     return false;
@@ -1827,6 +1856,7 @@
       "!ambience1":() => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "ambience1"); },
       "!ambience2":() => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "ambience2"); },
       "First chat": () => welcomeFirstChatter({ "first-msg": "1", "display-name": "NewViewer" }, "newviewer" + Date.now()),
+      "Reset all": () => doResetCookies(modTags, "demo", "all"),
       "Mute sfx": () => doMuteSfx(modTags, "demo", !sfxMuted),
       "Ting":     () => ting()
     };
@@ -1985,6 +2015,7 @@
     const m = message.match(/^\x01ACTION (.*)\x01$/);
     if (m) { isAction = true; message = m[1]; }
 
+    if (isMod(tags)) knownMods.add(user.toLowerCase());
     welcomeFirstChatter(tags, user);          // before commands/spam filter so a first "!tts" still counts
 
     const nowMs = Date.now();
