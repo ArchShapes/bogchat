@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <title>Stream chat overlay</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
   /* URL options:
      ?channel=name   channel (default bogdanthegdplayer)
@@ -37,16 +40,16 @@
     position: absolute; inset: 0;
     display: flex; flex-direction: column; justify-content: flex-end;
     padding: 12px 16px; box-sizing: border-box;
-    font-family: "Roboto", Arial, "Helvetica Neue", sans-serif;
+    font-family: "Nunito", "Segoe UI", "Helvetica Neue", Arial, sans-serif; font-weight: 600; letter-spacing: .01em; -webkit-font-smoothing: antialiased;
     font-size: var(--size, 20px); line-height: 1.35; color: #fff;
-    text-shadow: 0 1px 3px rgba(0,0,0,.9), 0 0 2px rgba(0,0,0,.8);
+    text-shadow: 0 2px 4px rgba(0,0,0,.85), 0 0 3px rgba(0,0,0,.9), 0 0 8px rgba(0,0,0,.45);
   }
   .msg {
     padding: 3px 0; word-wrap: break-word; overflow-wrap: anywhere;
     animation: in .25s ease-out both; transition: opacity .6s ease;
   }
   .msg.out { opacity: 0; }
-  .name { font-weight: 700; }
+  .name { font-weight: 800; }
   .name::after { content: ":"; color: #fff; font-weight: 400; margin-right: .35em; }
   .badges { display: inline-flex; flex-wrap: wrap; gap: 3px; margin-right: 5px; vertical-align: .12em; }
   .chat-badge {
@@ -119,7 +122,7 @@
     position: absolute; inset: 0; z-index: 5;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: 8px; pointer-events: none; padding: 18px; box-sizing: border-box;
-    font-family: "Roboto", Arial, "Helvetica Neue", sans-serif;
+    font-family: "Nunito", "Segoe UI", "Helvetica Neue", Arial, sans-serif; font-weight: 600; letter-spacing: .01em; -webkit-font-smoothing: antialiased;
     font-size: var(--size, 20px); color: #fff;
   }
   .alert {
@@ -1100,22 +1103,37 @@
   // Built-in sounds, used when there is no <name>.mp3 next to this file
   const SYNTH = {
     meow(c, out, t) {
-      const bus = c.createGain(); bus.connect(out); wet(c, bus, 0.18);
+      // a small, cute kitten "mi-aow": short rising "mi", then a bright "aow" that arcs up and curls down
+      const bus = c.createGain(); bus.connect(out); wet(c, bus, 0.14);
       const o = c.createOscillator(); o.type = "sawtooth";
-      o.frequency.setValueAtTime(430, t);
-      o.frequency.linearRampToValueAtTime(820, t + 0.13);
-      o.frequency.linearRampToValueAtTime(480, t + 0.62);
-      const vib = c.createOscillator(); vib.frequency.value = 22;
-      const vg = c.createGain(); vg.gain.value = 14; vib.connect(vg); vg.connect(o.frequency);
-      const f1 = c.createBiquadFilter(); f1.type = "bandpass"; f1.Q.value = 6;
-      f1.frequency.setValueAtTime(750, t); f1.frequency.linearRampToValueAtTime(2100, t + 0.15); f1.frequency.linearRampToValueAtTime(850, t + 0.64);
-      const f2 = c.createBiquadFilter(); f2.type = "bandpass"; f2.Q.value = 8;
-      f2.frequency.setValueAtTime(2200, t); f2.frequency.linearRampToValueAtTime(3300, t + 0.15); f2.frequency.linearRampToValueAtTime(2000, t + 0.64);
-      const g = c.createGain(); env(g, t, 0.04, 0.38, 0.28, 1.1);
-      const g2 = c.createGain(); g2.gain.value = 0.55;
-      o.connect(f1); o.connect(f2); f2.connect(g2); g2.connect(g); f1.connect(g); g.connect(bus);
-      o.start(t); vib.start(t); o.stop(t + 0.8); vib.stop(t + 0.8);
-      return 0.8;
+      const f = o.frequency;
+      f.setValueAtTime(760, t);
+      f.linearRampToValueAtTime(1000, t + 0.1);            // "mi"
+      f.linearRampToValueAtTime(930, t + 0.15);
+      f.linearRampToValueAtTime(1380, t + 0.3);            // "a" - bright peak
+      f.linearRampToValueAtTime(1120, t + 0.45);
+      f.linearRampToValueAtTime(760, t + 0.66);            // "ow" - curls down
+      const vib = c.createOscillator(); vib.frequency.value = 8;
+      const vg = c.createGain(); vg.gain.setValueAtTime(0, t); vg.gain.linearRampToValueAtTime(18, t + 0.35); vib.connect(vg); vg.connect(f);
+      const lp = c.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 4200; lp.Q.value = 0.5;
+      // two moving vowel formants: "ee" -> "ah" -> "oh"
+      const f1 = c.createBiquadFilter(); f1.type = "bandpass"; f1.Q.value = 5;
+      f1.frequency.setValueAtTime(420, t); f1.frequency.linearRampToValueAtTime(950, t + 0.28); f1.frequency.linearRampToValueAtTime(560, t + 0.66);
+      const f2 = c.createBiquadFilter(); f2.type = "bandpass"; f2.Q.value = 6;
+      f2.frequency.setValueAtTime(2900, t); f2.frequency.linearRampToValueAtTime(1900, t + 0.28); f2.frequency.linearRampToValueAtTime(1100, t + 0.66);
+      const g2 = c.createGain(); g2.gain.value = 0.7;
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.75, t + 0.04);
+      g.gain.exponentialRampToValueAtTime(0.4, t + 0.14);   // tiny dip between "mi" and "aow"
+      g.gain.exponentialRampToValueAtTime(1.0, t + 0.26);
+      g.gain.setValueAtTime(1.0, t + 0.38);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+      o.connect(lp); lp.connect(f1); lp.connect(f2); f1.connect(g); f2.connect(g2); g2.connect(g); g.connect(bus);
+      // a soft, breathy sparkle on the start so it sounds like a tiny mouth
+      burst(c, bus, t, 0.05, "bandpass", 4200, 3000, 0.08, 2);
+      o.start(t); vib.start(t); o.stop(t + 0.75); vib.stop(t + 0.75);
+      return 0.75;
     },
     gunshot(c, out, t) {
       shot(c, out, t, 1, 0.55);
@@ -1808,6 +1826,7 @@
       "!lotsofgunshots":() => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "lotsofgunshots"); },
       "!ambience1":() => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "ambience1"); },
       "!ambience2":() => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "ambience2"); },
+      "First chat": () => welcomeFirstChatter({ "first-msg": "1", "display-name": "NewViewer" }, "newviewer" + Date.now()),
       "Mute sfx": () => doMuteSfx(modTags, "demo", !sfxMuted),
       "Ting":     () => ting()
     };
@@ -1944,10 +1963,29 @@
     playCheer(amount);
   }
 
+  // First message ever in this channel (Twitch flags it with first-msg=1): welcome bonus.
+  const FIRST_BONUS = 10, welcomed = new Set();
+  function welcomeFirstChatter(tags, user) {
+    const login = user.toLowerCase();
+    if (tags["first-msg"] !== "1" || welcomed.has(login) || BOTS.has(login) || login === CHANNEL) return;
+    welcomed.add(login);
+    if (!isMod(tags)) addCookies(user, FIRST_BONUS);
+    const el = document.createElement("div");
+    el.className = "msg welcome";
+    const n = document.createElement("span"); n.className = "name"; n.textContent = tags["display-name"] || user;
+    n.style.color = readable(tags.color, tags["display-name"] || user);
+    const t = document.createElement("span"); t.className = "text";
+    t.textContent = isMod(tags) ? "is chatting for the first time. Welcome!" : `is chatting for the first time. Welcome! +${FIRST_BONUS} ${CURRENCY_NAME}`;
+    el.append(n, t);
+    push(el, {});
+  }
+
   function addMessage(tags, user, message) {
     let isAction = false;
     const m = message.match(/^\x01ACTION (.*)\x01$/);
     if (m) { isAction = true; message = m[1]; }
+
+    welcomeFirstChatter(tags, user);          // before commands/spam filter so a first "!tts" still counts
 
     const nowMs = Date.now();
     const wasSilent = nowMs - lastMsgAt >= TING_MS;
