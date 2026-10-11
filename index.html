@@ -29,7 +29,7 @@
      &leadmod=name1,name2  show a LeadMod badge for these logins
      &silent=name1,name2   show a Silent badge for these logins
      &demo=1         show test buttons
-     Commands:  !<currency> (e.g. !cookies)  !cheer <n>  !tts <text>  !knocking  or (knocking) inside !tts
+     Commands:  !<currency> (e.g. !cookies)  !cheer <n>  !tts <text>  !knocking  !lotsofgunshots  !ambient1  !ambient2  or (knocking) (lotsofgunshots) (ambient1) inside !tts
                 !mutesfx / !unmutesfx  (streamer + lead mods only; lead mods are set in the setup panel or with &leadmod=)  */
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
   body.bg { background: #0e0e10; }
@@ -489,7 +489,7 @@
   const TTS_VOICE = (params.get("ttsvoice") || "").toLowerCase();
   const DROP = (params.has("drop") ? Math.min(100, Math.max(0, parseFloat(params.get("drop")) || 0)) : 35) / 100;
   const EXTRA_BLOCK = (params.get("block") || "").toLowerCase().split(",").map(s => s.trim()).filter(Boolean);
-  const TTS_COST = 10, TTS_MAX_CHARS = 150, TTS_QUEUE_MAX = 5, TTS_USER_CD = 10000;
+  const TTS_COST = 10, TTS_MAX_CHARS = 150, TTS_QUEUE_MAX = 5, TTS_USER_CD = 3000;
   const ALERTS_ON = settings.alerts && params.get("alerts") !== "0";
   const ALERT_SEC = Math.max(2, parseFloat(params.get("alertsec")) || 6);
   const SFX_VOL = params.has("sfxvol") ? Math.min(1, Math.max(0, parseFloat(params.get("sfxvol")) || 0)) : 0.8;
@@ -577,7 +577,12 @@
   let sfxMuted = false, sfxBus = null;
   const sfxStops = new Set();
   function sfxOut(c) {
-    if (!sfxBus || sfxBus.context !== c) { sfxBus = c.createGain(); sfxBus.connect(c.destination); }
+    if (!sfxBus || sfxBus.context !== c) {
+      sfxBus = c.createGain();
+      const comp = c.createDynamicsCompressor();          // glues everything together so it hits hard without clipping
+      comp.threshold.value = -14; comp.knee.value = 10; comp.ratio.value = 6; comp.attack.value = 0.002; comp.release.value = 0.15;
+      sfxBus.connect(comp); comp.connect(c.destination);
+    }
     return sfxBus;
   }
   function stopAllSfx() {
@@ -727,8 +732,12 @@
       seen.add(set);
       result.push({ key: BADGE_CSS[set] || set, set, version, title: BADGE_TITLES[set] || prettySet(set) });
     });
-    if (tags.mod === "1" && !seen.has("moderator")) result.unshift({ key: "mod", set: "moderator", version: "1", title: "Moderator" });
-    if (LEADMOD_USERS.has(login)) result.push({ custom: true, key: "leadmod", label: "LM", title: "Lead moderator" });
+    // Lead mods also get mod="1" from Twitch even when they chose to show only the Lead Moderator badge,
+    // so only add the plain mod badge for people who are not lead mods. If a lead mod really wears the
+    // mod badge, it already comes through in tags.badges above.
+    const isLead = seen.has("lead_moderator") || LEADMOD_USERS.has(login);
+    if (tags.mod === "1" && !seen.has("moderator") && !isLead) result.unshift({ key: "mod", set: "moderator", version: "1", title: "Moderator" });
+    if (LEADMOD_USERS.has(login) && !seen.has("lead_moderator")) result.push({ custom: true, key: "leadmod", label: "LM", title: "Lead moderator" });
     if (SILENT_USERS.has(login)) result.push({ custom: true, key: "silent", label: "S", title: "Silent user" });
     return result;
   };
@@ -1016,7 +1025,7 @@
   }
 
   /* ---------- SFX (used inside TTS) ---------- */
-  const SFX_NAMES = new Set(["meow", "gunshot", "vineboom", "airhorns", "knocking", ...EXTRA_SFX]);
+  const SFX_NAMES = new Set(["meow", "gunshot", "lotsofgunshots", "vineboom", "airhorns", "knocking", "ambient1", "ambient2", ...EXTRA_SFX]);
   const SFX_MAX = 3;
 
   function noiseBuf(c, secs) {
@@ -1032,78 +1041,232 @@
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + a + hold + rel);
   }
 
+  /* ---- shared helpers for the built-in sounds ---- */
+  const noiseCache = new WeakMap(), reverbCache = new WeakMap();
+  function sharedNoise(c) {
+    let b = noiseCache.get(c);
+    if (!b) { b = noiseBuf(c, 2); noiseCache.set(c, b); }
+    return b;
+  }
+  // one shared big-room reverb per audio context (rebuilt if the sfx bus was reset by !mutesfx)
+  function reverbIn(c) {
+    const bus = sfxOut(c);
+    let r = reverbCache.get(c);
+    if (!r || r.bus !== bus) {
+      const len = Math.ceil(c.sampleRate * 2.8), ir = c.createBuffer(2, len, c.sampleRate);
+      for (let ch = 0; ch < 2; ch++) {
+        const d = ir.getChannelData(ch);
+        for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2);
+      }
+      const conv = c.createConvolver(); conv.buffer = ir;
+      const input = c.createGain(); input.connect(conv); conv.connect(bus);
+      r = { bus, input }; reverbCache.set(c, r);
+    }
+    return r.input;
+  }
+  function wet(c, src, amt) { const g = c.createGain(); g.gain.value = amt; src.connect(g); g.connect(reverbIn(c)); }
+  function distortion(c, k) {
+    const sh = c.createWaveShaper(), curve = new Float32Array(512);
+    for (let i = 0; i < 512; i++) curve[i] = Math.tanh((i / 256 - 1) * k);
+    sh.curve = curve; sh.oversample = "2x"; return sh;
+  }
+  function pan(c, out, p) {
+    if (!c.createStereoPanner) return out;
+    const sp = c.createStereoPanner(); sp.pan.value = p; sp.connect(out); return sp;
+  }
+  // short filtered noise hit (dur must stay under 0.5s)
+  function burst(c, out, t, dur, type, f0, f1, peak, q = 0.8) {
+    const n = c.createBufferSource(); n.buffer = sharedNoise(c);
+    const f = c.createBiquadFilter(); f.type = type; f.Q.value = q;
+    f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+    const g = c.createGain(); g.gain.setValueAtTime(peak, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    n.connect(f); f.connect(g); g.connect(out); n.start(t, Math.random() * 1.4, dur + 0.05);
+  }
+  function tone(c, out, t, type, f0, f1, dur, peak, att = 0.005) {
+    const o = c.createOscillator(); o.type = type;
+    o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t + dur);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + att); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(out); o.start(t); o.stop(t + dur + 0.05);
+  }
+  // one full gunshot: sharp crack + blast + chest-thump + room echo
+  function shot(c, out, t, vel = 1, room = 0.35, p = 0) {
+    const bus = c.createGain(); bus.gain.value = vel; bus.connect(pan(c, out, p)); wet(c, bus, room);
+    burst(c, bus, t, 0.07, "highpass", 3200, 1600, 1.0, 0.7);
+    burst(c, bus, t, 0.38, "lowpass", 6500, 180, 1.0);
+    tone(c, bus, t, "sine", 200, 36, 0.3, 1.2, 0.002);
+  }
+
   // Built-in sounds, used when there is no <name>.mp3 next to this file
   const SYNTH = {
     meow(c, out, t) {
+      const bus = c.createGain(); bus.connect(out); wet(c, bus, 0.18);
       const o = c.createOscillator(); o.type = "sawtooth";
-      o.frequency.setValueAtTime(420, t);
-      o.frequency.linearRampToValueAtTime(760, t + 0.14);
-      o.frequency.linearRampToValueAtTime(500, t + 0.6);
-      const f = c.createBiquadFilter(); f.type = "bandpass"; f.Q.value = 5;
-      f.frequency.setValueAtTime(800, t);
-      f.frequency.linearRampToValueAtTime(2000, t + 0.16);
-      f.frequency.linearRampToValueAtTime(900, t + 0.62);
-      const g = c.createGain(); env(g, t, 0.05, 0.35, 0.25, 0.9);
-      o.connect(f); f.connect(g); g.connect(out);
-      o.start(t); o.stop(t + 0.75);
-      return 0.75;
+      o.frequency.setValueAtTime(430, t);
+      o.frequency.linearRampToValueAtTime(820, t + 0.13);
+      o.frequency.linearRampToValueAtTime(480, t + 0.62);
+      const vib = c.createOscillator(); vib.frequency.value = 22;
+      const vg = c.createGain(); vg.gain.value = 14; vib.connect(vg); vg.connect(o.frequency);
+      const f1 = c.createBiquadFilter(); f1.type = "bandpass"; f1.Q.value = 6;
+      f1.frequency.setValueAtTime(750, t); f1.frequency.linearRampToValueAtTime(2100, t + 0.15); f1.frequency.linearRampToValueAtTime(850, t + 0.64);
+      const f2 = c.createBiquadFilter(); f2.type = "bandpass"; f2.Q.value = 8;
+      f2.frequency.setValueAtTime(2200, t); f2.frequency.linearRampToValueAtTime(3300, t + 0.15); f2.frequency.linearRampToValueAtTime(2000, t + 0.64);
+      const g = c.createGain(); env(g, t, 0.04, 0.38, 0.28, 1.1);
+      const g2 = c.createGain(); g2.gain.value = 0.55;
+      o.connect(f1); o.connect(f2); f2.connect(g2); g2.connect(g); f1.connect(g); g.connect(bus);
+      o.start(t); vib.start(t); o.stop(t + 0.8); vib.stop(t + 0.8);
+      return 0.8;
     },
     gunshot(c, out, t) {
-      const n = c.createBufferSource(); n.buffer = noiseBuf(c, 0.6);
-      const f = c.createBiquadFilter(); f.type = "lowpass";
-      f.frequency.setValueAtTime(7000, t);
-      f.frequency.exponentialRampToValueAtTime(250, t + 0.4);
-      const g = c.createGain();
-      g.gain.setValueAtTime(1, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
-      n.connect(f); f.connect(g); g.connect(out); n.start(t);
-      const o = c.createOscillator(); o.type = "sine";
-      o.frequency.setValueAtTime(160, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.18);
-      const g2 = c.createGain();
-      g2.gain.setValueAtTime(1, t); g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
-      o.connect(g2); g2.connect(out); o.start(t); o.stop(t + 0.3);
-      return 0.6;
+      shot(c, out, t, 1, 0.55);
+      return 0.9;
+    },
+    lotsofgunshots(c, out, t) {
+      // three bursts of full-auto fire from different angles, then one huge final blast
+      let at = 0;
+      [[14, 0.085, -0.5], [10, 0.075, 0.5], [17, 0.068, 0]].forEach(([n, gap, side]) => {
+        for (let i = 0; i < n; i++) {
+          shot(c, out, t + at, 0.5 + Math.random() * 0.5, 0.3, side + (Math.random() - 0.5) * 0.4);
+          at += gap * (0.85 + Math.random() * 0.3);
+        }
+        at += 0.28;
+      });
+      shot(c, out, t + at, 1.3, 0.9, 0);
+      tone(c, out, t + at, "sine", 90, 25, 0.9, 1.0, 0.003);
+      return at + 0.9;
     },
     vineboom(c, out, t) {
-      const o = c.createOscillator(); o.type = "sine";
-      o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(34, t + 0.9);
-      const sh = c.createWaveShaper(); const curve = new Float32Array(256);
-      for (let i = 0; i < 256; i++) curve[i] = Math.tanh((i / 128 - 1) * 3);
-      sh.curve = curve;
-      const g = c.createGain();
-      g.gain.setValueAtTime(1, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.4);
-      o.connect(sh); sh.connect(g); g.connect(out); o.start(t); o.stop(t + 1.5);
-      return 1.4;
-    },
-    knocking(c, out, t) {
-      // Three quick, hollow knocks on a wooden door.
-      [0, 0.22, 0.44].forEach((off, i) => {
-        const n = c.createBufferSource();
-        n.buffer = noiseBuf(c, 0.11);
-        const f = c.createBiquadFilter();
-        f.type = "bandpass";
-        f.frequency.value = 520 + (i % 2) * 90;
-        f.Q.value = 1.1;
-        const g = c.createGain();
-        g.gain.setValueAtTime(0.0001, t + off);
-        g.gain.exponentialRampToValueAtTime(0.85, t + off + 0.006);
-        g.gain.exponentialRampToValueAtTime(0.0001, t + off + 0.105);
-        n.connect(f); f.connect(g); g.connect(out);
-        n.start(t + off); n.stop(t + off + 0.11);
-      });
-      return 0.62;
+      const bus = c.createGain(), sh = distortion(c, 4);
+      bus.connect(sh); sh.connect(out); wet(c, bus, 0.35);
+      tone(c, bus, t, "sine", 150, 27, 1.6, 1.3, 0.003);
+      tone(c, bus, t, "triangle", 320, 44, 0.8, 0.6, 0.003);
+      burst(c, bus, t, 0.14, "lowpass", 7000, 300, 0.9);
+      return 1.6;
     },
     airhorns(c, out, t) {
-      [0, 0.75].forEach(off => {
-        [440, 554.37, 659.25].forEach((fr, i) => {
-          const o = c.createOscillator(); o.type = "sawtooth";
-          o.frequency.value = fr * (1 + (i - 1) * 0.004);
-          const f = c.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 2600;
-          const g = c.createGain(); env(g, t + off, 0.03, 0.5, 0.15, 0.35);
-          o.connect(f); f.connect(g); g.connect(out);
-          o.start(t + off); o.stop(t + off + 0.8);
+      const bus = c.createGain(), sh = distortion(c, 2.5), lp = c.createBiquadFilter();
+      lp.type = "lowpass"; lp.frequency.value = 3600;
+      bus.connect(sh); sh.connect(lp); lp.connect(out); wet(c, lp, 0.3);
+      [[0, 0.5, 1], [0.62, 0.5, 1.12], [1.24, 1.15, 1.26]].forEach(([off, len, mult]) => {
+        [392, 494, 587.3, 784].forEach((fr, i) => {
+          [0.996, 1.004].forEach(det => {
+            const o = c.createOscillator(); o.type = i % 2 ? "square" : "sawtooth";
+            const fq = fr * mult * det;
+            o.frequency.setValueAtTime(fq * 0.82, t + off);
+            o.frequency.exponentialRampToValueAtTime(fq, t + off + 0.07);
+            const g = c.createGain(); env(g, t + off, 0.015, len - 0.06, 0.1, 0.16);
+            o.connect(g); g.connect(bus); o.start(t + off); o.stop(t + off + len + 0.1);
+          });
         });
       });
-      return 1.6;
+      return 2.5;
+    },
+    knocking(c, out, t) {
+      // Four heavy knocks on a big wooden door, with an echo behind them.
+      const bus = c.createGain(); bus.connect(out); wet(c, bus, 0.35);
+      [0, 0.2, 0.42, 0.72].forEach((off, i) => {
+        const v = i === 3 ? 1.15 : 1;
+        burst(c, bus, t + off, 0.11, "bandpass", 540 + (i % 2) * 110, 380, 1.1 * v, 1.1);
+        burst(c, bus, t + off, 0.05, "highpass", 2500, 1500, 0.35 * v);
+        tone(c, bus, t + off, "sine", 120, 55, 0.14, 1.0 * v, 0.003);
+      });
+      return 1.0;
+    },
+    // ---- ambient (scary) ----
+    ambient1(c, out, t) {
+      // "Something is down there": rotting sub drone, heartbeat, rusty creaks, a thin wail.
+      const D = 10.5, bus = c.createGain();
+      bus.gain.setValueAtTime(0.0001, t);
+      bus.gain.linearRampToValueAtTime(0.9, t + 2.6);
+      bus.gain.setValueAtTime(0.9, t + D - 3.6);
+      bus.gain.linearRampToValueAtTime(0.0001, t + D);
+      bus.connect(out); wet(c, bus, 0.65);
+      const lp = c.createBiquadFilter(); lp.type = "lowpass"; lp.Q.value = 4; lp.frequency.value = 260;
+      const lfo = c.createOscillator(); lfo.frequency.value = 0.22;
+      const lg = c.createGain(); lg.gain.value = 120; lfo.connect(lg); lg.connect(lp.frequency);
+      lp.connect(bus); lfo.start(t); lfo.stop(t + D + 0.2);
+      [[55, "sawtooth", 0.3], [58.3, "sawtooth", 0.3], [82.4, "triangle", 0.3], [116.5, "sine", 0.22], [27.5, "sine", 0.55]].forEach(([fr, ty, pk]) => {
+        const o = c.createOscillator(); o.type = ty; o.frequency.value = fr;
+        o.frequency.linearRampToValueAtTime(fr * 0.97, t + D);          // slowly sinks
+        const g = c.createGain(); g.gain.value = pk; o.connect(g); g.connect(lp);
+        o.start(t); o.stop(t + D + 0.2);
+      });
+      // thin, wavering wail up high
+      const w = c.createOscillator(); w.type = "sine"; w.frequency.setValueAtTime(2093, t + 2);
+      w.frequency.linearRampToValueAtTime(1976, t + 8);
+      const wt = c.createOscillator(); wt.frequency.value = 5.5;
+      const wtg = c.createGain(); wtg.gain.value = 0.02; wt.connect(wtg);
+      const wg = c.createGain(); wg.gain.setValueAtTime(0.0001, t + 2); wg.gain.linearRampToValueAtTime(0.06, t + 5.5); wg.gain.linearRampToValueAtTime(0.0001, t + 9);
+      wtg.connect(wg.gain); w.connect(wg); wg.connect(bus);
+      w.start(t + 2); wt.start(t + 2); w.stop(t + 9.2); wt.stop(t + 9.2);
+      // heartbeat that speeds up and gets louder
+      let hb = 2.8, gap = 1.25, vol = 0.35;
+      while (hb < D - 1.2) {
+        tone(c, bus, t + hb, "sine", 75, 38, 0.2, vol, 0.01);
+        tone(c, bus, t + hb + 0.2, "sine", 65, 34, 0.22, vol * 0.75, 0.01);
+        hb += gap; gap = Math.max(0.62, gap * 0.93); vol = Math.min(1, vol * 1.1);
+      }
+      // rusty creaks
+      [1.4, 4.6, 7.1].forEach(off => {
+        const o = c.createOscillator(); o.type = "sawtooth";
+        const f0 = 90 + Math.random() * 60;
+        o.frequency.setValueAtTime(f0, t + off); o.frequency.linearRampToValueAtTime(f0 * (0.6 + Math.random() * 1.1), t + off + 0.9);
+        const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.Q.value = 9;
+        bp.frequency.setValueAtTime(600, t + off); bp.frequency.linearRampToValueAtTime(1500, t + off + 0.9);
+        const g = c.createGain(); env(g, t + off, 0.25, 0.3, 0.35, 0.28);
+        o.connect(bp); bp.connect(g); g.connect(pan(c, bus, Math.random() * 1.6 - 0.8));
+        o.start(t + off); o.stop(t + off + 1);
+      });
+      return D;
+    },
+    ambient2(c, out, t) {
+      // "They're in the walls": whispers, a shrieking semitone cluster, a rising swell, and a dead bell.
+      const D = 11, bus = c.createGain();
+      bus.gain.setValueAtTime(0.0001, t);
+      bus.gain.linearRampToValueAtTime(0.9, t + 1.5);
+      bus.gain.setValueAtTime(0.9, t + D - 2.5);
+      bus.gain.linearRampToValueAtTime(0.0001, t + D);
+      bus.connect(out); wet(c, bus, 0.7);
+      // whispers: lots of tiny breathy syllables bouncing left and right
+      for (let i = 0; i < 26; i++) {
+        const at = t + 0.3 + i * 0.36 + Math.random() * 0.2, len = 0.1 + Math.random() * 0.22;
+        const n = c.createBufferSource(); n.buffer = sharedNoise(c);
+        const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.Q.value = 5 + Math.random() * 4;
+        bp.frequency.setValueAtTime(1200 + Math.random() * 2600, at);
+        bp.frequency.linearRampToValueAtTime(1200 + Math.random() * 2600, at + len);
+        const g = c.createGain(); env(g, at, len * 0.35, len * 0.2, len * 0.6, 0.38 + Math.random() * 0.3);
+        n.connect(bp); bp.connect(g); g.connect(pan(c, bus, Math.random() * 2 - 1));
+        n.start(at, Math.random() * 1.2, len * 1.3 + 0.1);
+      }
+      // sub-bass swell with a nasty beat between two close notes
+      [41.2, 43.7].forEach(fr => {
+        const o = c.createOscillator(); o.type = "sine"; o.frequency.value = fr;
+        const g = c.createGain(); g.gain.setValueAtTime(0.0001, t);
+        g.gain.linearRampToValueAtTime(0.5, t + 6); g.gain.linearRampToValueAtTime(0.0001, t + D - 0.5);
+        o.connect(g); g.connect(bus); o.start(t); o.stop(t + D);
+      });
+      // shrieking cluster that trembles
+      const trem = c.createOscillator(); trem.frequency.value = 7.5;
+      const tg = c.createGain(); tg.gain.value = 0.03; trem.connect(tg);
+      const cl = c.createGain(); cl.gain.setValueAtTime(0.0001, t + 3.5);
+      cl.gain.linearRampToValueAtTime(0.09, t + 6.5); cl.gain.linearRampToValueAtTime(0.0001, t + 8.4);
+      tg.connect(cl.gain); cl.connect(bus);
+      [1318.5, 1396.9, 1480, 1976].forEach(fr => {
+        const o = c.createOscillator(); o.type = "triangle"; o.frequency.value = fr;
+        o.frequency.linearRampToValueAtTime(fr * 1.02, t + 8.4);
+        o.connect(cl); o.start(t + 3.5); o.stop(t + 8.6);
+      });
+      trem.start(t + 3.5); trem.stop(t + 8.6);
+      // reversed-cymbal riser into a dead, low bell
+      const rn = c.createBufferSource(); rn.buffer = sharedNoise(c); rn.loop = true;
+      const hp = c.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 3500;
+      const rg = c.createGain(); rg.gain.setValueAtTime(0.0001, t + 5.2);
+      rg.gain.exponentialRampToValueAtTime(0.5, t + 8.2); rg.gain.setValueAtTime(0.0001, t + 8.25);
+      rn.connect(hp); hp.connect(rg); rg.connect(bus); rn.start(t + 5.2); rn.stop(t + 8.3);
+      const bell = c.createGain(); bell.connect(bus);
+      [[110, 0.6], [233, 0.35], [341, 0.25], [503, 0.18]].forEach(([fr, pk]) => tone(c, bell, t + 8.25, "sine", fr, fr * 0.99, 2.6, pk, 0.003));
+      burst(c, bell, t + 8.25, 0.2, "lowpass", 5000, 300, 0.8);
+      return D;
     }
   };
 
@@ -1119,9 +1282,9 @@
         if (finished) return;
         const fn = SYNTH[name], c = audio();
         if (!fn || !c || c.state !== "running") return done();
-        const out = c.createGain(); out.gain.value = 0.6 * SFX_VOL; out.connect(sfxOut(c));
+        const out = c.createGain(); out.gain.value = 0.85 * SFX_VOL; out.connect(sfxOut(c));
         const dur = fn(c, out, c.currentTime + 0.02);
-        setTimeout(done, dur * 1000 + 100);
+        setTimeout(done, dur * 1000 + 20);
       };
       const fallback = () => { if (fell) return; fell = true; started ? done() : synth(); };
       try { a = new Audio(name + ".mp3"); } catch (e) { return synth(); }
@@ -1129,12 +1292,12 @@
       a.onended = done;
       a.onerror = fallback;
       a.play().then(() => { started = true; }).catch(fallback);
-      setTimeout(() => { try { a.pause(); } catch (e) {} done(); }, 5000);   // never longer than 5s
+      setTimeout(() => { try { a.pause(); } catch (e) {} done(); }, /^ambient/.test(name) ? 13000 : name === "lotsofgunshots" ? 7000 : 5000);   // normal sounds never run past 5s; ambients and the big gunfight get longer
     });
   }
 
   // !<sfxname> plays that sound; !mutesfx / !unmutesfx are for the streamer and lead mods only
-  const SFX_CMD_COST = 0, SFX_CMD_CD = 8000;      // set SFX_CMD_COST above 0 to charge currency per sound
+  const SFX_CMD_COST = 0, SFX_CMD_CD = 2500;      // set SFX_CMD_COST above 0 to charge currency per sound
   const sfxCmdLast = new Map();
   let sfxGlobalLast = 0;
   function canControlSfx(tags, user) {
@@ -1294,7 +1457,7 @@
     } catch (err) {
       // Chrome sometimes interrupts the first utterance after the engine wakes up; try once more.
       if (attempt < 1 && (err.code === "interrupted" || err.code === "no-start")) {
-        await wait(250);
+        await wait(100);
         return speakWithBrowser(text, cfg, attempt + 1);
       }
       throw err;
@@ -1403,7 +1566,7 @@
       setStatus("Click anywhere on this page once to enable text-to-speech");
       return;
     }
-    setTimeout(runTts, 120);
+    setTimeout(runTts, 20);
   }
 
   // Called on the first click/keypress: lets queued speech start if the browser had blocked it.
@@ -1633,6 +1796,9 @@
       "Gift":     () => { rewardCd.clear(); doGift(modTags, "demo", "@SampleViewer 5"); },
       "!meow":    () => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "meow"); },
       "!knocking":() => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "knocking"); },
+      "!lotsofgunshots":() => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "lotsofgunshots"); },
+      "!ambient1":() => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "ambient1"); },
+      "!ambient2":() => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "ambient2"); },
       "Mute sfx": () => doMuteSfx(modTags, "demo", !sfxMuted),
       "Ting":     () => ting()
     };
