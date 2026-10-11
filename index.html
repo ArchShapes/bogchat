@@ -241,7 +241,7 @@
   #global-setup .setup-note { margin: 0; color: #a5a5ad; font-size: 13px; line-height: 1.5; }
   #global-setup kbd { padding: 1px 5px; border: 1px solid #3f3f46; border-bottom-width: 2px; border-radius: 4px; background: #202024; font: 11px ui-monospace, Consolas, monospace; color: #d6d6dc; }
 
-  .setup-body { padding: 4px 24px; overflow-y: hidden; flex: 1 1 auto; }
+  .setup-body { padding: 4px 24px; overflow-y: auto; flex: 1 1 auto; }
   .setup-section { padding: 16px 0; border-bottom: 1px solid #26262a; }
   .setup-section:last-child { border-bottom: 0; }
   .setup-section h3 { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 12px; font-size: 11px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #9a9aa4; }
@@ -296,9 +296,9 @@
 
   .msg.cheer, .msg.cookie, .msg.hype, .msg.alertc, .msg.tts, .msg.welcome {
     animation: msgIn .35s ease-out backwards;
-    margin: 2px 0; padding: 3px 0 3px 10px; max-width: 100%; box-sizing: border-box; text-align: left;
-    background: none; border: 0; border-left: 2px solid rgba(255,255,255,.28); border-radius: 0;
-    box-shadow: none; text-shadow: 0 2px 6px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.95), 0 0 12px rgba(0,0,0,.8), 0 0 24px rgba(0,0,0,.6);
+    margin: 3px 0; padding: 6px 13px; width: fit-content; max-width: 100%; box-sizing: border-box; text-align: left;
+    background: rgba(14,12,20,.82); border: 1px solid rgba(255,255,255,.10); border-left: 3px solid rgba(255,255,255,.35); border-radius: 12px;
+    box-shadow: 0 3px 12px rgba(0,0,0,.3); text-shadow: 0 2px 6px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.95), 0 0 12px rgba(0,0,0,.8), 0 0 24px rgba(0,0,0,.6);
   }
   body.viewchat .msg.cheer, body.viewchat .msg.cookie, body.viewchat .msg.hype, body.viewchat .msg.alertc, body.viewchat .msg.tts, body.viewchat .msg.welcome { text-shadow: none; }
   .msg.cheer { border-left-color: #ffcf4a; }
@@ -307,12 +307,12 @@
   .msg.cookie { border-left-color: #a970ff; }
   /* big raids / big cheers / big bits: a rounded label behind the text */
   .msg.hype {
-    display: block; width: fit-content; max-width: 100%; margin: 6px 0; padding: 9px 16px;
-    background: rgba(14,12,20,.86); border: 1px solid color-mix(in srgb, var(--hc) 50%, transparent);
+    display: block; margin: 6px 0; padding: 9px 16px;
+    background: rgba(14,12,20,.88); border: 1px solid color-mix(in srgb, var(--hc) 50%, transparent);
     border-left: 4px solid var(--hc); border-radius: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.4);
   }
   .msg.alertc .ai, .alert .ai { width: 1.5em; height: 1.5em; flex-basis: 1.5em; background: none; border: 0; }
-  .msg.alertc { gap: 8px; align-items: flex-start; }
+  .msg.alertc { gap: 9px; align-items: center; }
   .alertc .at { font-weight: 700; }
   .alertc .as { font-size: .85em; opacity: .8; }
 
@@ -382,6 +382,19 @@
           <label><span>Overlay display name <span class="opt">(optional)</span></span>
             <input id="cfg-account" autocomplete="off" placeholder="My Stream">
           </label>
+        </div>
+      </div>
+
+      <div class="setup-section">
+        <h3>Follow alerts <span style="text-transform:none;letter-spacing:0;font-weight:500">(optional)</span></h3>
+        <div class="setup-grid">
+          <label>Client ID
+            <input id="cfg-clientid" autocomplete="off" placeholder="your Twitch app Client ID">
+          </label>
+          <label>User access token
+            <input id="cfg-token" type="password" autocomplete="off" placeholder="oauth token">
+          </label>
+          <p class="hint span-2">Twitch does not send follows through chat, so this needs a token from the streamer (or a mod) with the <code>moderator:read:followers</code> scope. Without it, follow alerts cannot appear. Everything else works without it.</p>
         </div>
       </div>
 
@@ -474,7 +487,8 @@
   const setupStatus = document.getElementById("global-setup-status");
   function setSetupStatus(msg, kind = "") { setupStatus.textContent = msg; setupStatus.className = kind; }
   const setupFields = {
-    channel: "cfg-channel", account: "cfg-account", currency: "cfg-currency", symbol: "cfg-symbol", leadMods: "cfg-leadmods"
+    channel: "cfg-channel", account: "cfg-account", currency: "cfg-currency", symbol: "cfg-symbol", leadMods: "cfg-leadmods",
+    twitchClientId: "cfg-clientid", twitchToken: "cfg-token"
   };
   function fillSetup() {
     for (const [key, id] of Object.entries(setupFields)) {
@@ -642,10 +656,7 @@
     const words = lower.split(/\s+/).filter(Boolean);
     if (words.length >= 8 && new Set(words).size / words.length < 0.3) return true; // low variety
 
-    if (tags.emotes) {                                                      // emote spam
-      const n = tags.emotes.split("/").reduce((a, e) => a + ((e.split(":")[1] || "").split(",").length), 0);
-      if (n > 12) return true;
-    }
+    if (emoteCount(tags, text) > MAX_EMOTES) return true;                   // emote spam: max 6 emotes per message
 
     // per-user rate limit + exact duplicates
     const prev = lastByUser.get(user);
@@ -927,6 +938,18 @@
     if (wrap.childNodes.length) parent.appendChild(wrap);
   };
 
+  const MAX_EMOTES = 6;
+  // owner, lead mods, mods and VIPs are never caught by the spam filter; it only applies to viewers
+  const isTrusted = (tags, user) => {
+    const login = (user || "").toLowerCase();
+    return isMod(tags) || tags.vip === "1" || /(^|,)(vip|lead_moderator|broadcaster)\//.test(tags.badges || "") || LEADMOD_USERS.has(login) || login === CHANNEL;
+  };
+  function emoteCount(tags, text) {
+    let n = 0;
+    if (tags.emotes) n += tags.emotes.split("/").reduce((a, e) => a + ((e.split(":")[1] || "").split(",").filter(Boolean).length), 0);
+    n += text.split(/\s+/).filter(w => w && customEmoteOf(w)).length;
+    return n;
+  }
   const isMod = (tags) => tags.mod === "1" || /(^|,)(moderator|broadcaster)\//.test(tags.badges || "");
 
   /* ---------- Cookie cards ---------- */
@@ -1208,8 +1231,11 @@
                 transport: { method: "websocket", session_id: msg.payload.session.id }
               })
             });
-            if (!r.ok) console.warn("follow alerts: subscribe failed", r.status, await r.text());
-          } catch (e) { console.warn("follow alerts failed", e); }
+            if (!r.ok) {
+              console.warn("follow alerts: subscribe failed", r.status, await r.text());
+              plainNotice(r.status === 401 ? "Follow alerts: the token or Client ID is not valid." : r.status === 403 ? "Follow alerts: the token's account must be the streamer or a mod, with the moderator:read:followers scope." : "Follow alerts could not start (error " + r.status + ").");
+            } else plainNotice("Follow alerts connected.");
+          } catch (e) { console.warn("follow alerts failed", e); plainNotice("Follow alerts could not start. Check the Client ID and token in setup (F2)."); }
         } else if (type === "session_reconnect") {
           open(msg.payload.session.reconnect_url, true);
         } else if (type === "notification" && msg.metadata.subscription_type === "channel.follow") {
@@ -1657,6 +1683,7 @@
     return preferred.find(v => male.test(v.name)) || en.find(v => male.test(v.name)) || preferred[0] || en[0] || null;
   }
 
+  let allMuted = false, ttsAudioStop = null;     // M key: mutes every sound and TTS
   const ttsQueue = [], ttsLastUser = new Map();
   let ttsBusy = false, ttsLocked = false;
   const liveUtterances = new Set();                 // Chrome drops "end" events for utterances that get garbage-collected, so keep a reference
@@ -1721,6 +1748,7 @@
         try { audio.pause(); } catch (e) {}
         err ? reject(err) : resolve();
       };
+      ttsAudioStop = () => finish();
       audio.onplaying = () => clearTimeout(startTimer);
       audio.onended = () => finish();
       audio.onerror = () => finish(ttsError("The voice audio could not be loaded.", "audio-error"));
@@ -1784,7 +1812,8 @@
   }
 
   async function runTts() {
-    if (ttsBusy || ttsLocked || !ttsQueue.length) return;
+    if (ttsBusy || !ttsQueue.length) return;
+    if (ttsLocked && !ttsQueue[0].every(x => x.sfx)) return;          // speech waits for a click, sound effects do not
     ttsBusy = true;
     const segs = ttsQueue.shift();
     let blocked = false;
@@ -1821,7 +1850,7 @@
   addEventListener("keydown", ttsUnlock);
 
   function handleTts(tags, user, message) {
-    if (!TTS_ON) return;
+    if (!TTS_ON || allMuted) return;
     const shown = cleanTts(stripEmotes(message, tags.emotes).replace(/^!tts\s*/i, ""));
     const text = stripCustomEmotes(shown);                  // custom emote names are shown in chat but never read aloud
     if (!text) return;
@@ -2273,6 +2302,7 @@
   }
 
   function addMessage(tags, user, message) {
+    message = message.replace(/[\u{E0000}\u200B-\u200D\uFEFF]/gu, "").trim();       // Twitch adds invisible characters to repeated messages
     let isAction = false;
     const m = message.match(/^\x01ACTION (.*)\x01$/);
     if (m) { isAction = true; message = m[1]; }
@@ -2303,9 +2333,9 @@
       if (handleCommand(tags, user, message)) return;
     }
 
-    // bots never show; mods always do; everyone else goes through the spam filter
+    // bots never show; owner, lead mods, mods and VIPs always do; viewers go through the spam filter
     if (BOTS.has(user.toLowerCase())) return;
-    if (!isMod(tags) && isSpam(user, tags, message)) return;
+    if (!isTrusted(tags, user) && isSpam(user, tags, message)) return;
 
     // only messages that pass the spam filter can earn a cookie (mods don't need them)
     if (!isMod(tags) && Math.random() < DROP) addCookies(user, 1);
@@ -2408,9 +2438,23 @@
     startFollows();
   }
 
+  // M: mute / unmute everything (sound effects, alerts, cheers and TTS)
+  function toggleMuteAll() {
+    allMuted = !allMuted;
+    setSfxMuted(allMuted);
+    if (allMuted) {
+      ttsQueue.length = 0;
+      try { if (ttsAudioStop) ttsAudioStop(); } catch (e) {}
+      try { if ("speechSynthesis" in window) speechSynthesis.cancel(); } catch (e) {}
+      setStatus("Muted. Press M to unmute.");
+    } else setStatus("");
+  }
+
   document.addEventListener("keydown", (event) => {
-    if (event.repeat || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || event.target.isContentEditable) return;
-    if (event.key.toLowerCase() === "e") {
+    if (event.repeat || event.ctrlKey || event.metaKey || event.altKey || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || event.target.isContentEditable) return;
+    if (event.key.toLowerCase() === "m") {
+      toggleMuteAll();
+    } else if (event.key.toLowerCase() === "e") {
       settings.language = "en-US";
       try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {}
       if (setupStatus) setSetupStatus("TTS language set to English (US).", "ok");
