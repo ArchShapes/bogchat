@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
   /* URL options:
-     ?channel=name   channel (default bogdanthegdplayer)
+     ?channel=name   Twitch channel (any user; can also be set in the setup panel)
      &max=6          max messages on screen (default 6)
      &fade=30        seconds before a message fades (default 30, 0 = never)
      &size=20        font size in px
@@ -139,7 +139,7 @@
   body.viewchat #chat > * { flex: 0 0 auto; }
   #vc-head {
     position: sticky; top: 0; z-index: 4; padding: 11px 14px; text-align: center;
-    background: #18181b; border-bottom: 1px solid #2f2f35; color: #efeff1; font-size: .72em; font-weight: 800; letter-spacing: .1em;
+    background: #18181b; border-bottom: 1px solid #2f2f35; color: #efeff1; font-size: .8em; font-weight: 800; letter-spacing: .02em;
   }
   .vc-info { padding: 18px 16px; color: #adadb8; font-size: .9em; text-align: center; }
   .msg.vc { padding: 4px 14px; border-radius: 6px; }
@@ -377,7 +377,7 @@
         <h3>Twitch</h3>
         <div class="setup-grid">
           <label>Channel
-            <input id="cfg-channel" value="bogdanthegdplayer" readonly aria-readonly="true">
+            <input id="cfg-channel" autocomplete="off" placeholder="your Twitch username">
           </label>
           <label><span>Overlay display name <span class="opt">(optional)</span></span>
             <input id="cfg-account" autocomplete="off" placeholder="My Stream">
@@ -476,12 +476,14 @@
 
   const SETTINGS_KEY = "global-overlay-settings-v1";
   const defaultSettings = {
-    channel: "bogdanthegdplayer", twitchClientId: "", twitchToken: "", account: "", currency: "Cookies", symbol: "cookie", ttsUrl: "", voice: "", apiKey: "", browserVoice: "", ttsEngine: "online", onlineVoice: "Brian", leadMods: "",
+    channel: "", twitchClientId: "", twitchToken: "", account: "", currency: "Cookies", symbol: "cookie", ttsUrl: "", voice: "", apiKey: "", browserVoice: "", ttsEngine: "online", onlineVoice: "Brian", leadMods: "",
     language: "en-US", tts: true, alerts: true, chat: true, configured: false
   };
   let settings = { ...defaultSettings };
   try { settings = { ...defaultSettings, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}") }; } catch (e) {}
-  settings.channel = "bogdanthegdplayer";
+  // Any Twitch channel works: it comes from ?channel=name in the link, or from the setup panel.
+  const normChannel = (v) => String(v || "").trim().toLowerCase().replace(/^https?:\/\/(www\.)?twitch\.tv\//, "").replace(/^[@#]/, "").replace(/[^a-z0-9_]/g, "").slice(0, 25);
+  settings.channel = normChannel(params.get("channel") || settings.channel);
   if (!["cookie", "money", "box", "moon", "fries", "heart"].includes(settings.symbol)) settings.symbol = "cookie";
   const setupBackdrop = document.getElementById("global-setup-backdrop");
   const setupStatus = document.getElementById("global-setup-status");
@@ -490,6 +492,14 @@
     channel: "cfg-channel", account: "cfg-account", currency: "cfg-currency", symbol: "cfg-symbol", leadMods: "cfg-leadmods",
     twitchClientId: "cfg-clientid", twitchToken: "cfg-token"
   };
+  function updateOverlayLink() {
+    const ch = normChannel(document.getElementById("cfg-channel").value);
+    const q = new URLSearchParams(location.search);
+    if (ch) q.set("channel", ch); else q.delete("channel");
+    const lead = document.getElementById("cfg-leadmods").value.split(",").map(x => x.trim().replace(/^@/, "")).filter(Boolean).join(",");
+    if (lead) q.set("leadmod", lead); else q.delete("leadmod");
+    document.getElementById("cfg-overlay-link").value = location.origin + location.pathname + (q.toString() ? "?" + q.toString() : "") + "#overlay";
+  }
   function fillSetup() {
     for (const [key, id] of Object.entries(setupFields)) {
       const field = document.getElementById(id);
@@ -500,7 +510,7 @@
     document.getElementById("cfg-tts-enabled").checked = !!settings.tts;
     document.getElementById("cfg-alerts-enabled").checked = !!settings.alerts;
     document.getElementById("cfg-chat-enabled").checked = !!settings.chat;
-    document.getElementById("cfg-overlay-link").value = location.href.split("#")[0] + "#overlay";
+    updateOverlayLink();
     const adv = document.getElementById("cfg-tts-advanced"); if (adv && settings.ttsUrl) adv.open = true;
     updateCurrencyHint();
   }
@@ -523,6 +533,7 @@
     hint.textContent = `Viewers check their balance with !${slug}${others.length ? " (also " + others.join(", ") + ")" : ""}.`;
   }
   document.getElementById("cfg-currency").addEventListener("input", updateCurrencyHint);
+  ["cfg-channel", "cfg-leadmods"].forEach(id => document.getElementById(id).addEventListener("input", updateOverlayLink));
 
 
   const ttsStatus = document.getElementById("global-setup-tts-status");
@@ -563,11 +574,14 @@
     else openSetup();
   });
   function leaveSetupRoute() {
-    history.replaceState(null, "", location.pathname + location.search + "#overlay");
+    const q = new URLSearchParams(location.search);
+    if (q.has("channel")) q.set("channel", settings.channel);      // a changed channel must not be overridden by the old link
+    history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q.toString() : "") + "#overlay");
   }
   document.getElementById("global-setup-save").addEventListener("click", () => {
     for (const [key, id] of Object.entries(setupFields)) settings[key] = document.getElementById(id).value.trim();
-    settings.channel = "bogdanthegdplayer";
+    settings.channel = normChannel(document.getElementById("cfg-channel").value);
+    if (!settings.channel) { setSetupStatus("Enter the Twitch channel name first.", "error"); return; }
     settings.currency = settings.currency || "Cookies";
     settings.symbol = settings.symbol || "";
     settings.tts = document.getElementById("cfg-tts-enabled").checked;
@@ -586,11 +600,11 @@
     if (settings.configured) { leaveSetupRoute(); closeSetup(); }
     else setSetupStatus("Enter your channel and save to start the overlay.");
   });
-  const CHANNEL = "bogdanthegdplayer";
+  const CHANNEL = settings.channel;
   const CURRENCY_NAME = settings.currency || "Cookies";
   const CUR_CMDS = currencyCmds(CURRENCY_NAME);          // e.g. ["cookies", "cookie"]
   const DISPLAY_ACCOUNT = settings.account || CHANNEL;
-  document.title = `${DISPLAY_ACCOUNT} chat overlay`;
+  document.title = DISPLAY_ACCOUNT ? `${DISPLAY_ACCOUNT}'s chat` : "Chat overlay";
   const LEADMOD_USERS = new Set(((params.get("leadmod") || "") + "," + (settings.leadMods || "")).toLowerCase().split(",").map(s => s.trim().replace(/^@/, "")).filter(Boolean));
   const SILENT_USERS = new Set((params.get("silent") || "").toLowerCase().split(",").map(s => s.trim()).filter(Boolean));
   const FADE_S  = parseFloat(params.get("fade") ?? (VIEWCHAT ? "0" : "30"));     // the chat page keeps messages (no fading) so you can read back
@@ -2400,7 +2414,7 @@
 
         if (/ JOIN #/.test(rest) && rest.startsWith(":justinfan")) {
           retry = 0; setStatus("");
-          const w = document.getElementById("vc-wait"); if (w) w.textContent = "Connected. Waiting for messages in " + CHANNEL + "'s chat…";
+          const w = document.getElementById("vc-wait"); if (w) w.textContent = "Connected. Waiting for messages in " + DISPLAY_ACCOUNT + "'s chat…";
           return;
         }
 
@@ -2426,14 +2440,14 @@
 
   if (VIEWCHAT) {
     document.body.classList.add("viewchat");
-    document.title = "Chat · " + CHANNEL;
-    const head = document.createElement("div"); head.id = "vc-head"; head.textContent = "STREAM CHAT · " + CHANNEL;
+    document.title = `${DISPLAY_ACCOUNT}'s chat`;
+    const head = document.createElement("div"); head.id = "vc-head"; head.textContent = `${DISPLAY_ACCOUNT}'s chat`;
     chat.appendChild(head);
-    const info = document.createElement("div"); info.className = "vc-info"; info.id = "vc-wait"; info.textContent = "Connecting to " + CHANNEL + "'s chat…";
+    const info = document.createElement("div"); info.className = "vc-info"; info.id = "vc-wait"; info.textContent = CHANNEL ? `Connecting to ${DISPLAY_ACCOUNT}'s chat…` : "No channel set. Add ?channel=yourname to the link.";
     chat.appendChild(info);
     connect();
     startFollows();
-  } else if (settings.configured) {
+  } else if (settings.configured || CHANNEL) {
     connect();
     startFollows();
   }
