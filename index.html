@@ -2000,11 +2000,11 @@
   const markCd = (key) => rewardCd.set(key, Date.now());
   const nameOf = (tags, user) => tags["display-name"] || user;
   function canPay(tags, user, cost, what) {
-    if (VIEWCHAT || isMod(tags)) return true;                // the chat reader cannot see balances, so it just shows the event
+    if (VIEWCHAT) return true;                               // the chat reader cannot see balances, so it just shows the event
     if (bal(user) < cost) { addCookieCard(tags, user, true, cost, what); return false; }
     return true;
   }
-  const pay = (tags, user, cost) => { if (!VIEWCHAT && !isMod(tags)) addCookies(user, -cost); };
+  const pay = (tags, user, cost) => { if (!VIEWCHAT) addCookies(user, -cost); };
 
   // wheel: 1-20 cookies, small wins are more likely so it costs more than it pays on average
   const WHEEL_W = Array.from({ length: 20 }, (_, i) => 1 / Math.pow(i + 1, WHEEL_BIAS));
@@ -2018,10 +2018,10 @@
   function doWheel(tags, user) {
     if (cdLeft("wheel:" + user, 8000)) return;
     if (!canPay(tags, user, WHEEL_COST, "the wheel")) return;
-    const mod = isMod(tags), name = nameOf(tags, user);
+    const name = nameOf(tags, user);
     pay(tags, user, WHEEL_COST);
     const win = spinWheel();
-    if (!mod) addCookies(user, win);
+    addCookies(user, win);
     markCd("wheel:" + user);
     const net = win - WHEEL_COST;
     const card = showAlertChat("wheel", `${name} spins the wheel...`, "Rolling...", 20, true);
@@ -2029,7 +2029,7 @@
     setTimeout(() => {
       clearInterval(tick);
       card.at.textContent = `${name} won ${win} ${CURRENCY_NAME}!`;
-      card.as.textContent = mod ? "" : `${net >= 0 ? "+" : ""}${net} after the ${WHEEL_COST} ${CURRENCY_NAME} spin`;
+      card.as.textContent = `${net >= 0 ? "+" : ""}${net} after the ${WHEEL_COST} ${CURRENCY_NAME} spin`;
       if (!MUTE) chime(win >= 15 ? [880, 1108.7, 1318.5, 1760, 2217] : win >= 8 ? [783.99, 987.77, 1174.66] : [659.25, 783.99]);
     }, 2200);
   }
@@ -2093,7 +2093,7 @@
     queueAlert("cgift", `${nameOf(tags, user)} gifted ${n} ${CURRENCY_NAME} to ${m[1]}!`, "");
   }
 
-  // mods/broadcaster only, completely silent: !give<currency> @name 20 (e.g. !givecookies)  (negative numbers take cookies away)
+  // mods/broadcaster only, silent: !givecookies @name 20 (negative numbers remove cookies)
   function doGive(tags, arg) {
     if (!isMod(tags)) return;
     const m = arg.match(/^@?(\w{1,25})\s+(-?\d{1,6})$/);
@@ -2494,6 +2494,7 @@
     if (m) { isAction = true; message = m[1]; }
 
     if (isMod(tags)) knownMods.add(user.toLowerCase());
+    if (!VIEWCHAT && !BOTS.has(user.toLowerCase()) && isMod(tags)) addCookies(user, 1);
     welcomeFirstChatter(tags, user);          // before commands/spam filter so a first "!tts" still counts
 
     const nowMs = Date.now();
@@ -2530,7 +2531,7 @@
     if (BOTS.has(user.toLowerCase())) return;
     if (!isTrusted(tags, user) && isSpam(user, tags, message)) return;
 
-    // only messages that pass the spam filter can earn a cookie (mods don't need them)
+    // Viewers earn random drops; moderators earn their guaranteed +1 above for every message.
     if (!VIEWCHAT && !isMod(tags) && Math.random() < DROP) addCookies(user, 1);
     if (wasSilent) ting();
 
