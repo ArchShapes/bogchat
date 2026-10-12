@@ -33,7 +33,7 @@
      &silent=name1,name2   show a Silent badge for these logins
      &demo=1         show test buttons
      #viewchat: press P to pop the chat out into an always-on-top window (Chrome / Edge; other browsers get a normal small window). Press P again to put it back
-     Commands:  !changetext "Something" (owner + configured lead mods; updates /#text)  !<currency> (e.g. !cookies)  !cheer <n>  !tts <text>  !resetcookies <name|all>  !loudtojump (1000 cookies, command only)  !knocking  !lotsofgunshots  !ambienceone  !ambiencetwo  or (knocking) (lotsofgunshots) (ambienceone) inside !tts
+     Commands:  !changetext "Something" (owner + configured lead mods; updates /#text)  !<currency> (e.g. !cookies)  !cheer <n>  !tts <text>  !resetcookies <name|all>  !loudtojump (1000 cookies, command only)  !knocking  !lotsofgunshots  !ambienceone  !ambiencetwo  !shocked  or (knocking) (lotsofgunshots) (ambienceone) inside !tts
                 !mutesfx / !unmutesfx  (streamer + lead mods only; lead mods are set in the setup panel or with &leadmod=)  */
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
   body.bg { background: #0e0e10; }
@@ -412,7 +412,7 @@
         </div>
       </div>
 
-      <div class="setup-section">
+      <div class="setup-section" style="display:none">
         <h3>Currency</h3>
         <div class="setup-grid">
           <label>Name
@@ -473,7 +473,7 @@
   const params = new URLSearchParams(location.search);
   const VIEWCHAT = location.hash.toLowerCase() === "#viewchat";     // read-only chat page for the streamer: black background, no sounds, no setup panel
   const TEXTMODE = location.hash.toLowerCase() === "#text";
-  const ICON_ALIASES = { cookie: "cookie", money: "money", box: "box", moon: "moon", fries: "fries", heart: "heart", follow: "user-plus", raid: "users", sub: "star", gift: "gift", bits: "spark", hydrate: "water", request: "box", wheel: "dice", volume: "volume", alert: "bell" };
+  const ICON_ALIASES = { cookie: "cookie", money: "money", box: "box", moon: "moon", fries: "fries", heart: "heart", follow: "user-plus", raid: "users", sub: "star", gift: "gift", bits: "spark", request: "box", wheel: "dice", volume: "volume", alert: "bell" };
   function makeIcon(name, className = "ui-icon") {
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("viewBox", "0 0 24 24"); svg.setAttribute("aria-hidden", "true"); svg.setAttribute("class", className);
@@ -632,14 +632,12 @@
   try { setScreenText(localStorage.getItem(SCREEN_TEXT_KEY) || "", false); } catch (_) {}
   if (screenTextBus) screenTextBus.onmessage = event => { if (event.data && typeof event.data.text === "string") setScreenText(event.data.text, false); };
   addEventListener("storage", event => { if (event.key === SCREEN_TEXT_KEY) setScreenText(event.newValue || "", false); });
-  const CURRENCY_NAME = settings.currency || "Cookies";
+  const CURRENCY_NAME = "Cookies";
+  settings.currency = "Cookies";
+  settings.symbol = "cookie";
   const currencyLabel = n => {
-    const plural = String(CURRENCY_NAME || "Cookies").trim();
-    if (Math.abs(Number(n)) !== 1) return plural;
-    // Handle common English plural forms, including custom currency names.
-    if (/ies$/i.test(plural)) return plural.replace(/ies$/i, "y");
-    if (/ses$/i.test(plural)) return plural.replace(/es$/i, "");
-    if (/s$/i.test(plural)) return plural.slice(0, -1);
+    if (Math.abs(Number(n)) === 1) return "Cookie";
+    const plural = "Cookies";
     return plural;
   };
   const CUR_CMDS = currencyCmds(CURRENCY_NAME);          // e.g. ["cookies", "cookie"]
@@ -667,7 +665,7 @@
   const TING_ON = params.get("ting") !== "0";
   const TING_MS = (params.has("tingsec") ? Math.max(5, parseFloat(params.get("tingsec")) || 60) : 60) * 1000;
   const WHEEL_BIAS = params.has("wheelbias") ? Math.max(0.5, parseFloat(params.get("wheelbias")) || 1.2) : 1.2;
-  const WHEEL_COST = 5, HYDRATE_COST = 20, REQUEST_COST = 5;
+  const WHEEL_COST = 5, REQUEST_COST = 0;
   if (params.get("size")) document.getElementById("chat").style.setProperty("--size", params.get("size") + "px");
   if (params.get("bg"))   document.body.classList.add("bg");
 
@@ -1062,7 +1060,7 @@
   let alertBusy = false;
   const ALERT_STYLE = {
     follow: ["user-plus", "#9147ff"], raid: ["users", "#a970ff"], sub: ["star", "#9147ff"], gift: ["gift", "#a970ff"], bits: ["spark", "#9147ff"],
-    hydrate: ["water", "#a970ff"], request: ["box", "#9147ff"], cookie: ["cookie", "#a970ff"], wheel: ["dice", "#9147ff"]
+    request: ["box", "#9147ff"], cookie: ["cookie", "#a970ff"], wheel: ["dice", "#9147ff"]
   };
   ALERT_STYLE.lowraid = ALERT_STYLE.raid;
   ALERT_STYLE.cgift = ["gift", "#a970ff"];          // currency gift (!gift @name 20)
@@ -1100,30 +1098,12 @@
     });
   }
 
-  // soft water-drop plink for !hydrate
-  function waterDrop() {
-    if (MUTE || sfxMuted) return;
-    const c = audio(); if (!c || c.state !== "running") return;
-    const t0 = c.currentTime + 0.02;
-    [[0, 1300, 520], [0.26, 1000, 430], [0.5, 1500, 600]].forEach(([off, f1, f2]) => {
-      const o = c.createOscillator(), g = c.createGain();
-      o.type = "sine";
-      o.frequency.setValueAtTime(f1, t0 + off);
-      o.frequency.exponentialRampToValueAtTime(f2, t0 + off + 0.14);
-      g.gain.setValueAtTime(0.0001, t0 + off);
-      g.gain.exponentialRampToValueAtTime(0.22, t0 + off + 0.012);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + off + 0.35);
-      o.connect(g); g.connect(sfxOut(c));
-      o.start(t0 + off); o.stop(t0 + off + 0.4);
-    });
-  }
-
   let lastAlertSnd = 0;
   function alertSound(kind) {
     const now = Date.now();
     if (now - lastAlertSnd < 120) return;                    // bursts share one sound
     lastAlertSnd = now;
-    const synthAlert = () => { if (kind === "hydrate") waterDrop(); else chime(ALERT_NOTES[kind] || ALERT_NOTES.sub); };
+    const synthAlert = () => chime(ALERT_NOTES[kind] || ALERT_NOTES.sub);
     if (ALERT_FILES[kind]) playFileOr(ALERT_FILES[kind], synthAlert); else synthAlert();
   }
 
@@ -1356,7 +1336,7 @@
   }
 
   /* ---------- SFX (used inside TTS) ---------- */
-  const SFX_NAMES = new Set(["meow", "gunshot", "lotsofgunshots", "vineboom", "airhorns", "knocking", "ambienceone", "ambiencetwo", "bwomp", "fireinthehole", "geometrydash", "loudtojump", "metalpipe", "spongebobfail", ...EXTRA_SFX]);
+  const SFX_NAMES = new Set(["meow", "gunshot", "lotsofgunshots", "vineboom", "airhorns", "knocking", "ambienceone", "ambiencetwo", "bwomp", "fireinthehole", "geometrydash", "loudtojump", "metalpipe", "spongebobfail", "shocked", ...EXTRA_SFX]);
   const SFX_MAX = 3;
   [...SFX_NAMES, "cheer", "lowcheer", "follow", "raid", "gift", "request", "lowraid"].forEach(preloadSfx);
   const SFX_COSTS = { loudtojump: 1000 };          // price per sound (anything not listed uses SFX_CMD_COST)
@@ -1688,7 +1668,7 @@
     if (now - sfxGlobalLast < 1200) return;                                   // no pile-ups
     if (!mod && now - (sfxCmdLast.get(user) || 0) < SFX_CMD_CD) return;       // per-user cooldown
     const cost = SFX_COSTS[name] ?? SFX_CMD_COST;
-    if (cost > 0) { if (!canPay(tags, user, cost, "a sound effect")) return; pay(tags, user, cost); }
+    if (cost > 0) { if (!canPay(tags, user, cost, name)) return; pay(tags, user, cost); }
     sfxGlobalLast = now; sfxCmdLast.set(user, now);
     audio();
     if (ttsQueue.length < TTS_QUEUE_MAX * 2) { ttsQueue.push([{ sfx: name }]); runTts(); }   // starts immediately when the shared TTS/SFX queue is free
@@ -2028,7 +2008,7 @@
     });
   }
 
-  /* ---------- Rewards: !wheel !hydrate !request !gift, mod: !givecookies !requests !donerequest ---------- */
+  /* ---------- Rewards: !wheel !request !gift, mod: !givecookies !requests !donerequest ---------- */
   const rewardCd = new Map();
   const cdLeft = (key, ms) => Date.now() - (rewardCd.get(key) || 0) < ms;
   const markCd = (key) => rewardCd.set(key, Date.now());
@@ -2072,14 +2052,6 @@
     }, 2200);
   }
 
-  function doHydrate(tags, user) {
-    if (cdLeft("hydrate", 45000)) return;
-    if (!canPay(tags, user, HYDRATE_COST, "!hydrate")) return;
-    pay(tags, user, HYDRATE_COST);
-    markCd("hydrate");
-    queueAlert("hydrate", `${nameOf(tags, user)} says: stay hydrated!`, "Time for a sip of water.", 30);
-  }
-
   // level requests are saved so a mod can list them with !requests and clear one with !donerequest
   const REQ_KEY = "requests:" + CHANNEL;
   let requests = [];
@@ -2087,13 +2059,13 @@
   const saveReqs = () => { try { localStorage.setItem(REQ_KEY, JSON.stringify(requests)); } catch (e) {} };
 
   function doRequest(tags, user, arg) {
-    if (requestsDisabled) { queueAlert("requestinfo", "Level requests are disabled", "No cookies were charged.", 8); return; }
+    if (requestsDisabled) { queueAlert("requestinfo", "Level requests are currently DISABLED", "Please wait until the streamer enables them again.", 8); return; }
     const text = arg.replace(/https?:\/\/\S+|www\.\S+/gi, "").replace(/\s+/g, " ").trim().slice(0, 100);
-    if (!text || ttsBlocked(text)) return;
-    if (requests.length >= 20 || cdLeft("req:" + user, 30000)) return;     // not charged
-    if (!canPay(tags, user, REQUEST_COST, "a level request")) return;
-    pay(tags, user, REQUEST_COST);
-    markCd("req:" + user);
+    if (!text) { queueAlert("requestinfo", "Missing level name", "Use !request followed by the level name.", 8); return; }
+    if (ttsBlocked(text)) { queueAlert("requestinfo", "That request can't be accepted", "Please try a different level name.", 8); return; }
+    if (requests.length >= 20) { queueAlert("requestinfo", "Request queue is full", "Please wait for a spot to open.", 8); return; }
+    if (cdLeft("req:" + user.toLowerCase(), 30000)) { queueAlert("requestinfo", "Please wait before requesting again", "You can submit another level request in 30 seconds.", 8); return; }
+    markCd("req:" + user.toLowerCase());
     const name = nameOf(tags, user);
     requests.push({ user: name, text, t: Date.now() });
     saveReqs();
@@ -2183,7 +2155,7 @@
     const cmd = cm[1].toLowerCase(), arg = (cm[2] || "").trim();
     {                                                                   // show the command as typed (not the silent !give<currency>, not mod-only ones from viewers)
       const control = ["mutesfx", "unmutesfx", "mutetts", "unmutetts", "disablerequests", "enablerequests", "requestsoff", "requestson", "refreshchat", "resetcookies", "changetext"].includes(cmd) || CUR_CMDS.some(c => cmd === "reset" + c);
-      const open = ["wheel", "hydrate", "request", "gift", "requests"].includes(cmd);
+      const open = ["wheel", "request", "gift", "requests"].includes(cmd);
       if (open || (control && canControlSfx(tags, user)) || (cmd === "donerequest" && isMod(tags))) pushCmdLine(tags, user, message);
     }
     if (cmd === "changetext") {
@@ -2195,7 +2167,6 @@
     }
     switch (cmd) {
       case "wheel":       doWheel(tags, user); return true;
-      case "hydrate":     doHydrate(tags, user); return true;
       case "request":     doRequest(tags, user, arg); return true;
       case "gift":        doGift(tags, user, arg); return true;
       case "mutesfx":     doMuteSfx(tags, user, true); return true;
@@ -2244,7 +2215,6 @@
       "Cookies":  () => { noteLast.clear(); addCookieCard({ "display-name": "SampleViewer" }, "sampleviewer", false); },
       "Short":    () => { noteLast.clear(); addCookieCard({ "display-name": "SampleViewer" }, "sampleviewer", true); },
       "Wheel":    () => { rewardCd.clear(); doWheel(modTags, "demo"); },
-      "Hydrate":  () => { rewardCd.clear(); doHydrate(modTags, "demo"); },
       "Request":  () => { rewardCd.clear(); doRequest(modTags, "demo", "Bloodbath by Riot"); },
       "Gift":     () => { rewardCd.clear(); doGift(modTags, "demo", "@SampleViewer 5"); },
       "!meow":    () => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "meow"); },
@@ -2404,8 +2374,8 @@
     setTimeout(() => el.remove(), 1200);
   }
 
-  // chat reader: raids, follows, hydrates, cheers, gifts, subs and normal messages only (no command lines)
-  const VC_KINDS = new Set(["follow", "raid", "lowraid", "sub", "gift", "cgift", "bits", "hydrate"]);
+  // chat reader: raids, follows, cheers, gifts, subs and normal messages only (no command lines)
+  const VC_KINDS = new Set(["follow", "raid", "lowraid", "sub", "gift", "cgift", "bits"]);
   function viewchatAllows(el) {
     const c = el.classList;
     if (c.contains("cookie") || c.contains("tts") || c.contains("welcome")) return false;
@@ -2566,11 +2536,11 @@
       activeChatters.set(user.toLowerCase(), { name: tags["display-name"] || user, seen: Date.now() });
       const c = message.match(CHEER_RE);
       if (c) { pushCmdLine(tags, user, message); tryCheer(tags, user, c[1]); return; }
-      if (VIEWCHAT) {                                  // chat reader: commands are never shown; only hydrate and gift events are
+      if (VIEWCHAT) {                                  // chat reader: commands are never shown; gift events can be mirrored
         const vm = message.match(/^!([a-z0-9]+)(?:\s+(.*))?$/i);
         if (vm) {
           const vc = vm[1].toLowerCase();
-          if (vc === "hydrate") doHydrate(tags, user); else if (vc === "gift") doGift(tags, user, (vm[2] || "").trim());
+          if (vc === "gift") doGift(tags, user, (vm[2] || "").trim()); else if (vc === "request") doRequest(tags, user, (vm[2] || "").trim());
           return;
         }
       } else if (/^!tts(\s|$)/i.test(message)) { handleTts(tags, user, message); return; }
@@ -2715,7 +2685,9 @@
 
   document.addEventListener("keydown", (event) => {
     if (event.repeat || event.ctrlKey || event.metaKey || event.altKey || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || event.target.isContentEditable) return;
-    if (event.key.toLowerCase() === "m") {
+    if (event.key.toLowerCase() === "b") {
+      document.body.classList.toggle("bg");
+    } else if (event.key.toLowerCase() === "m") {
       toggleMuteAll();
     } else if (event.key.toLowerCase() === "p" && VIEWCHAT) {
       togglePopout();
