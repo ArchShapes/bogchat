@@ -103,12 +103,12 @@
   .msg.hype {
     --hc: #ffcf4a;
     position: relative; text-align: center; box-sizing: border-box; max-width: min(620px, 96%); margin: 12px auto; padding: 16px 24px 14px;
-    border: 2px solid var(--hc); border-radius: 18px; text-shadow: none; overflow: visible;
-    background: radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--hc) 42%, #1a1030), rgba(12,9,22,.94) 72%);
-    box-shadow: 0 0 30px var(--hc), 0 0 70px color-mix(in srgb, var(--hc) 45%, transparent), inset 0 0 26px rgba(255,255,255,.1);
-    animation: hypeIn .8s cubic-bezier(.2,1.5,.3,1) backwards, hypeShake .5s ease-in-out .15s 2, hypeGlow 1s ease-in-out .8s infinite alternate;
+    border: 1px solid #34343a; border-radius: 12px; text-shadow: none; overflow: visible;
+    background: #17171b;
+    box-shadow: 0 8px 24px rgba(0,0,0,.22);
+    animation: hypeIn .35s ease-out backwards;
   }
-  .hype .hlabel { font-size: .78em; font-weight: 900; letter-spacing: .38em; text-transform: uppercase; color: var(--hc); animation: hypeBlink .7s steps(2) infinite; }
+  .hype .hlabel { font-size: .78em; font-weight: 800; letter-spacing: .2em; text-transform: uppercase; color: #c4a3ff; }
   .hype .hwho { font-size: 1.35em; font-weight: 900; margin-top: 2px; color: #fff; text-shadow: 0 0 12px var(--hc); overflow-wrap: anywhere; }
   .hype .hbig {
     font-size: 3.4em; font-weight: 900; line-height: 1.05; margin: 4px 0 2px; display: inline-block; white-space: nowrap;
@@ -300,6 +300,7 @@
   .alert { background: #18181b; border-color: #393940; box-shadow: 0 12px 32px rgba(0,0,0,.3); }
   .alert::before { background: var(--ac); box-shadow: none; }
   .alert::after { display: none; }
+  .msg.alertc[data-kind="cgift"] { --ac: #a970ff !important; border-color: #393940 !important; }
 
   /* ---------- Minimal chat-line look + smooth in/out ---------- */
   .msg { animation: msgIn .35s ease-out backwards; transition: opacity .6s ease, transform .6s ease, max-height .5s ease .35s, padding .5s ease .35s, margin .5s ease .35s; }
@@ -314,7 +315,7 @@
   }
   body.viewchat .msg.cheer, body.viewchat .msg.cookie, body.viewchat .msg.hype, body.viewchat .msg.alertc, body.viewchat .msg.tts, body.viewchat .msg.welcome { text-shadow: none; }
   .msg.cheer { border-left-color: #ffcf4a; }
-  .msg.tts { border-left-color: #ffc46b; }
+  .msg.tts { border-left-color: #9147ff; }
   .msg.alertc { border-left-color: var(--ac); }
   .msg.cookie { border-left-color: #a970ff; }
   /* big raids / big cheers / big bits: a rounded label behind the text */
@@ -451,7 +452,7 @@
         </div>
         <label style="margin-top:14px"><span>Lead moderators <span class="opt">(logins, comma separated)</span></span>
           <input id="cfg-leadmods" autocomplete="off" placeholder="mod1, mod2">
-          <span class="hint">Lead mods and the streamer can use !mutesfx and !unmutesfx to silence every sound effect instantly.</span>
+          <span class="hint">Lead mods and the streamer can use !mutesfx / !unmutesfx, !mutetts / !unmutetts, and !disablerequests / !enablerequests. Muted TTS and disabled requests do not charge cookies.</span>
         </label>
         <label style="margin-top:14px"><span>Overlay link <span class="opt">(use this as your OBS browser source)</span></span>
           <input id="cfg-overlay-link" readonly onfocus="this.select()">
@@ -738,6 +739,8 @@
   }
   // Every built-in sound goes through one bus so "!mutesfx" can silence them instantly.
   let sfxMuted = false, sfxBus = null;
+  let ttsMuted = false;
+  let requestsDisabled = false;
   const sfxStops = new Set();
   function sfxOut(c) {
     if (!sfxBus || sfxBus.context !== c) {
@@ -1062,7 +1065,7 @@
     hydrate: ["water", "#a970ff"], request: ["box", "#9147ff"], cookie: ["cookie", "#a970ff"], wheel: ["dice", "#9147ff"]
   };
   ALERT_STYLE.lowraid = ALERT_STYLE.raid;
-  ALERT_STYLE.cgift = ["gift", "#ffcf4a"];          // currency gift (!gift @name 20)
+  ALERT_STYLE.cgift = ["gift", "#a970ff"];          // currency gift (!gift @name 20)
   ALERT_STYLE.requestinfo = ALERT_STYLE.request;     // !requests list: same look, but no request.mp3
   const ALERT_NOTES = {
     follow: [783.99, 1046.5, 1318.5],
@@ -1977,7 +1980,7 @@
   addEventListener("keydown", ttsUnlock);
 
   function handleTts(tags, user, message) {
-    if (!TTS_ON || allMuted) return;
+    if (!TTS_ON || allMuted || ttsMuted) return;
     const messageWithEmoteNames = emoteNamesForTts(message, tags && tags.emotes);
     const text = cleanTts(messageWithEmoteNames.replace(/^!tts\s*/i, ""));
     if (!text) return;
@@ -2084,6 +2087,7 @@
   const saveReqs = () => { try { localStorage.setItem(REQ_KEY, JSON.stringify(requests)); } catch (e) {} };
 
   function doRequest(tags, user, arg) {
+    if (requestsDisabled) { queueAlert("requestinfo", "Level requests are disabled", "No cookies were charged.", 8); return; }
     const text = arg.replace(/https?:\/\/\S+|www\.\S+/gi, "").replace(/\s+/g, " ").trim().slice(0, 100);
     if (!text || ttsBlocked(text)) return;
     if (requests.length >= 20 || cdLeft("req:" + user, 30000)) return;     // not charged
@@ -2178,7 +2182,7 @@
     if (!cm) return false;
     const cmd = cm[1].toLowerCase(), arg = (cm[2] || "").trim();
     {                                                                   // show the command as typed (not the silent !give<currency>, not mod-only ones from viewers)
-      const control = ["mutesfx", "unmutesfx", "refreshchat", "resetcookies", "changetext"].includes(cmd) || CUR_CMDS.some(c => cmd === "reset" + c);
+      const control = ["mutesfx", "unmutesfx", "mutetts", "unmutetts", "disablerequests", "enablerequests", "requestsoff", "requestson", "refreshchat", "resetcookies", "changetext"].includes(cmd) || CUR_CMDS.some(c => cmd === "reset" + c);
       const open = ["wheel", "hydrate", "request", "gift", "requests"].includes(cmd);
       if (open || (control && canControlSfx(tags, user)) || (cmd === "donerequest" && isMod(tags))) pushCmdLine(tags, user, message);
     }
@@ -2196,6 +2200,18 @@
       case "gift":        doGift(tags, user, arg); return true;
       case "mutesfx":     doMuteSfx(tags, user, true); return true;
       case "unmutesfx":   doMuteSfx(tags, user, false); return true;
+      case "mutetts":
+        if (canControlSfx(tags, user)) { ttsMuted = true; ttsQueue.length = 0; try { if (ttsAudioStop) ttsAudioStop(); } catch (_) {} try { if ("speechSynthesis" in window) speechSynthesis.cancel(); } catch (_) {} sfxNotice("TTS muted. Attempts won't cost cookies.", tags, user); }
+        return true;
+      case "unmutetts":
+        if (canControlSfx(tags, user)) { ttsMuted = false; sfxNotice("TTS unmuted.", tags, user); }
+        return true;
+      case "disablerequests": case "requestsoff":
+        if (canControlSfx(tags, user)) { requestsDisabled = true; sfxNotice("Level requests disabled. Attempts won't cost cookies.", tags, user); }
+        return true;
+      case "enablerequests": case "requestson":
+        if (canControlSfx(tags, user)) { requestsDisabled = false; sfxNotice("Level requests enabled.", tags, user); }
+        return true;
       case "refreshchat": doRefreshChat(tags, user); return true;
       case "resetcookies": doResetCookies(tags, user, arg); return true;
       case "requests":    showRequests(tags); return true;
