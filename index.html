@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
   /* URL options:
-     ?channel=name   Twitch channel (any user; can also be set in the setup panel)
+     ?channel=name   (ignored: this overlay is fixed to bogdanthegdplayer)
      &max=6          max messages on screen (default 6)
      &fade=30        seconds before a message fades (default 30, 0 = never)
      &size=20        font size in px
@@ -32,6 +32,7 @@
      &leadmod=name1,name2  show a LeadMod badge for these logins
      &silent=name1,name2   show a Silent badge for these logins
      &demo=1         show test buttons
+     #viewchat: press P to pop the chat out into its own small window (press P again to close it)
      Commands:  !changetext "Something" (owner + configured lead mods; updates /#text)  !<currency> (e.g. !cookies)  !cheer <n>  !tts <text>  !resetcookies <name|all>  !loudtojump (1000 cookies, command only)  !knocking  !lotsofgunshots  !ambienceone  !ambiencetwo  or (knocking) (lotsofgunshots) (ambienceone) inside !tts
                 !mutesfx / !unmutesfx  (streamer + lead mods only; lead mods are set in the setup panel or with &leadmod=)  */
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
@@ -137,6 +138,9 @@
   body.viewchat #chat::-webkit-scrollbar { width: 10px; }
   body.viewchat #chat::-webkit-scrollbar-thumb { background: #3a3a3d; border-radius: 6px; }
   body.viewchat #chat > * { flex: 0 0 auto; }
+  body.popout #chat { --size: 17px; padding: 8px 10px; }
+  body.popout .vc-time { display: none; }
+  body.popout #vc-head { font-size: .72em; padding: 4px 6px 8px; }
   #vc-head {
     position: sticky; top: 0; z-index: 4; padding: 11px 14px; text-align: center;
     background: #18181b; border-bottom: 1px solid #2f2f35; color: #efeff1; font-size: .8em; font-weight: 800; letter-spacing: .02em;
@@ -394,7 +398,7 @@
       </div>
 
       <div class="setup-section">
-        <h3>Follow alerts <span style="text-transform:none;letter-spacing:0;font-weight:500">(optional)</span></h3>
+        <h3>Follow alerts <span style="text-transform:none;letter-spacing:0;font-weight:500">(optional, only needed for names)</span></h3>
         <div class="setup-grid">
           <label>Client ID
             <input id="cfg-clientid" autocomplete="off" placeholder="your Twitch app Client ID">
@@ -402,7 +406,7 @@
           <label>User access token
             <input id="cfg-token" type="password" autocomplete="off" placeholder="oauth token">
           </label>
-          <p class="hint span-2">Twitch does not send follows through chat, so this needs a token from the streamer (or a mod) with the <code>moderator:read:followers</code> scope. Without it, follow alerts cannot appear. Everything else works without it.</p>
+          <p class="hint span-2">Follows work without this: the overlay watches the public follower count and shows "New follower!". Add a token from the streamer (or a mod) with the <code>moderator:read:followers</code> scope only if you want every follower's exact name.</p>
         </div>
       </div>
 
@@ -634,9 +638,9 @@
   const SILENT_USERS = new Set((params.get("silent") || "").toLowerCase().split(",").map(s => s.trim()).filter(Boolean));
   const FADE_S  = parseFloat(params.get("fade") ?? (VIEWCHAT ? "0" : "30"));     // the chat page keeps messages (no fading) so you can read back
   const MAX_MSG = Math.max(1, parseInt(params.get("max") || (VIEWCHAT ? "200" : "6"), 10));
-  const MUTE    = params.get("mute") === "1";
+  const MUTE    = VIEWCHAT || params.get("mute") === "1";          // the chat reader never plays sound
   const SPAM_ON = params.get("spam") !== "0";
-  const TTS_ON = settings.tts && params.get("tts") !== "0";
+  const TTS_ON = !VIEWCHAT && settings.tts && params.get("tts") !== "0";
   const TTS_VOL = params.has("ttsvol") ? Math.min(1, Math.max(0, parseFloat(params.get("ttsvol")) || 0)) : 1;
   const TTS_VOICE = (params.get("ttsvoice") || "").toLowerCase();
   const DROP = (params.has("drop") ? Math.min(100, Math.max(0, parseFloat(params.get("drop")) || 0)) : 35) / 100;
@@ -783,7 +787,7 @@
     a.play().catch(fb);
     setTimeout(stop, 60000);                 // sound limit: 60 seconds
   }
-  const ALERT_FILES = { follow: "follow", raid: "raid", gift: "gift", bits: "cheer", request: "request", lowraid: "lowraid" };
+  const ALERT_FILES = { follow: "follow", raid: "raid", gift: "gift", cgift: "lowcheer", bits: "cheer", request: "request", lowraid: "lowraid" };
 
   // 0-144 cookies plays lowcheer.mp3, 145 and up plays cheer.mp3 (built-in jingle if a file is missing)
   function playCheer(amount) { playFileOr(amount < 145 ? "lowcheer" : "cheer", () => playCheerSynth(amount)); }
@@ -822,13 +826,13 @@
   const STORE_KEY = "cookies:" + CHANNEL;
   let cookies = {};
   // Every fresh launch starts a new cookie season, except after !refreshchat (balances are kept).
-  try {
+  if (!VIEWCHAT) try {                                 // the chat reader never touches saved balances
     if (sessionStorage.getItem("keep-cookies") === "1") {
       sessionStorage.removeItem("keep-cookies");
       cookies = JSON.parse(localStorage.getItem(STORE_KEY) || "{}") || {};
     } else localStorage.setItem(STORE_KEY, "{}");
   } catch (e) {}
-  const saveCookies = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify(cookies)); } catch (e) {} };
+  const saveCookies = () => { if (VIEWCHAT) return; try { localStorage.setItem(STORE_KEY, JSON.stringify(cookies)); } catch (e) {} };
   const bal = (u) => cookies[u.toLowerCase()] || 0;
   const addCookies = (u, n) => {
     const k = u.toLowerCase();
@@ -1053,6 +1057,7 @@
     hydrate: ["water", "#a970ff"], request: ["box", "#9147ff"], cookie: ["cookie", "#a970ff"], wheel: ["dice", "#9147ff"]
   };
   ALERT_STYLE.lowraid = ALERT_STYLE.raid;
+  ALERT_STYLE.cgift = ["gift", "#ffcf4a"];          // currency gift (!gift @name 20)
   ALERT_STYLE.requestinfo = ALERT_STYLE.request;     // !requests list: same look, but no request.mp3
   const ALERT_NOTES = {
     follow: [783.99, 1046.5, 1318.5],
@@ -1119,6 +1124,7 @@
     const [icon, color] = ALERT_STYLE[kind] || ALERT_STYLE.sub;
     const el = document.createElement("div");
     el.className = "msg alertc keep";
+    el.dataset.kind = kind;
     el.style.setProperty("--ac", color);
     const ic = document.createElement("div"); ic.className = "ai"; ic.appendChild(makeIcon(icon, "ui-icon alert-icon"));
     const body = document.createElement("div");
@@ -1235,10 +1241,61 @@
     }
   }
 
-  /* Follow alerts: Twitch doesn't send follows through chat, so this uses EventSub.
+  /* Follow alerts without any token: Twitch sends no follow events through chat, so this watches the channel's public
+     follower count (no sign-in, no Client ID) and shows an alert whenever it goes up. A name is shown when Twitch
+     hands it out; otherwise the alert says "New follower!". Subs, resubs, gifts, raids and bits already come through chat. */
+  function startFollowsKeyless() {
+    const GQL = "https://gql.twitch.tv/gql", GQL_ID = "kimne78kx3ncx6brgo4mv6wki5h1ko", POLL_MS = 15000;
+    const last = {};                                    // follower count per source (sources are never compared with each other)
+    let busy = false;
+    const gql = async (query) => {
+      const r = await fetch(GQL, { method: "POST", headers: { "Client-Id": GQL_ID }, body: JSON.stringify({ query }) });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    };
+    async function readCount() {
+      try {
+        const j = await gql(`query{user(login:"${CHANNEL}"){followers{totalCount}}}`);
+        const n = j && j.data && j.data.user && j.data.user.followers && j.data.user.followers.totalCount;
+        if (Number.isInteger(n)) return { src: "twitch", n };
+      } catch (e) {}
+      try {
+        const r = await fetch("https://api.ivr.fi/v2/twitch/user?login=" + encodeURIComponent(CHANNEL));
+        const j = await r.json(), u = Array.isArray(j) ? j[0] : j;
+        if (u && Number.isInteger(u.followers)) return { src: "ivr", n: u.followers };
+      } catch (e) {}
+      return null;
+    }
+    async function newestNames(k) {
+      try {
+        const j = await gql(`query{user(login:"${CHANNEL}"){followers(first:${k}){edges{node{displayName login}}}}}`);
+        const edges = (((j.data || {}).user || {}).followers || {}).edges || [];
+        return edges.map(e => e && e.node && (e.node.displayName || e.node.login)).filter(Boolean);
+      } catch (e) { return []; }
+    }
+    async function tick() {
+      if (busy) return;
+      busy = true;
+      try {
+        const c = await readCount();
+        if (!c) return;
+        const before = last[c.src];
+        last[c.src] = c.n;
+        if (before === undefined || c.n <= before) return;            // first reading is only the starting point
+        const gained = Math.min(c.n - before, 5);
+        const names = c.src === "twitch" ? await newestNames(gained) : [];
+        for (let i = 0; i < gained; i++) queueAlert("follow", names[i] ? `${names[i]} just followed!` : "New follower!", names[i] ? "" : "Thanks for the follow!");
+      } finally { busy = false; }
+    }
+    tick();
+    setInterval(tick, POLL_MS);
+  }
+
+  /* Follow alerts with a token: names are exact. Uses EventSub.
      It only runs if &token=...&clientid=... are in the URL. */
   function startFollows() {
-    if (!TOKEN || !CLIENT_ID || !ALERTS_ON) return;
+    if (!ALERTS_ON) return;
+    if (!TOKEN || !CLIENT_ID) { startFollowsKeyless(); return; }
     const H = { "Authorization": "Bearer " + TOKEN, "Client-Id": CLIENT_ID };
     let ids = null, current = null, retry = 0;
     async function getIds() {
@@ -1951,11 +2008,11 @@
   const markCd = (key) => rewardCd.set(key, Date.now());
   const nameOf = (tags, user) => tags["display-name"] || user;
   function canPay(tags, user, cost, what) {
-    if (isMod(tags)) return true;
+    if (VIEWCHAT || isMod(tags)) return true;                // the chat reader cannot see balances, so it just shows the event
     if (bal(user) < cost) { addCookieCard(tags, user, true, cost, what); return false; }
     return true;
   }
-  const pay = (tags, user, cost) => { if (!isMod(tags)) addCookies(user, -cost); };
+  const pay = (tags, user, cost) => { if (!VIEWCHAT && !isMod(tags)) addCookies(user, -cost); };
 
   // wheel: 1-20 cookies, small wins are more likely so it costs more than it pays on average
   const WHEEL_W = Array.from({ length: 20 }, (_, i) => 1 / Math.pow(i + 1, WHEEL_BIAS));
@@ -2025,33 +2082,23 @@
     showRequests(tags);
   }
 
-  const giftWindows = new Map();
-  function giftLimit(user, now = Date.now()) {
-    const key = user.toLowerCase();
-    const windowMs = 300000;
-    const limit = isMod(currentGiftTags) ? 10 : Infinity;
-    const entries = (giftWindows.get(key) || []).filter(x => now - x.time < windowMs);
-    return { entries, windowMs, limit, used: entries.reduce((sum, x) => sum + x.amount, 0) };
-  }
-  let currentGiftTags = {};
+  // !gift @name 20  (max 50 per gift) plays lowcheer.mp3
+  const GIFT_MAX = 50;
   function doGift(tags, user, arg) {
-    const m = arg.match(/^@?(\w{1,25})\s+(\d{1,4})$/);
+    const m = arg.match(/^@?(\w{1,25})\s+(\d{1,6})$/);
     if (!m) return;
     const to = m[1].toLowerCase(), n = parseInt(m[2], 10);
     if (n < 1 || to === user.toLowerCase() || cdLeft("gift:" + user, 3000)) return;
-    currentGiftTags = tags;
-    const limitInfo = giftLimit(user);
-    if (limitInfo.used + n > limitInfo.limit) {
-      queueAlert("cookie", `${nameOf(tags, user)} hit the currency gift limit`, "Moderators can gift up to 10 per 5 minutes.");
+    if (n > GIFT_MAX) {
+      markCd("gift:" + user);
+      queueAlert("cookie", `${nameOf(tags, user)}: the gift limit is ${GIFT_MAX} ${CURRENCY_NAME} per gift`, "");
       return;
     }
     if (!canPay(tags, user, n, "that gift")) return;
     pay(tags, user, n);
     addCookies(to, n);
-    const key = user.toLowerCase();
-    giftWindows.set(key, [...limitInfo.entries, { time: Date.now(), amount: n }]);
     markCd("gift:" + user);
-    queueAlert("cookie", `${nameOf(tags, user)} gifted ${n} ${CURRENCY_NAME} to ${m[1]}!`, "");
+    queueAlert("cgift", `${nameOf(tags, user)} gifted ${n} ${CURRENCY_NAME} to ${m[1]}!`, "");
   }
 
   // mods/broadcaster only, completely silent: !give<currency> @name 20 (e.g. !givecookies)  (negative numbers take cookies away)
@@ -2195,7 +2242,7 @@
   }
 
   // Custom emotes: the word (any capitalization) is replaced by the image next to this file.
-  const CUSTOM_EMOTES = { ww: "ww.gif", ll: "ll.png", normalface: "normalface.png", son: "son.png", sonion: "son.png", petthemods: "petmods.gif", petmods: "petmods.gif", hi: "hi.gif", scared: "speedscared.jpg", scared: "speedscared.jpg", bogdan: "bogdanpfp.png", pfp: "bogdanpfp.png", bogdanpfp: "bogdanpfp.png", iqtoohigh: "iqtoohigh.jpg", aniqtoohigh: "iqtoohigh.jpg", aniqtoolow: "iqnonexistent.jpg", iqtoolow: "iqnonexistent.jpg", nonexistentiq: "iqnonexistent.jpg", iqnonexistent: "iqnonexistent.jpg"};
+  const CUSTOM_EMOTES = { ww: "ww.gif", ll: "ll.png", normalface: "normalface.png", son: "son.png", sonion: "son.png", petthemods: "petmods.gif", petmods: "petmods.gif", hi: "hi.gif", scared: "speedscared.jpg", bogdan: "bogdanpfp.png", pfp: "bogdanpfp.png", bogdanpfp: "bogdanpfp.png", muga: "muga.gif", "55": "55.gif", "67": "67.png", laugh: "laugh.gif", minionlaughing: "laugh.gif"};
   const emoteSources = (file) => {
     const base = file.replace(/\.[^.]+$/, "");
     return [file, ...["png", "gif", "webp", "jpg", "jpeg", "avif", "svg"].map(e => `${base}.${e}`)].filter((v, i, a) => a.indexOf(v) === i);
@@ -2226,6 +2273,45 @@
   }
   function stripCustomEmotes(str) {
     return String(str).split(/(\s+)/).map(part => customEmoteOf(part) ? "" : part).join("").replace(/\s+/g, " ").trim();
+  }
+
+  // Word-sensitive line wrapping. A word that does not fit moves down whole; only a single word longer than a
+  // full line is cut. Emotes count as 3 characters. Chat = 35 per line, chat reader = 55, pop-out = 30.
+  const POPOUT = VIEWCHAT && (params.get("pop") === "1" || window.name === "vc-popout");
+  const LINE_CH = VIEWCHAT ? (POPOUT ? 30 : 55) : 35;
+  if (POPOUT) document.body.classList.add("popout");
+  function wrapLines(root, limit = LINE_CH, col = 0) {
+    let pendingSpace = false;
+    const frag = document.createDocumentFragment();
+    const br = () => frag.appendChild(document.createElement("br"));
+    const emit = (node, len, word) => {
+      if (len <= limit) {
+        if (col > 0 && col + (pendingSpace ? 1 : 0) + len > limit) { br(); col = 0; pendingSpace = false; }
+        if (pendingSpace && col > 0) { frag.appendChild(document.createTextNode(" ")); col += 1; }
+        pendingSpace = false;
+        frag.appendChild(node); col += len;
+        return;
+      }
+      if (col > 0) { br(); col = 0; }                                   // one word longer than a whole line: start fresh, then cut it
+      pendingSpace = false;
+      const chars = Array.from(word);
+      for (let i = 0; i < chars.length; i += limit) {
+        if (i > 0) br();
+        frag.appendChild(document.createTextNode(chars.slice(i, i + limit).join("")));
+      }
+      col = chars.length % limit || limit;
+    };
+    for (const node of Array.from(root.childNodes)) {
+      if (node.nodeType === 3) {
+        for (const tok of node.data.split(/(\s+)/)) {
+          if (!tok) continue;
+          if (/^\s+$/.test(tok)) { if (col > 0) pendingSpace = true; continue; }
+          emit(document.createTextNode(tok), Array.from(tok).length, tok);
+        }
+      } else if (node.nodeName === "BR") { frag.appendChild(node); col = 0; pendingSpace = false; }
+      else emit(node, node.nodeName === "IMG" ? 3 : Math.max(1, Array.from(node.textContent || "").length), "");
+    }
+    root.replaceChildren(frag);
   }
 
   function buildText(message, emoteTag) {
@@ -2270,7 +2356,27 @@
     setTimeout(() => el.remove(), 1200);
   }
 
+  // chat reader: raids, follows, hydrates, cheers, gifts, subs and normal messages only (no command lines)
+  const VC_KINDS = new Set(["follow", "raid", "lowraid", "sub", "gift", "cgift", "bits", "hydrate"]);
+  function viewchatAllows(el) {
+    const c = el.classList;
+    if (c.contains("cookie") || c.contains("tts") || c.contains("welcome")) return false;
+    if (c.contains("alertc")) return VC_KINDS.has(el.dataset.kind);
+    return true;
+  }
+  // word-sensitive wrapping so no line is longer than LINE_CH characters
+  function wrapForLine(el) {
+    const c = el.classList;
+    if (c.contains("hype") || c.contains("cookie")) return;
+    if (c.contains("alertc")) { el.querySelectorAll(".at, .as").forEach(x => wrapLines(x, LINE_CH, 0)); return; }
+    const t = el.querySelector(".text");
+    if (t) { const n = el.querySelector(".name"); wrapLines(t, LINE_CH, n ? Array.from(n.textContent).length + 2 : 0); return; }
+    if (c.contains("cheer")) wrapLines(el, LINE_CH, 0);
+  }
+
   function push(el, tags, fade = FADE_S) {
+    if (VIEWCHAT && !viewchatAllows(el)) return;
+    wrapForLine(el);
     if (tags.id) el.dataset.id = tags.id;
     const stick = VIEWCHAT && chat.scrollHeight - chat.scrollTop - chat.clientHeight < 120;
     const wait = VIEWCHAT && document.getElementById("vc-wait"); if (wait) wait.remove();
@@ -2279,7 +2385,7 @@
     const norm = all.filter(e => !e.classList.contains("keep"));
     const keep = all.filter(e => e.classList.contains("keep"));
     while (norm.length > MAX_MSG) dismiss(norm.shift());
-    while (keep.length > 4) dismiss(keep.shift());
+    while (keep.length > (VIEWCHAT ? MAX_MSG : 4)) dismiss(keep.shift());      // the chat reader keeps its event lines like any other line
     if (fade > 0) setTimeout(() => dismiss(el), fade * 1000);
     if (stick) { chat.scrollTop = chat.scrollHeight; setTimeout(() => { chat.scrollTop = chat.scrollHeight; }, 60); }   // follow new lines unless you scrolled up
   }
@@ -2375,7 +2481,14 @@
       activeChatters.set(user.toLowerCase(), { name: tags["display-name"] || user, seen: Date.now() });
       const c = message.match(CHEER_RE);
       if (c) { tryCheer(tags, user, c[1]); return; }
-      if (/^!tts(\s|$)/i.test(message)) { handleTts(tags, user, message); return; }
+      if (VIEWCHAT) {                                  // chat reader: commands are never shown; only hydrate and gift events are
+        const vm = message.match(/^!([a-z0-9]+)(?:\s+(.*))?$/i);
+        if (vm) {
+          const vc = vm[1].toLowerCase();
+          if (vc === "hydrate") doHydrate(tags, user); else if (vc === "gift") doGift(tags, user, (vm[2] || "").trim());
+          return;
+        }
+      } else if (/^!tts(\s|$)/i.test(message)) { handleTts(tags, user, message); return; }
       { const bm = message.match(/^!([a-z0-9]+)\s*$/i); if (bm && CUR_CMDS.includes(bm[1].toLowerCase())) { showBalance(tags, user); return; } }
       if (handleCommand(tags, user, message)) return;
     }
@@ -2385,7 +2498,7 @@
     if (!isTrusted(tags, user) && isSpam(user, tags, message)) return;
 
     // only messages that pass the spam filter can earn a cookie (mods don't need them)
-    if (!isMod(tags) && Math.random() < DROP) addCookies(user, 1);
+    if (!VIEWCHAT && !isMod(tags) && Math.random() < DROP) addCookies(user, 1);
     if (wasSilent) ting();
 
     const displayName = tags["display-name"] || user;
@@ -2486,6 +2599,17 @@
     startFollows();
   }
 
+  // P (chat reader only): open the chat in its own small window; press P again (in either window) to close it
+  let popWin = null;
+  function togglePopout() {
+    if (POPOUT) { window.close(); return; }
+    if (popWin && !popWin.closed) { popWin.close(); popWin = null; return; }
+    const u = new URL(location.href); u.searchParams.set("pop", "1"); u.hash = "#viewchat";
+    const w = 400, h = Math.max(400, Math.min(760, (screen.availHeight || 800) - 80));
+    popWin = window.open(u.toString(), "vc-popout", `popup=yes,width=${w},height=${h},left=${Math.max(0, (screen.availWidth || 1200) - w - 24)},top=40`);
+    if (!popWin) { setStatus("The pop-up was blocked. Allow pop-ups for this page, then press P again."); setTimeout(() => setStatus(""), 5000); }
+  }
+
   // M: mute / unmute everything (sound effects, alerts, cheers and TTS)
   function toggleMuteAll() {
     allMuted = !allMuted;
@@ -2502,6 +2626,8 @@
     if (event.repeat || event.ctrlKey || event.metaKey || event.altKey || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || event.target.isContentEditable) return;
     if (event.key.toLowerCase() === "m") {
       toggleMuteAll();
+    } else if (event.key.toLowerCase() === "p" && VIEWCHAT) {
+      togglePopout();
     } else if (event.key.toLowerCase() === "e") {
       settings.language = "en-US";
       settings.channel = "bogdanthegdplayer";
