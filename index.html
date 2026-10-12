@@ -32,7 +32,7 @@
      &leadmod=name1,name2  show a LeadMod badge for these logins
      &silent=name1,name2   show a Silent badge for these logins
      &demo=1         show test buttons
-     #viewchat: press P to pop the chat out into its own small window (press P again to close it)
+     #viewchat: press P to pop the chat out into an always-on-top window (Chrome / Edge; other browsers get a normal small window). Press P again to put it back
      Commands:  !changetext "Something" (owner + configured lead mods; updates /#text)  !<currency> (e.g. !cookies)  !cheer <n>  !tts <text>  !resetcookies <name|all>  !loudtojump (1000 cookies, command only)  !knocking  !lotsofgunshots  !ambienceone  !ambiencetwo  or (knocking) (lotsofgunshots) (ambienceone) inside !tts
                 !mutesfx / !unmutesfx  (streamer + lead mods only; lead mods are set in the setup panel or with &leadmod=)  */
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
@@ -141,6 +141,7 @@
   body.popout #chat { --size: 17px; padding: 8px 10px; }
   body.popout .vc-time { display: none; }
   body.popout #vc-head { font-size: .72em; padding: 4px 6px 8px; }
+  #vc-away { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; color: #7d7d86; font: 700 15px "Nunito", "Segoe UI", sans-serif; }
   #vc-head {
     position: sticky; top: 0; z-index: 4; padding: 11px 14px; text-align: center;
     background: #18181b; border-bottom: 1px solid #2f2f35; color: #efeff1; font-size: .8em; font-weight: 800; letter-spacing: .02em;
@@ -2278,7 +2279,7 @@
   // Word-sensitive line wrapping. A word that does not fit moves down whole; only a single word longer than a
   // full line is cut. Emotes count as 3 characters. Chat = 35 per line, chat reader = 55, pop-out = 30.
   const POPOUT = VIEWCHAT && (params.get("pop") === "1" || window.name === "vc-popout");
-  const LINE_CH = VIEWCHAT ? (POPOUT ? 30 : 55) : 35;
+  let LINE_CH = VIEWCHAT ? (POPOUT ? 30 : 55) : 35;
   if (POPOUT) document.body.classList.add("popout");
   function wrapLines(root, limit = LINE_CH, col = 0) {
     let pendingSpace = false;
@@ -2372,6 +2373,15 @@
     const t = el.querySelector(".text");
     if (t) { const n = el.querySelector(".name"); wrapLines(t, LINE_CH, n ? Array.from(n.textContent).length + 2 : 0); return; }
     if (c.contains("cheer")) wrapLines(el, LINE_CH, 0);
+  }
+
+  // re-wrap every line already on screen (used when the chat moves between the page and the pop-out window)
+  function rewrapAll(limit) {
+    LINE_CH = limit;
+    chat.querySelectorAll(".msg").forEach(el => {
+      el.querySelectorAll("br").forEach(b => b.replaceWith(document.createTextNode(" ")));
+      wrapForLine(el);
+    });
   }
 
   function push(el, tags, fade = FADE_S) {
@@ -2600,11 +2610,34 @@
   }
 
   // P (chat reader only): open the chat in its own small window; press P again (in either window) to close it
-  let popWin = null;
-  function togglePopout() {
+  let popWin = null, pipWin = null;
+  // Chrome / Edge: a Picture-in-Picture window stays on top of every other window, so it never disappears behind what you click.
+  async function openPip() {
+    const w = await documentPictureInPicture.requestWindow({ width: 400, height: 640 });
+    pipWin = w;
+    document.querySelectorAll('link[rel="stylesheet"], style').forEach(n => w.document.head.appendChild(n.cloneNode(true)));
+    w.document.title = document.title;
+    w.document.body.className = "viewchat popout";
+    const away = document.createElement("div");
+    away.id = "vc-away"; away.textContent = "The chat is in the pop-out window. Press P to bring it back.";
+    document.body.appendChild(away);
+    w.document.body.appendChild(chat);                    // the same chat moves over, so nothing reconnects or gets lost
+    rewrapAll(30);
+    chat.scrollTop = chat.scrollHeight;
+    w.addEventListener("keydown", (e) => { if (e.key.toLowerCase() === "p" && !e.ctrlKey && !e.metaKey && !e.altKey) w.close(); });
+    w.addEventListener("pagehide", () => {                // closed with P or the window's own X: put the chat back
+      document.body.appendChild(chat); away.remove(); pipWin = null;
+      rewrapAll(55); chat.scrollTop = chat.scrollHeight;
+    });
+  }
+  async function togglePopout() {
     if (POPOUT) { window.close(); return; }
+    if (pipWin) { pipWin.close(); return; }
     if (popWin && !popWin.closed) { popWin.close(); popWin = null; return; }
-    const u = new URL(location.href); u.searchParams.set("pop", "1"); u.hash = "#viewchat";
+    if ("documentPictureInPicture" in window) {
+      try { await openPip(); return; } catch (e) { console.warn("Always-on-top pop-out failed, using a normal window instead:", e); }
+    }
+    const u = new URL(location.href); u.searchParams.set("pop", "1"); u.hash = "#viewchat";    // other browsers: a normal small window
     const w = 400, h = Math.max(400, Math.min(760, (screen.availHeight || 800) - 80));
     popWin = window.open(u.toString(), "vc-popout", `popup=yes,width=${w},height=${h},left=${Math.max(0, (screen.availWidth || 1200) - w - 24)},top=40`);
     if (!popWin) { setStatus("The pop-up was blocked. Allow pop-ups for this page, then press P again."); setTimeout(() => setStatus(""), 5000); }
