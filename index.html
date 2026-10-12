@@ -1675,7 +1675,7 @@
     el.append(t);
     push(el, {});
   }
-  function doSfxCmd(tags, user, name) {
+  function doSfxCmd(tags, user, name, message) {
     if (sfxMuted || MUTE || SFX_VOL === 0) return;
     const now = Date.now(), mod = isMod(tags);
     if (now - sfxGlobalLast < 1200) return;                                   // no pile-ups
@@ -1685,8 +1685,7 @@
     sfxGlobalLast = now; sfxCmdLast.set(user, now);
     audio();
     if (ttsQueue.length < TTS_QUEUE_MAX * 2) { ttsQueue.push([{ sfx: name }]); runTts(); }   // plays right after whatever is speaking/playing finishes
-    const am = /^ambience(one|two)$/.exec(name);
-    sfxNotice(am ? `played ambience sound ${am[1]}` : `played ${name}`, tags, user);
+    pushCmdLine(tags, user, message || ("!" + name));
   }
   function doMuteSfx(tags, user, mute) {
     if (!canControlSfx(tags, user)) return;
@@ -1971,15 +1970,7 @@
       ttsLastUser.set(user, now);
     }
 
-    const name = tags["display-name"] || user;
-    const el = document.createElement("div");
-    el.className = "msg tts";
-    const spk = document.createElement("span"); spk.className = "spk"; spk.appendChild(makeIcon("volume", "ui-icon"));
-    const n = document.createElement("span"); n.className = "name"; n.textContent = name;
-    n.style.color = readable(tags.color, name);
-    const t = document.createElement("span"); t.className = "text"; t.appendChild(emotifyText(shown));
-    el.append(spk, n, t);
-    push(el, tags);
+    pushCmdLine(tags, user, message);
 
     ttsQueue.push(segs);
     runTts();
@@ -2151,6 +2142,11 @@
     const cm = message.match(/^!([a-z0-9]+)(?:\s+(.*))?$/i);
     if (!cm) return false;
     const cmd = cm[1].toLowerCase(), arg = (cm[2] || "").trim();
+    {                                                                   // show the command as typed (not the silent !give<currency>, not mod-only ones from viewers)
+      const control = ["mutesfx", "unmutesfx", "refreshchat", "resetcookies", "changetext"].includes(cmd) || CUR_CMDS.some(c => cmd === "reset" + c);
+      const open = ["wheel", "hydrate", "request", "gift", "requests"].includes(cmd);
+      if (open || (control && canControlSfx(tags, user)) || (cmd === "donerequest" && isMod(tags))) pushCmdLine(tags, user, message);
+    }
     if (cmd === "changetext") {
       if (!canControlSfx(tags, user)) return true;
       const quoted = arg.match(/^(?:"([\s\S]*)"|'([\s\S]*)')$/);
@@ -2172,7 +2168,7 @@
     }
     if (CUR_CMDS.some(c => cmd === "reset" + c)) { doResetCookies(tags, user, arg); return true; }
     if (CUR_CMDS.some(c => cmd === "give" + c)) { doGive(tags, arg); return true; }    // !give<currency> @name 20
-    if (SFX_NAMES.has(cmd)) { doSfxCmd(tags, user, cmd); return true; }              // !meow, !gunshot, ...
+    if (SFX_NAMES.has(cmd)) { doSfxCmd(tags, user, cmd, message); return true; }              // !meow, !gunshot, ...
     return false;
   }
 
@@ -2463,6 +2459,33 @@
     return t;
   }
 
+  // one plain chat line with the exact text that was typed (also used for command messages like "!tts hello")
+  function buildChatLine(tags, user, message, isAction) {
+    const displayName = tags["display-name"] || user;
+    const name = displayName;
+    const el = document.createElement("div");
+    el.className = "msg" + (isAction ? " action" : "") + (VIEWCHAT ? " vc" : "");
+
+    const n = document.createElement("span");
+    n.className = "name";
+    n.textContent = name;
+    n.style.color = readable(tags.color, displayName);
+
+    const t = document.createElement("span");
+    t.className = "text";
+    t.appendChild(buildText(message, tags.emotes));
+
+    if (VIEWCHAT) el.append(vcTime(tags));
+    appendBadges(el, tags, user);
+    el.append(n, t);
+    return el;
+  }
+  // a command message shows up in chat exactly as typed, before whatever the command does
+  function pushCmdLine(tags, user, message) {
+    if (VIEWCHAT || BOTS.has(user.toLowerCase())) return;       // the chat reader never shows commands
+    push(buildChatLine(tags, user, message, false), tags);
+  }
+
   function addMessage(tags, user, message) {
     if (String(message).length > 899) return;
     message = message.replace(/[\u{E0000}\u200B-\u200D\uFEFF]/gu, "").trim();       // Twitch adds invisible characters to repeated messages
@@ -2490,7 +2513,7 @@
     if (!isAction) {
       activeChatters.set(user.toLowerCase(), { name: tags["display-name"] || user, seen: Date.now() });
       const c = message.match(CHEER_RE);
-      if (c) { tryCheer(tags, user, c[1]); return; }
+      if (c) { pushCmdLine(tags, user, message); tryCheer(tags, user, c[1]); return; }
       if (VIEWCHAT) {                                  // chat reader: commands are never shown; only hydrate and gift events are
         const vm = message.match(/^!([a-z0-9]+)(?:\s+(.*))?$/i);
         if (vm) {
@@ -2499,7 +2522,7 @@
           return;
         }
       } else if (/^!tts(\s|$)/i.test(message)) { handleTts(tags, user, message); return; }
-      { const bm = message.match(/^!([a-z0-9]+)\s*$/i); if (bm && CUR_CMDS.includes(bm[1].toLowerCase())) { showBalance(tags, user); return; } }
+      { const bm = message.match(/^!([a-z0-9]+)\s*$/i); if (bm && CUR_CMDS.includes(bm[1].toLowerCase())) { pushCmdLine(tags, user, message); showBalance(tags, user); return; } }
       if (handleCommand(tags, user, message)) return;
     }
 
@@ -2511,24 +2534,7 @@
     if (!VIEWCHAT && !isMod(tags) && Math.random() < DROP) addCookies(user, 1);
     if (wasSilent) ting();
 
-    const displayName = tags["display-name"] || user;
-    const name = displayName;
-    const el = document.createElement("div");
-    el.className = "msg" + (isAction ? " action" : "") + (VIEWCHAT ? " vc" : "");
-
-    const n = document.createElement("span");
-    n.className = "name";
-    n.textContent = name;
-    n.style.color = readable(tags.color, displayName);
-
-    const t = document.createElement("span");
-    t.className = "text";
-    t.appendChild(buildText(message, tags.emotes));
-
-    if (VIEWCHAT) el.append(vcTime(tags));
-    appendBadges(el, tags, user);
-    el.append(n, t);
-    push(el, tags);
+    push(buildChatLine(tags, user, message, isAction), tags);
   }
 
   function removeBy(sel) { chat.querySelectorAll(sel).forEach(e => e.remove()); }
