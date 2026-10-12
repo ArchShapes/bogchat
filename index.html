@@ -1025,13 +1025,8 @@
       const big = document.createElement("div");
       big.className = "cbig";
       appendCurrencyIcon(big, "currency-icon big-currency");
-      big.append(document.createTextNode(" " + (mod ? `∞ ${CURRENCY_NAME}` : `${have} ${CURRENCY_NAME}`)));
+      big.append(document.createTextNode(" " + `${have} ${CURRENCY_NAME}`));
       el.append(big);
-    }
-    if (mod && !short) {
-      const hint = document.createElement("div");
-      hint.className = "chint"; hint.textContent = `Mods have unlimited ${CURRENCY_NAME}`;
-      el.append(hint);
     }
     push(el, {}, 8);
   }
