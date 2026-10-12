@@ -632,6 +632,15 @@
   if (screenTextBus) screenTextBus.onmessage = event => { if (event.data && typeof event.data.text === "string") setScreenText(event.data.text, false); };
   addEventListener("storage", event => { if (event.key === SCREEN_TEXT_KEY) setScreenText(event.newValue || "", false); });
   const CURRENCY_NAME = settings.currency || "Cookies";
+  const currencyLabel = n => {
+    const plural = String(CURRENCY_NAME || "Cookies").trim();
+    if (Math.abs(Number(n)) !== 1) return plural;
+    // Handle common English plural forms, including custom currency names.
+    if (/ies$/i.test(plural)) return plural.replace(/ies$/i, "y");
+    if (/ses$/i.test(plural)) return plural.replace(/es$/i, "");
+    if (/s$/i.test(plural)) return plural.slice(0, -1);
+    return plural;
+  };
   const CUR_CMDS = currencyCmds(CURRENCY_NAME);          // e.g. ["cookies", "cookie"]
   const DISPLAY_ACCOUNT = settings.account || CHANNEL;
   document.title = DISPLAY_ACCOUNT ? `${DISPLAY_ACCOUNT}'s chat` : "Chat overlay";
@@ -1025,7 +1034,7 @@
       const big = document.createElement("div");
       big.className = "cbig";
       appendCurrencyIcon(big, "currency-icon big-currency");
-      big.append(document.createTextNode(" " + `${have} ${CURRENCY_NAME}`));
+      big.append(document.createTextNode(" " + `${have} ${currencyLabel(have)}`));
       el.append(big);
     }
     push(el, {}, 8);
@@ -1679,7 +1688,7 @@
     if (cost > 0) { if (!canPay(tags, user, cost, "a sound effect")) return; pay(tags, user, cost); }
     sfxGlobalLast = now; sfxCmdLast.set(user, now);
     audio();
-    if (ttsQueue.length < TTS_QUEUE_MAX * 2) { ttsQueue.push([{ sfx: name }]); runTts(); }   // plays right after whatever is speaking/playing finishes
+    if (ttsQueue.length < TTS_QUEUE_MAX * 2) { ttsQueue.push([{ sfx: name }]); runTts(); }   // starts immediately when the shared TTS/SFX queue is free
     pushCmdLine(tags, user, message || ("!" + name));
   }
   function doMuteSfx(tags, user, mute) {
@@ -1708,6 +1717,33 @@
         if (!isNaN(s) && !isNaN(en)) for (let i = s; i <= en && i < chars.length; i++) chars[i] = "";
       });
     });
+    return chars.join("");
+  }
+
+  // Twitch emote ranges point into the original message. Preserve the exact text
+  // at each range so channel/subscriber emotes are spoken by their typed names.
+  function emoteNamesForTts(message, emoteTag) {
+    const original = String(message || "");
+    if (!emoteTag) return original;
+    const chars = Array.from(original);
+    const ranges = [];
+    for (const entry of emoteTag.split("/")) {
+      const colon = entry.indexOf(":");
+      if (colon < 0) continue;
+      for (const pair of entry.slice(colon + 1).split(",")) {
+        const [start, end] = pair.split("-").map(Number);
+        if (Number.isInteger(start) && Number.isInteger(end) && start >= 0 && end >= start && end < chars.length) {
+          ranges.push({ start, end });
+        }
+      }
+    }
+    // Rebuild from right to left so positions remain valid. The replacement is
+    // the emote's literal name from the message, not its image URL or numeric ID.
+    ranges.sort((a, b) => b.start - a.start);
+    for (const r of ranges) {
+      const name = chars.slice(r.start, r.end + 1).join("");
+      chars.splice(r.start, r.end - r.start + 1, name);
+    }
     return chars.join("");
   }
 
@@ -1942,8 +1978,8 @@
 
   function handleTts(tags, user, message) {
     if (!TTS_ON || allMuted) return;
-    const shown = cleanTts(stripEmotes(message, tags.emotes).replace(/^!tts\s*/i, ""));
-    const text = stripCustomEmotes(shown);                  // custom emote names are shown in chat but never read aloud
+    const messageWithEmoteNames = emoteNamesForTts(message, tags && tags.emotes);
+    const text = cleanTts(messageWithEmoteNames.replace(/^!tts\s*/i, ""));
     if (!text) return;
 
     // English only: ignore messages written mostly in other scripts (not charged)
@@ -2001,13 +2037,14 @@
   }
   const pay = (tags, user, cost) => { if (!VIEWCHAT) addCookies(user, -cost); };
 
-  // wheel: 1-20 cookies, small wins are more likely so it costs more than it pays on average
+  // wheel: can award cookies or take them away; smaller amounts are more likely
   const WHEEL_W = Array.from({ length: 20 }, (_, i) => 1 / Math.pow(i + 1, WHEEL_BIAS));
   const WHEEL_SUM = WHEEL_W.reduce((a, b) => a + b, 0);
   function spinWheel() {
     let r = Math.random() * WHEEL_SUM;
-    for (let i = 0; i < 20; i++) { r -= WHEEL_W[i]; if (r <= 0) return i + 1; }
-    return 1;
+    let amount = 1;
+    for (let i = 0; i < 20; i++) { r -= WHEEL_W[i]; if (r <= 0) { amount = i + 1; break; } }
+    return Math.random() < 0.5 ? amount : -amount;
   }
 
   function doWheel(tags, user) {
@@ -2015,17 +2052,20 @@
     if (!canPay(tags, user, WHEEL_COST, "the wheel")) return;
     const name = nameOf(tags, user);
     pay(tags, user, WHEEL_COST);
-    const win = spinWheel();
-    addCookies(user, win);
+    const result = spinWheel();
+    addCookies(user, result);
     markCd("wheel:" + user);
-    const net = win - WHEEL_COST;
+    const net = result - WHEEL_COST;
+    const amount = Math.abs(result);
     const card = showAlertChat("wheel", `${name} spins the wheel...`, "Rolling...", 20, true);
-    const tick = setInterval(() => { card.as.textContent = `${1 + Math.floor(Math.random() * 20)}`; }, 90);
+    const tick = setInterval(() => { card.as.textContent = `${Math.random() < 0.5 ? "−" : "+"}${1 + Math.floor(Math.random() * 20)}`; }, 90);
     setTimeout(() => {
       clearInterval(tick);
-      card.at.textContent = `${name} won ${win} ${CURRENCY_NAME}!`;
-      card.as.textContent = `${net >= 0 ? "+" : ""}${net} after the ${WHEEL_COST} ${CURRENCY_NAME} spin`;
-      if (!MUTE) chime(win >= 15 ? [880, 1108.7, 1318.5, 1760, 2217] : win >= 8 ? [783.99, 987.77, 1174.66] : [659.25, 783.99]);
+      card.at.textContent = result >= 0
+        ? `${name} won ${amount} ${currencyLabel(amount)}!`
+        : `${name} lost ${amount} ${currencyLabel(amount)}!`;
+      card.as.textContent = `${net >= 0 ? "+" : ""}${net} ${currencyLabel(Math.abs(net))} after the ${WHEEL_COST} ${currencyLabel(WHEEL_COST)} spin`;
+      if (!MUTE) chime(result >= 15 ? [880, 1108.7, 1318.5, 1760, 2217] : result >= 8 ? [783.99, 987.77, 1174.66] : [659.25, 783.99]);
     }, 2200);
   }
 
@@ -2078,14 +2118,14 @@
     if (n < 1 || to === user.toLowerCase() || cdLeft("gift:" + user, 3000)) return;
     if (n > GIFT_MAX) {
       markCd("gift:" + user);
-      queueAlert("cookie", `${nameOf(tags, user)}: the gift limit is ${GIFT_MAX} ${CURRENCY_NAME} per gift`, "");
+      queueAlert("cookie", `${nameOf(tags, user)}: the gift limit is ${GIFT_MAX} ${currencyLabel(GIFT_MAX)} per gift`, "");
       return;
     }
     if (!canPay(tags, user, n, "that gift")) return;
     pay(tags, user, n);
     addCookies(to, n);
     markCd("gift:" + user);
-    queueAlert("cgift", `${nameOf(tags, user)} gifted ${n} ${CURRENCY_NAME} to ${m[1]}!`, "");
+    queueAlert("cgift", `${nameOf(tags, user)} gifted ${n} ${currencyLabel(n)} to ${m[1]}!`, "");
   }
 
   // mods/broadcaster only, silent: !givecookies @name 20 (negative numbers remove cookies)
@@ -2115,13 +2155,13 @@
       let n = 0;
       Object.keys(cookies).forEach(k => { if (!isProtected(k)) { if (cookies[k] > 0) n++; delete cookies[k]; } });
       saveCookies();
-      plainNotice(`Reset ${CURRENCY_NAME} for ${n} ${n === 1 ? "viewer" : "viewers"}. Mods and the streamer were not touched.`);
+      plainNotice(`Reset ${currencyLabel(n)} for ${n} ${n === 1 ? "viewer" : "viewers"}. Mods and the streamer were not touched.`);
       return;
     }
     if (isProtected(target)) { plainNotice(`Can't reset ${CURRENCY_NAME} for mods or the streamer.`); return; }
     const had = bal(target);
     delete cookies[target]; saveCookies();
-    plainNotice(had > 0 ? `Reset ${CURRENCY_NAME} for ${target} (had ${had}).` : `${target} has no ${CURRENCY_NAME} to reset.`);
+    plainNotice(had > 0 ? `Reset ${currencyLabel(had)} for ${target} (had ${had}).` : `${target} has no ${CURRENCY_NAME} to reset.`);
   }
 
   // !refreshchat: streamer + lead mods reload the overlay page (balances are kept)
@@ -2441,7 +2481,7 @@
     const n = document.createElement("span"); n.className = "name"; n.textContent = tags["display-name"] || user;
     n.style.color = readable(tags.color, tags["display-name"] || user);
     const t = document.createElement("span"); t.className = "text";
-    t.textContent = isMod(tags) ? "is chatting for the first time. Welcome!" : `is chatting for the first time. Welcome! +${FIRST_BONUS} ${CURRENCY_NAME}`;
+    t.textContent = isMod(tags) ? "is chatting for the first time. Welcome!" : `is chatting for the first time. Welcome! +${FIRST_BONUS} ${currencyLabel(FIRST_BONUS)}`;
     el.append(n, t);
     push(el, {});
   }
