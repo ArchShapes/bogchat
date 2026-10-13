@@ -949,7 +949,6 @@
     // mod badge, it already comes through in tags.badges above.
     const isLead = seen.has("lead_moderator") || LEADMOD_USERS.has(login);
     if (tags.mod === "1" && !seen.has("moderator") && !isLead) result.unshift({ key: "mod", set: "moderator", version: "1", title: "Moderator" });
-    if (LEADMOD_USERS.has(login) && !seen.has("lead_moderator")) result.push({ custom: true, key: "leadmod", label: "LM", title: "Lead moderator" });
     if (SILENT_USERS.has(login)) result.push({ custom: true, key: "silent", label: "S", title: "Silent user" });
     return result;
   };
@@ -2260,7 +2259,7 @@
   }
 
   // Custom emotes: the word (any capitalization) is replaced by the image next to this file.
-  const CUSTOM_EMOTES = { ww: "ww.gif", ll: "ll.png", normalface: "normalface.png", son: "son.png", sonion: "son.png", petthemods: "petmods.gif", petmods: "petmods.gif", hi: "hi.gif", scared: "speedscared.jpg", bogdan: "bogdanpfp.png", pfp: "bogdanpfp.png", bogdanpfp: "bogdanpfp.png", muga: "muga.gif", "55": "55.gif", "67": "67.png", laugh: "laugh.gif", minionlaughing: "laugh.gif", 92: "92.png"};
+  const CUSTOM_EMOTES = { ww: "ww.gif", ll: "ll.png", normalface: "normalface.png", son: "son.png", sonion: "son.png", petthemods: "petmods.gif", petmods: "petmods.gif", hi: "hi.gif", scared: "speedscared.jpg", bogdan: "bogdanpfp.png", pfp: "bogdanpfp.png", bogdanpfp: "bogdanpfp.png", muga: "muga.gif", "49": "49.gif", "55": "55.gif", "67": "67.png", laugh: "laugh.gif", minionlaughing: "laugh.gif", 92: "92.png", uhh: "uuh.gif", uuh: "uuh.gif"};
   const emoteSources = (file) => {
     const base = file.replace(/\.[^.]+$/, "");
     return [file, ...["png", "gif", "webp", "jpg", "jpeg", "avif", "svg"].map(e => `${base}.${e}`)].filter((v, i, a) => a.indexOf(v) === i);
