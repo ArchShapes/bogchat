@@ -498,6 +498,15 @@
   try { settings = { ...defaultSettings, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}") }; } catch (e) {}
   // Any Twitch channel works: it comes from ?channel=name in the link, or from the setup panel.
   const normChannel = (v) => String(v || "").trim().toLowerCase().replace(/^https?:\/\/(www\.)?twitch\.tv\//, "").replace(/^[@#]/, "").replace(/[^a-z0-9_]/g, "").slice(0, 25);
+  // One-time cleanup: older versions saved a fixed channel in this browser
+  try {
+    if (!localStorage.getItem("overlay-channel-migrated-v2")) {
+      if (/bogdan/i.test(String(settings.channel || ""))) { settings.channel = ""; settings.configured = false; }
+      if (/bogdan/i.test(String(settings.account || ""))) settings.account = "";
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+      localStorage.setItem("overlay-channel-migrated-v2", "1");
+    }
+  } catch (e) {}
   settings.channel = normChannel(params.get("channel")) || normChannel(settings.channel);
   if (!["cookie", "money", "box", "moon", "fries", "heart"].includes(settings.symbol)) settings.symbol = "cookie";
   const setupBackdrop = document.getElementById("global-setup-backdrop");
@@ -639,7 +648,7 @@
     return plural;
   };
   const CUR_CMDS = currencyCmds(CURRENCY_NAME);          // e.g. ["cookies", "cookie"]
-  const DISPLAY_ACCOUNT = settings.account || CHANNEL;
+  const DISPLAY_ACCOUNT = settings.account || CHANNEL || "Stream";
   document.title = DISPLAY_ACCOUNT ? `${DISPLAY_ACCOUNT}'s chat` : "Chat overlay";
   const LEADMOD_USERS = new Set(((params.get("leadmod") || "") + "," + (settings.leadMods || "")).toLowerCase().split(",").map(s => s.trim().replace(/^@/, "")).filter(Boolean));
   const SILENT_USERS = new Set((params.get("silent") || "").toLowerCase().split(",").map(s => s.trim()).filter(Boolean));
