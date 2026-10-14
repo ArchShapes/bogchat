@@ -33,7 +33,7 @@
      &silent=name1,name2   show a Silent badge for these logins
      &demo=1         show test buttons
      &cat=0          turn the cat visits off
-     &catsec=60      seconds between cat visits (default 60)
+     &catsec=600     seconds between cat visits (default 600 / 10 minutes)
      #viewchat: press P to pop the chat out into an always-on-top window (Chrome / Edge; other browsers get a normal small window). Press P again to put it back
      Commands:  !changetext "Something" (owner + configured lead mods; updates /#text)  !<currency> (e.g. !cookies)  !cheer <n>  !tts <text>  !resetcookies <name|all>  !loudtojump (1000 cookies, command only)  !knocking  !lotsofgunshots  !ambienceone  !ambiencetwo  !shocked  or (knocking) (lotsofgunshots) (ambienceone) inside !tts
                 !mutesfx / !unmutesfx  (streamer + lead mods only; lead mods are set in the setup panel or with &leadmod=)  */
@@ -416,16 +416,8 @@
       </div>
 
       <div class="setup-section">
-        <h3>Follow alerts <span style="text-transform:none;letter-spacing:0;font-weight:500">(optional, only needed for names)</span></h3>
-        <div class="setup-grid">
-          <label>Client ID
-            <input id="cfg-clientid" autocomplete="off" placeholder="your Twitch app Client ID">
-          </label>
-          <label>User access token
-            <input id="cfg-token" type="password" autocomplete="off" placeholder="oauth token">
-          </label>
-          <p class="hint span-2">Follows work without this: the overlay watches the public follower count and shows "New follower!". Add a token from the streamer (or a mod) with the <code>moderator:read:followers</code> scope only if you want every follower's exact name.</p>
-        </div>
+        <h3>Follow alerts</h3>
+        <p class="hint">Follower count and recent follower names are checked automatically without API keys. Twitch may limit public access, so names are not guaranteed.</p>
       </div>
 
       <div class="setup-section" style="display:none">
@@ -529,8 +521,7 @@
   const setupStatus = document.getElementById("global-setup-status");
   function setSetupStatus(msg, kind = "") { setupStatus.textContent = msg; setupStatus.className = kind; }
   const setupFields = {
-    channel: "cfg-channel", account: "cfg-account", currency: "cfg-currency", symbol: "cfg-symbol", leadMods: "cfg-leadmods",
-    twitchClientId: "cfg-clientid", twitchToken: "cfg-token"
+    channel: "cfg-channel", account: "cfg-account", currency: "cfg-currency", symbol: "cfg-symbol", leadMods: "cfg-leadmods"
   };
   function updateOverlayLink() {
     const ch = normChannel(document.getElementById("cfg-channel").value);
@@ -1305,7 +1296,8 @@
      It only runs if &token=...&clientid=... are in the URL. */
   function startFollows() {
     if (!ALERTS_ON) return;
-    if (!TOKEN || !CLIENT_ID) { startFollowsKeyless(); return; }
+    startFollowsKeyless();
+    return;
     const H = { "Authorization": "Bearer " + TOKEN, "Client-Id": CLIENT_ID };
     let ids = null, current = null, retry = 0;
     async function getIds() {
@@ -2086,37 +2078,15 @@
     }, 2200);
   }
 
-  // level requests are saved so a mod can list them with !requests and clear one with !donerequest
-  const REQ_KEY = "requests:" + CHANNEL;
-  let requests = [];
-  try { requests = JSON.parse(localStorage.getItem(REQ_KEY) || "[]") || []; } catch (e) { requests = []; }
-  const saveReqs = () => { try { localStorage.setItem(REQ_KEY, JSON.stringify(requests)); } catch (e) {} };
-
+  // Level requests are announced immediately; no queue is stored.
   function doRequest(tags, user, arg) {
     if (requestsDisabled) { queueAlert("requestinfo", "Level requests are currently DISABLED", "Please wait until the streamer enables them again.", 8); return; }
-    const text = arg.replace(/https?:\/\/\S+|www\.\S+/gi, "").replace(/\s+/g, " ").trim().slice(0, 100);
-    if (!text) { queueAlert("requestinfo", "Missing level name", "Use !request followed by the level name.", 8); return; }
-    if (ttsBlocked(text)) { queueAlert("requestinfo", "That request can't be accepted", "Please try a different level name.", 8); return; }
-    if (requests.length >= 20) { queueAlert("requestinfo", "Request queue is full", "Please wait for a spot to open.", 8); return; }
-    if (cdLeft("req:" + user.toLowerCase(), 30000)) { queueAlert("requestinfo", "Please wait before requesting again", "You can submit another level request in 30 seconds.", 8); return; }
+    const level = arg.replace(/https?:\/\/\S+|www\.\S+/gi, "").replace(/\s+/g, " ").trim().slice(0, 100);
+    if (!level) { queueAlert("requestinfo", "Request level", "Use !request followed by the level name.", 8); return; }
+    if (ttsBlocked(level)) { queueAlert("requestinfo", "That request can't be accepted", "Please try a different level name.", 8); return; }
+    if (cdLeft("req:" + user.toLowerCase(), 30000)) { queueAlert("requestinfo", "Please wait before requesting again", "You can request another level in 30 seconds.", 8); return; }
     markCd("req:" + user.toLowerCase());
-    const name = nameOf(tags, user);
-    requests.push({ user: name, text, t: Date.now() });
-    saveReqs();
-    queueAlert("request", `${name} requested a level`, text, 45);
-  }
-
-  function showRequests(tags) {
-    if (!isMod(tags)) return;
-    if (!requests.length) { queueAlert("requestinfo", "No pending level requests", "", 10); return; }
-    const list = requests.slice(0, 5).map((r, i) => `${i + 1}. ${r.user}: ${r.text}`).join("\n");
-    queueAlert("requestinfo", `${requests.length} pending request${requests.length === 1 ? "" : "s"}`, list, 20);
-  }
-  function doneRequest(tags) {
-    if (!isMod(tags)) return;
-    requests.shift();
-    saveReqs();
-    showRequests(tags);
+    queueAlert("request", `${nameOf(tags, user)} — Request level`, level, 45);
   }
 
   // !gift @name 20  (max 50 per gift) plays lowcheer.mp3
@@ -2219,8 +2189,6 @@
         return true;
       case "refreshchat": doRefreshChat(tags, user); return true;
       case "resetcookies": doResetCookies(tags, user, arg); return true;
-      case "requests":    showRequests(tags); return true;
-      case "donerequest": doneRequest(tags); return true;
     }
     if (CUR_CMDS.some(c => cmd === "reset" + c)) { doResetCookies(tags, user, arg); return true; }
     if (CUR_CMDS.some(c => cmd === "give" + c)) { doGive(tags, arg); return true; }    // !give<currency> @name 20
@@ -2661,7 +2629,7 @@
 
   /* ---------- Cat visits: a cat wanders into chat every minute ---------- */
   const CAT_ON = params.get("cat") !== "0";
-  const CAT_MS = Math.max(10, parseFloat(params.get("catsec")) || 60) * 1000;
+  const CAT_MS = Math.max(10, parseFloat(params.get("catsec")) || 600) * 1000;
   const CAT_LINES = [
     ["A wild cat appears.", "It has no explanation."],
     ["The cat has reviewed your chat.", "Verdict: unimpressed."],
