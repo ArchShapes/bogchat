@@ -32,6 +32,8 @@
      &leadmod=name1,name2  show a LeadMod badge for these logins
      &silent=name1,name2   show a Silent badge for these logins
      &demo=1         show test buttons
+     &cat=0          turn the cat visits off
+     &catsec=60      seconds between cat visits (default 60)
      #viewchat: press P to pop the chat out into an always-on-top window (Chrome / Edge; other browsers get a normal small window). Press P again to put it back
      Commands:  !changetext "Something" (owner + configured lead mods; updates /#text)  !<currency> (e.g. !cookies)  !cheer <n>  !tts <text>  !resetcookies <name|all>  !loudtojump (1000 cookies, command only)  !knocking  !lotsofgunshots  !ambienceone  !ambiencetwo  !shocked  or (knocking) (lotsofgunshots) (ambienceone) inside !tts
                 !mutesfx / !unmutesfx  (streamer + lead mods only; lead mods are set in the setup panel or with &leadmod=)  */
@@ -344,6 +346,19 @@
   /* top-banner alerts (&alertpos=top): quieter */
   .alert { padding: 9px 14px; border-radius: 8px; box-shadow: none; transition: opacity .6s ease, transform .6s ease; }
   .alert.out { opacity: 0; transform: translateY(-6px); }
+  /* Cat visits */
+  .msg.cat {
+    animation: msgIn .35s ease-out backwards;
+    display: flex; align-items: center; gap: 10px;
+    margin: 3px 0; padding: 6px 13px; width: fit-content; max-width: 100%; box-sizing: border-box;
+    background: rgba(14,12,20,.82); border: 1px solid rgba(255,255,255,.10); border-left: 3px solid #ffb86b; border-radius: 12px;
+    box-shadow: 0 3px 12px rgba(0,0,0,.3);
+    text-shadow: 0 2px 6px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.95), 0 0 12px rgba(0,0,0,.8), 0 0 24px rgba(0,0,0,.6);
+  }
+  .msg.cat .cat-ico { width: 1.7em; height: 1.7em; color: #ffc98a; stroke-width: 1.6; flex: 0 0 auto; transform-origin: 50% 90%; animation: catWiggle 1.1s ease-in-out .35s 3; }
+  .msg.cat .ctext { font-weight: 700; }
+  .msg.cat .csub { font-size: .8em; opacity: .7; font-weight: 600; }
+  @keyframes catWiggle { 0%,100% { transform: rotate(0); } 20% { transform: rotate(-14deg) scale(1.08); } 45% { transform: rotate(12deg) scale(1.08); } 70% { transform: rotate(-6deg); } }
   @keyframes setupPanelIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
   @media (prefers-reduced-motion: reduce) { #global-setup, #setup-hint { animation: none !important; transition: none !important; } }
   @media (max-width: 520px) {
@@ -371,6 +386,7 @@
   <symbol id="ico-water" viewBox="0 0 24 24"><path d="M12 3s7 7.4 7 12a7 7 0 0 1-14 0c0-4.6 7-12 7-12Z"/><path d="M9 16a3 3 0 0 0 3 3"/></symbol>
   <symbol id="ico-dice" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 8h.01M16 8h.01M12 12h.01M8 16h.01M16 16h.01"/></symbol>
   <symbol id="ico-spark" viewBox="0 0 24 24"><path d="m12 2 1.7 6.3L20 10l-6.3 1.7L12 18l-1.7-6.3L4 10l6.3-1.7L12 2ZM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8L19 16Z"/></symbol>
+  <symbol id="ico-cat" viewBox="0 0 24 24"><path d="M5 9 4 3l5 3h6l5-3-1 6c1 1 1.5 2.5 1.5 4 0 4-3.5 7-8.5 7s-8.5-3-8.5-7c0-1.5.5-3 1.5-4Z"/><path d="M9 13h.01M15 13h.01M11 16l1 1 1-1M3 15l4 .5M3 18l4-1M21 15l-4 .5M21 18l-4-1"/></symbol>
   <symbol id="ico-volume" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4Z M17 9a5 5 0 0 1 0 6M19 5a9 9 0 0 1 0 14"/></symbol>
 </svg>
 
@@ -1342,9 +1358,11 @@
   }
 
   /* ---------- SFX (used inside TTS) ---------- */
-  const SFX_NAMES = new Set(["meow", "gunshot", "lotsofgunshots", "vineboom", "airhorns", "knocking", "ambienceone", "ambiencetwo", "bwomp", "fireinthehole", "geometrydash", "loudtojump", "metalpipe", "spongebobfail", "shocked", ...EXTRA_SFX]);
+  const SFX_NAMES = new Set(["meow", "lotsofmeows", "gunshot", "lotsofgunshots", "vineboom", "airhorns", "knocking", "ambienceone", "ambiencetwo", "bwomp", "fireinthehole", "geometrydash", "loudtojump", "metalpipe", "spongebobfail", "shocked", ...EXTRA_SFX]);
   const SFX_MAX = 3;
+  const SFX_VARIANTS = { meow: ["meow-1", "meow-2", "meow-3", "meow-4"] };   // each play picks one of these files at random
   [...SFX_NAMES, "cheer", "lowcheer", "follow", "raid", "gift", "request", "lowraid"].forEach(preloadSfx);
+  Object.values(SFX_VARIANTS).flat().forEach(preloadSfx);
   const SFX_COSTS = { loudtojump: 1000 };          // price per sound (anything not listed uses SFX_CMD_COST)
   const CMD_ONLY_SFX = new Set(["loudtojump"]);    // can't be used inside !tts
 
@@ -1451,6 +1469,15 @@
       burst(c, bus, t, 0.05, "bandpass", 4200, 3000, 0.08, 2);
       o.start(t); vib.start(t); o.stop(t + 0.75); vib.stop(t + 0.75);
       return 0.75;
+    },
+    lotsofmeows(c, out, t) {
+      // a whole chorus of kittens meowing over each other
+      let at = 0;
+      for (let i = 0; i < 9; i++) {
+        SYNTH.meow(c, pan(c, out, Math.random() * 1.6 - 0.8), t + at);
+        at += 0.18 + Math.random() * 0.22;
+      }
+      return at + 0.75;
     },
     gunshot(c, out, t) {
       shot(c, out, t, 1, 0.55);
@@ -1631,7 +1658,8 @@
         else c.resume().then(run, done);          // TTS plays sounds before anything has woken the audio engine
       };
       const fallback = () => { if (fell) return; fell = true; started ? done() : synth(); };
-      a = takeAudio(name);
+      const vars = SFX_VARIANTS[name];
+      a = takeAudio(vars ? vars[Math.floor(Math.random() * vars.length)] : name);
       if (!a) return synth();                                              // no file: built-in sound with zero wait
       a.volume = SFX_VOL;
       a.onended = done;
@@ -2224,6 +2252,7 @@
       "Request":  () => { rewardCd.clear(); doRequest(modTags, "demo", "Bloodbath by Riot"); },
       "Gift":     () => { rewardCd.clear(); doGift(modTags, "demo", "@SampleViewer 5"); },
       "!meow":    () => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "meow"); },
+      "!lotsofmeows":() => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "lotsofmeows"); },
       "!loudtojump":() => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "loudtojump"); },
       "!bwomp":   () => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "bwomp"); },
       "!knocking":() => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "knocking"); },
@@ -2629,6 +2658,43 @@
     };
     ws.onerror = () => ws.close();
   }
+
+  /* ---------- Cat visits: a cat wanders into chat every minute ---------- */
+  const CAT_ON = params.get("cat") !== "0";
+  const CAT_MS = Math.max(10, parseFloat(params.get("catsec")) || 60) * 1000;
+  const CAT_LINES = [
+    ["A wild cat appears.", "It has no explanation."],
+    ["The cat has reviewed your chat.", "Verdict: unimpressed."],
+    ["The cat knocked something off the stream.", "Eye contact was maintained."],
+    ["Meow.", "Translation: pay me in cookies."],
+    ["The cat sat on the keyboard.", "asdkjhfgsdkjf"],
+    ["The cat is judging your last message.", "Silently. Aggressively."],
+    ["The cat demands snacks.", "Negotiations have failed."],
+    ["The cat stared at nothing for 10 seconds.", "Chat, did you see it too?"],
+    ["The cat is here for moderation duties.", "Its only action is sitting on the mods."],
+    ["Cat inspection complete.", "You all pass. Barely."],
+    ["The cat has chosen this chat as its new bed.", "Please do not breathe loudly."],
+    ["The cat zoomed past at 3 AM speed.", "It does not know why either."],
+    ["Plot twist: the cat was the streamer all along.", ""],
+    ["The cat would like to speak to the manager.", "The manager is a laser pointer."]
+  ];
+  let catLast = -1;
+  function showCat() {
+    let i; do { i = Math.floor(Math.random() * CAT_LINES.length); } while (i === catLast && CAT_LINES.length > 1);
+    catLast = i;
+    const [title, sub] = CAT_LINES[i];
+    const el = document.createElement("div");
+    el.className = "msg cat";
+    const ic = makeIcon("cat", "ui-icon cat-ico");
+    const body = document.createElement("div");
+    const t = document.createElement("div"); t.className = "ctext"; t.textContent = title;
+    body.append(t);
+    if (sub) { const s = document.createElement("div"); s.className = "csub"; s.textContent = sub; body.append(s); }
+    el.append(ic, body);
+    push(el, {}, 12);
+    if (!MUTE && !allMuted && !sfxMuted) playSfx("meow");     // uses meow.mp3 if you have it, else the built-in meow
+  }
+  if (CAT_ON && !VIEWCHAT && !TEXTMODE && settings.chat && (settings.configured || CHANNEL)) setInterval(showCat, CAT_MS);
 
   if (TEXTMODE) document.body.classList.add("text-mode");
   if (VIEWCHAT) {
