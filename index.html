@@ -22,10 +22,15 @@
      &drop=35        % chance a message earns 1 cookie
      &block=a,b      extra words blocked from TTS
      &sfxvol=0.8     TTS sound-effect volume 0-1
+     TTS voices: [scream] [natural] [spongebob] switch the voice for the rest of the message; <scream>BRO</scream> styles just that part
      &sfx=bruh,oof   extra (sfx) names; each plays <name>.mp3 from this folder
      #videoplayer: a second OBS browser source (full screen). !playvideo <youtube link> (100 cookies; mods free) plays there.
      &videomax=300   max seconds per video (default 300, 0 = no limit)    &radius=28  corner radius of the video in px
      !skipvideo      (streamer + lead mods) skips the current video
+     &videoapi=http://127.0.0.1:8787   address of the optional yt-resolver.py helper (tried first)   &videoinst=https://my.piped.api  extra Piped/Invidious hosts
+     &fit=cover      fill the whole screen (crops) instead of letterboxing
+     #ambient: a third OBS browser source (full screen, transparent): soft low-opacity edge pulses on cheers, gifts, subs, raids, follows, bits
+     &intensity=1    strength of the ambient pulses (0.3 = very faint, 2 = stronger)
      &alerts=0       turn alerts off        &alertsec=6  seconds per alert
      &token=...&clientid=...   enables FOLLOW alerts (see notes)
      &alertpos=top   alerts as a top banner instead of in chat
@@ -234,6 +239,19 @@
   body.text-mode #chat, body.text-mode #alerts, body.text-mode #status, body.text-mode #global-setup-backdrop, body.text-mode #setup-hint, body.text-mode #demo { display:none !important; }
   body.text-mode { background:transparent !important; }
 
+  /* ---------- #ambient ---------- */
+  #ambient-stage { display:none; position:fixed; inset:0; pointer-events:none; overflow:hidden; background:transparent; }
+  body.ambient-mode #ambient-stage { display:block; }
+  body.ambient-mode #chat, body.ambient-mode #alerts, body.ambient-mode #screen-text, body.ambient-mode #global-setup-backdrop, body.ambient-mode #setup-hint, body.ambient-mode #demo, body.ambient-mode #video-stage { display:none !important; }
+  body.ambient-mode { background:transparent !important; }
+  body.ambient-mode.bg { background:#0e0e10 !important; }
+  .amb-pulse {
+    position:absolute; inset:0; opacity:0; pointer-events:none;
+    box-shadow: inset 0 0 var(--blur, 200px) var(--spread, 40px) var(--c, #fff);
+    animation: ambPulse var(--dur, 2s) cubic-bezier(.3,.6,.4,1) var(--delay, 0s) both;
+  }
+  @keyframes ambPulse { 0% { opacity:0; transform:scale(1.05); } 28% { opacity:var(--peak, .25); } 100% { opacity:0; transform:scale(1); } }
+
   /* ---------- #videoplayer ---------- */
   #video-stage { display:none; position:fixed; inset:0; background:transparent; }
   body.video-mode #video-stage { display:block; }
@@ -241,10 +259,11 @@
   body.video-mode { background:transparent !important; }
   #video-frame {
     position:absolute; inset:0; border-radius:var(--vr, 28px); overflow:hidden; background:#000; isolation:isolate; transform:translateZ(0);
-    opacity:0; visibility:hidden; transition:opacity .35s ease, visibility 0s linear .35s;
+    opacity:0; visibility:hidden; transition:opacity .9s ease, visibility 0s linear .9s; pointer-events:none;
   }
-  #video-frame.on { opacity:1; visibility:visible; transition:opacity .35s ease; }
-  #video-frame iframe, #video-frame #yt-player { position:absolute; inset:0; width:100%; height:100%; border:0; }
+  #video-frame.on { opacity:1; visibility:visible; transition:opacity .6s ease; }
+  #video-el { position:absolute; inset:0; width:100%; height:100%; object-fit:var(--fit, contain); background:#000; border:0; pointer-events:none; outline:none; }
+  #video-el::-webkit-media-controls { display:none !important; }
   #video-by {
     position:absolute; left:18px; top:16px; z-index:3; padding:6px 13px; border-radius:999px; max-width:80%;
     font:700 15px "Nunito","Segoe UI",sans-serif; color:#fff; background:rgba(14,12,20,.78); border:1px solid rgba(255,255,255,.14);
@@ -416,7 +435,8 @@
 <div id="alerts"></div>
 <div id="status"></div>
 <div id="screen-text" aria-live="polite"></div>
-<div id="video-stage"><div id="video-frame"><div id="yt-player"></div><div id="video-by"></div></div></div>
+<div id="ambient-stage"></div>
+<div id="video-stage"><div id="video-frame"><video id="video-el" playsinline preload="auto" disablepictureinpicture disableremoteplayback controlslist="nodownload noplaybackrate noremoteplayback"></video><div id="video-by"></div></div></div>
 <div id="global-setup-backdrop" role="dialog" aria-modal="true" aria-labelledby="global-setup-title">
   <section id="global-setup">
     <header class="setup-head">
@@ -517,6 +537,7 @@
   const VIEWCHAT = location.hash.toLowerCase() === "#viewchat";     // read-only chat page for the streamer: black background, no sounds, no setup panel
   const TEXTMODE = location.hash.toLowerCase() === "#text";
   const VIDEOMODE = location.hash.toLowerCase() === "#videoplayer";
+  const AMBIENTMODE = location.hash.toLowerCase() === "#ambient";
   const ICON_ALIASES = { cookie: "cookie", money: "money", box: "box", moon: "moon", fries: "fries", heart: "heart", follow: "user-plus", raid: "users", sub: "star", gift: "gift", bits: "spark", request: "box", wheel: "dice", volume: "volume", alert: "bell" };
   function makeIcon(name, className = "ui-icon") {
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -636,11 +657,11 @@
   });
   // Show setup by default. The overlay itself is only shown after saving to #overlay.
   // This prevents a previously saved browser setting from making the page look blank.
-  if (location.hash.toLowerCase() === "#overlay" || VIEWCHAT || TEXTMODE || VIDEOMODE) closeSetup();
+  if (location.hash.toLowerCase() === "#overlay" || VIEWCHAT || TEXTMODE || VIDEOMODE || AMBIENTMODE) closeSetup();
   else openSetup();
   window.addEventListener("hashchange", () => {
-    if ((location.hash.toLowerCase() === "#viewchat") !== VIEWCHAT || (location.hash.toLowerCase() === "#text") !== TEXTMODE || (location.hash.toLowerCase() === "#videoplayer") !== VIDEOMODE) { location.reload(); return; }
-    if (location.hash.toLowerCase() === "#overlay" || VIEWCHAT || TEXTMODE || VIDEOMODE) closeSetup();
+    if ((location.hash.toLowerCase() === "#viewchat") !== VIEWCHAT || (location.hash.toLowerCase() === "#text") !== TEXTMODE || (location.hash.toLowerCase() === "#videoplayer") !== VIDEOMODE || (location.hash.toLowerCase() === "#ambient") !== AMBIENTMODE) { location.reload(); return; }
+    if (location.hash.toLowerCase() === "#overlay" || VIEWCHAT || TEXTMODE || VIDEOMODE || AMBIENTMODE) closeSetup();
     else openSetup();
   });
   function leaveSetupRoute() {
@@ -702,9 +723,9 @@
   const SILENT_USERS = new Set((params.get("silent") || "").toLowerCase().split(",").map(s => s.trim()).filter(Boolean));
   const FADE_S  = parseFloat(params.get("fade") ?? (VIEWCHAT ? "0" : "30"));     // the chat page keeps messages (no fading) so you can read back
   const MAX_MSG = Math.max(1, parseInt(params.get("max") || (VIEWCHAT ? "200" : "6"), 10));
-  const MUTE    = VIEWCHAT || params.get("mute") === "1";          // the chat reader never plays sound
+  const MUTE    = VIEWCHAT || AMBIENTMODE || params.get("mute") === "1";          // the chat reader never plays sound
   const SPAM_ON = params.get("spam") !== "0";
-  const TTS_ON = !VIEWCHAT && settings.tts && params.get("tts") !== "0";
+  const TTS_ON = !VIEWCHAT && !AMBIENTMODE && settings.tts && params.get("tts") !== "0";
   const TTS_VOL = params.has("ttsvol") ? Math.min(1, Math.max(0, parseFloat(params.get("ttsvol")) || 0)) : 1;
   const TTS_VOICE = (params.get("ttsvoice") || "").toLowerCase();
   const DROP = (params.has("drop") ? Math.min(100, Math.max(0, parseFloat(params.get("drop")) || 0)) : 35) / 100;
@@ -856,7 +877,8 @@
   const ALERT_FILES = { follow: "follow", raid: "raid", gift: "gift", cgift: "lowcheer", bits: "cheer", request: "request", lowraid: "lowraid" };
 
   // 0-144 cookies plays lowcheer.mp3, 145 and up plays cheer.mp3 (built-in jingle if a file is missing)
-  function playCheer(amount) { playFileOr(amount < 145 ? "lowcheer" : "cheer", () => playCheerSynth(amount)); }
+  function playCheer(amount) {
+    ambientPulse("cheer", amount >= 500 ? 3 : amount >= BIG_CHEER ? 2 : 1); playFileOr(amount < 145 ? "lowcheer" : "cheer", () => playCheerSynth(amount)); }
   function playCheerSynth(amount) {
     if (MUTE || sfxMuted) return;
     const now = Date.now();
@@ -892,13 +914,13 @@
   const STORE_KEY = "cookies:" + CHANNEL;
   let cookies = {};
   // Every fresh launch starts a new cookie season, except after !refreshchat (balances are kept).
-  if (!VIEWCHAT && !VIDEOMODE) try {                   // the chat reader and the video player never touch saved balances
+  if (!VIEWCHAT && !VIDEOMODE && !AMBIENTMODE) try {                   // the chat reader and the video player never touch saved balances
     if (sessionStorage.getItem("keep-cookies") === "1") {
       sessionStorage.removeItem("keep-cookies");
       cookies = JSON.parse(localStorage.getItem(STORE_KEY) || "{}") || {};
     } else localStorage.setItem(STORE_KEY, "{}");
   } catch (e) {}
-  const saveCookies = () => { if (VIEWCHAT || VIDEOMODE) return; try { localStorage.setItem(STORE_KEY, JSON.stringify(cookies)); } catch (e) {} };
+  const saveCookies = () => { if (VIEWCHAT || VIDEOMODE || AMBIENTMODE) return; try { localStorage.setItem(STORE_KEY, JSON.stringify(cookies)); } catch (e) {} };
   const bal = (u) => cookies[u.toLowerCase()] || 0;
   const addCookies = (u, n) => {
     const k = u.toLowerCase();
@@ -1153,7 +1175,8 @@
   }
 
   let lastAlertSnd = 0;
-  function alertSound(kind) {
+  function alertSound(kind, power = 1) {
+    ambientPulse(kind, power);
     const now = Date.now();
     if (now - lastAlertSnd < 120) return;                    // bursts share one sound
     lastAlertSnd = now;
@@ -1222,7 +1245,7 @@
         label: "INCOMING RAID", who: raider, color: "#ff5fd2", power: n >= 200 ? 3 : n >= 100 ? 2 : 1, fade: 16,
         big: `${n.toLocaleString("en-US")} ${n === 1 ? "VIEWER" : "VIEWERS"}!`, sub: "WELCOME RAIDERS!"
       });
-      alertSound("raid");
+      alertSound("raid", n >= 150 ? 3 : 2);
     } else {
       queueAlert(n < LOW_RAID ? "lowraid" : "raid", `${raider} is raiding with ${n.toLocaleString("en-US")} ${n === 1 ? "viewer" : "viewers"}!`);
     }
@@ -1807,23 +1830,27 @@
 
   // "hello (meow) there" -> [say hello, sfx meow, say there]
   function parseSegments(text) {
+    // voice tags: [scream] changes the voice from there on; <scream>...</scream> styles only what is inside
     const segs = [];
-    let last = 0, count = 0, m;
-    const re = /\(([a-z0-9_-]+)\)/gi;
+    let last = 0, count = 0, base = "", inner = "", m;
+    const re = /\[(scream|natural|spongebob)\]|<(scream|natural|spongebob)>|<\/(?:scream|natural|spongebob)>|\(([a-z0-9_-]+)\)/gi;
+    const flush = (end) => { if (end > last) segs.push({ say: text.slice(last, end), style: inner || base }); };
     while ((m = re.exec(text))) {
-      const name = m[1].toLowerCase();
-      if (!SFX_NAMES.has(name)) continue;
-      if (CMD_ONLY_SFX.has(name)) {                       // command-only: drop it from the speech, never play it
-        if (m.index > last) segs.push({ say: text.slice(last, m.index) });
-        last = m.index + m[0].length;
+      if (m[3] !== undefined) {                              // (sfx)
+        const name = m[3].toLowerCase();
+        if (!SFX_NAMES.has(name)) continue;
+        flush(m.index); last = m.index + m[0].length;
+        if (CMD_ONLY_SFX.has(name)) continue;                // command-only: drop it from the speech, never play it
+        if (count++ < SFX_MAX) segs.push({ sfx: name });
         continue;
       }
-      if (m.index > last) segs.push({ say: text.slice(last, m.index) });
-      if (count++ < SFX_MAX) segs.push({ sfx: name });
-      last = m.index + m[0].length;
+      flush(m.index); last = m.index + m[0].length;
+      if (m[1]) base = m[1].toLowerCase();
+      else if (m[2]) inner = m[2].toLowerCase();
+      else inner = "";
     }
-    if (last < text.length) segs.push({ say: text.slice(last) });
-    return segs.map(s => s.sfx ? s : { say: s.say.trim() }).filter(s => s.sfx || s.say);
+    flush(text.length);
+    return segs.map(x => x.sfx ? x : { say: x.say.trim(), style: x.style }).filter(x => x.sfx || x.say);
   }
 
   // Browser voices load asynchronously. Wait briefly for them instead of speaking with none.
@@ -1910,23 +1937,32 @@
   }
 
   // Plays an audio URL. Rejects with code "not-allowed" when the browser wants a click first.
-  function playAudioUrl(url) {
+  function playAudioUrl(url, fx = {}) {
     return new Promise((resolve, reject) => {
       const audio = new Audio();
       audio.preload = "auto";
       audio.volume = TTS_VOL;
       audio.playbackRate = 1.5;
-      let done = false, startTimer, capTimer;
+      let done = false, startTimer, capTimer, wobbleTimer;
       const finish = err => {
         if (done) return;
         done = true;
-        clearTimeout(startTimer); clearTimeout(capTimer);
+        clearTimeout(startTimer); clearTimeout(capTimer); clearInterval(wobbleTimer);
         audio.onplaying = audio.onended = audio.onerror = null;
         try { audio.pause(); } catch (e) {}
         err ? reject(err) : resolve();
       };
       ttsAudioStop = () => finish();
-      audio.onplaying = () => clearTimeout(startTimer);
+      audio.onplaying = () => {
+        clearTimeout(startTimer);
+        if (!fx.rate) return;                                  // normal voice: untouched
+        try { audio.preservesPitch = audio.mozPreservesPitch = audio.webkitPreservesPitch = fx.pre !== false; } catch (_) {}
+        if (fx.wobble) {                                       // speed (and so pitch) flips back and forth: shaky scream / mocking sing-song
+          const [lo, hi, ms] = fx.wobble; let up = false;
+          audio.playbackRate = lo;
+          wobbleTimer = setInterval(() => { up = !up; try { audio.playbackRate = up ? hi : lo; } catch (_) {} }, ms);
+        } else audio.playbackRate = fx.rate;
+      };
       audio.onended = () => finish();
       audio.onerror = () => finish(ttsError("The voice audio could not be loaded.", "audio-error"));
       startTimer = setTimeout(() => finish(ttsError("The voice audio did not start.", "audio-error")), 10000);
@@ -1940,9 +1976,16 @@
   }
 
   // Hosted no-signup TTS proxy. No Puter, no Google Translate direct endpoint, no system-voice fallback.
-  async function speakOnline(text, cfg = settings) {
-    const url = "https://tts-api.netlify.app/?text=" + encodeURIComponent(text) + "&lang=en&pitch=0.8&speed=1.5";
-    await playAudioUrl(url);
+  const TTS_FX = {
+    natural:   { pitch: 1, speed: 1, rate: 1 },
+    scream:    { pitch: 1, speed: 1, rate: 1.3, pre: false, wobble: [1.2, 1.42, 55], shout: true },
+    spongebob: { pitch: 1, speed: 1, rate: 1.2, pre: false, wobble: [0.95, 1.5, 230] }
+  };
+  async function speakOnline(text, cfg = settings, style = "") {
+    const fx = TTS_FX[style];
+    if (fx && fx.shout) text = text.toUpperCase().replace(/[.!?\s]+$/, "") + "!!!";
+    const url = "https://tts-api.netlify.app/?text=" + encodeURIComponent(text) + "&lang=en" + (fx ? `&pitch=${fx.pitch}&speed=${fx.speed}` : "&pitch=0.8&speed=1.5");
+    await playAudioUrl(url, fx);
   }
 
   // Optional custom endpoint from the setup panel (advanced)
@@ -1983,9 +2026,9 @@
   }
 
   // Use the browser voice engine; prefer an English male voice when available.
-  async function speakText(text, cfg = settings) {
+  async function speakText(text, cfg = settings, style = "") {
     if (!text) return;
-    await speakOnline(text, cfg);
+    await speakOnline(text, cfg, style);
   }
 
   async function runTts() {
@@ -1997,7 +2040,7 @@
     for (let i = 0; i < segs.length; i++) {
       const s = segs[i];
       try {
-        if (s.sfx) await playSfx(s.sfx); else await speakText(s.say);
+        if (s.sfx) await playSfx(s.sfx); else await speakText(s.say, settings, s.style);
       } catch (e) {
         if (e.code === "not-allowed") {             // browsers block speech until the page has been clicked once
           blocked = true;
@@ -2115,6 +2158,7 @@
         ? `${name} won ${amount} ${currencyLabel(amount)}!`
         : `${name} lost ${amount} ${currencyLabel(amount)}!`;
       card.as.textContent = `${net >= 0 ? "+" : ""}${net} ${currencyLabel(Math.abs(net))} after the ${WHEEL_COST} ${currencyLabel(WHEEL_COST)} spin`;
+      if (result > 0) ambientPulse("wheel", result >= 15 ? 3 : result >= 8 ? 2 : 1);
       if (!MUTE) chime(result >= 15 ? [880, 1108.7, 1318.5, 1760, 2217] : result >= 8 ? [783.99, 987.77, 1174.66] : [659.25, 783.99]);
     }, 2200);
   }
@@ -2229,7 +2273,7 @@
         if (canControlSfx(tags, user)) { requestsDisabled = false; sfxNotice("Level requests enabled.", tags, user); }
         return true;
       case "playvideo":   doPlayVideo(tags, user, arg); return true;
-      case "skipvideo":   if (canControlSfx(tags, user)) videoSend({ to: "player", type: "skip" }); return true;
+      case "skipvideo":   if (!AMBIENTMODE && canControlSfx(tags, user)) videoSend({ to: "player", type: "skip" }); return true;
       case "refreshchat": doRefreshChat(tags, user); return true;
       case "resetcookies": doResetCookies(tags, user, arg); return true;
     }
@@ -2273,6 +2317,8 @@
       "First chat": () => welcomeFirstChatter({ "first-msg": "1", "display-name": "NewViewer" }, "newviewer" + Date.now()),
       "Reset all": () => doResetCookies(modTags, "demo", "all"),
       "Mute sfx": () => doMuteSfx(modTags, "demo", !sfxMuted),
+      "Pulse":    () => ambientPulse("cheer", 1),
+      "BIG pulse":() => ambientPulse("raid", 3),
       "Ting":     () => ting()
     };
     Object.entries(items).forEach(([k, f]) => {
@@ -2518,6 +2564,7 @@
     t.textContent = isMod(tags) ? "is chatting for the first time. Welcome!" : `is chatting for the first time. Welcome! +${FIRST_BONUS} ${currencyLabel(FIRST_BONUS)}`;
     el.append(n, t);
     push(el, {});
+    ambientPulse("welcome", 1);
   }
 
   /* ---------- #viewchat: same overlay, black page, easier to read ---------- */
@@ -2575,7 +2622,7 @@
       if (ALERTS_ON && bitsN >= BIG_BITS) {
         showHype({ label: "BIG CHEER", who: bitsWho, color: "#9b6bff", fade: 14, power: bitsN >= 5000 ? 3 : bitsN >= 1000 ? 2 : 1,
                    big: `${bitsN.toLocaleString("en-US")} BITS!`, sub: "THANK YOU!" });
-        alertSound("bits");
+        alertSound("bits", bitsN >= 1000 ? 3 : 2);
       } else queueAlert("bits", `${bitsWho} cheered ${bitsN.toLocaleString("en-US")} bits!`);
     }
 
@@ -2777,21 +2824,21 @@
   // main overlay side: checks, charges, forwards to the player page
   const videoState = { seen: 0, queue: 0 };
   function doPlayVideo(tags, user, arg) {
-    if (VIDEOMODE || VIEWCHAT) return;
+    if (VIDEOMODE || VIEWCHAT || AMBIENTMODE) return;
     if (cdLeft("video:" + user.toLowerCase(), 5000)) return;
     const id = videoIdOf(arg);
     if (!id) { queueAlert("requestinfo", "Play a video", "Use !playvideo followed by a YouTube link.", 8); return; }
     if (Date.now() - videoState.seen > 20000) { queueAlert("requestinfo", "The video player is not open", "Nothing was charged.", 8); return; }
     if (videoState.queue >= VIDEO_QUEUE_MAX) { queueAlert("requestinfo", "The video queue is full", "Nothing was charged. Try again in a bit.", 8); return; }
-    const mod = isMod(tags);
-    if (!mod && !canPay(tags, user, VIDEO_COST, "a video")) return;
-    if (!mod) pay(tags, user, VIDEO_COST);
+    const free = isMod(tags) || canControlSfx(tags, user) || /(^|,)lead_moderator\//.test(tags.badges || "");   // streamer, mods and lead mods play for free
+    if (!free && !canPay(tags, user, VIDEO_COST, "a video")) return;
+    if (!free) pay(tags, user, VIDEO_COST);
     markCd("video:" + user.toLowerCase());
     videoState.queue++;
-    videoSend({ to: "player", type: "play", id, by: nameOf(tags, user), user: user.toLowerCase(), paid: mod ? 0 : VIDEO_COST, max: VIDEO_MAX_S });
+    videoSend({ to: "player", type: "play", id, by: nameOf(tags, user), user: user.toLowerCase(), paid: free ? 0 : VIDEO_COST, max: VIDEO_MAX_S });
     queueAlert("requestinfo", `${nameOf(tags, user)} queued a video`, "", 6);
   }
-  if (!VIDEOMODE && !VIEWCHAT) videoListen(m => {
+  if (!VIDEOMODE && !VIEWCHAT && !AMBIENTMODE) videoListen(m => {
     if (m.to !== "main") return;
     if (m.type === "hello") { videoState.seen = Date.now(); videoState.queue = m.queue || 0; }
     else if (m.type === "error") {
@@ -2800,54 +2847,93 @@
     }
   });
 
-  // player page side (#videoplayer)
+  // player page side (#videoplayer): the real video file is played in a plain <video> element,
+  // so there is no YouTube player at all: no controls, no pause button, no captions, no title.
+  const VIDEO_LOCAL_API = (params.get("videoapi") || "http://127.0.0.1:8787").replace(/\/+$/, "");
+  const VIDEO_HOSTS = [
+    ...(params.get("videoinst") || "").split(",").map(x => x.trim().replace(/\/+$/, "")).filter(x => /^https?:\/\//.test(x)),
+    "https://pipedapi.kavin.rocks", "https://pipedapi.adminforge.de", "https://api.piped.private.coffee",
+    "https://yewtu.be", "https://inv.nadeko.net", "https://invidious.nerdvpn.de"
+  ];
+  async function videoJson(url, ms) {
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), ms);
+    try { const r = await fetch(url, { signal: ctl.signal }); if (!r.ok) throw new Error("HTTP " + r.status); return await r.json(); }
+    finally { clearTimeout(t); }
+  }
+  const qNum = q => parseInt(String(q || "").replace(/\D/g, ""), 10) || 0;
+  const bestOf = (list, qual, isMp4) => list.slice().sort((a, b) => (isMp4(b) - isMp4(a)) || (qual(b) - qual(a)))[0];
+  // returns a direct playable file URL for a YouTube video id (helper first, then public Piped / Invidious hosts)
+  async function resolveVideo(id) {
+    try {
+      const j = await videoJson(`${VIDEO_LOCAL_API}/resolve?id=${id}`, 45000);
+      if (j && j.url) return j.url;
+    } catch (_) {}
+    const deadline = Date.now() + 40000;
+    for (const base of VIDEO_HOSTS) {
+      if (Date.now() > deadline) break;
+      try {                                                        // Piped API
+        const j = await videoJson(`${base}/streams/${id}`, 6000);
+        const list = (j.videoStreams || []).filter(v => v && v.url && !v.videoOnly && qNum(v.quality) <= 1080);
+        const v = list.length && bestOf(list, x => qNum(x.quality), x => /mp4|mpeg_4/i.test((x.format || "") + (x.mimeType || "")) ? 1 : 0);
+        if (v) return v.url;
+      } catch (_) {}
+      try {                                                        // Invidious API
+        const j = await videoJson(`${base}/api/v1/videos/${id}?local=true`, 6000);
+        const list = (j.formatStreams || []).filter(v => v && v.url);
+        const v = list.length && bestOf(list, x => qNum(x.qualityLabel || x.resolution), x => x.container === "mp4" ? 1 : 0);
+        if (v) return v.url.startsWith("/") ? base + v.url : v.url;
+      } catch (_) {}
+    }
+    throw new Error("No video source answered.");
+  }
+
   function startVideoPlayer() {
-    const frame = document.getElementById("video-frame"), by = document.getElementById("video-by");
+    const frame = document.getElementById("video-frame"), by = document.getElementById("video-by"), vid = document.getElementById("video-el");
     const radius = params.has("radius") ? Math.min(200, Math.max(0, parseFloat(params.get("radius")) || 0)) : 28;
     frame.style.setProperty("--vr", radius + "px");
-    const queue = []; let player = null, current = null, started = false, capTimer = null, byTimer = null, watchTimer = null, apiP = null;
-    const report = () => videoSend({ to: "main", type: "hello", queue: queue.length + (current ? 1 : 0) });
-    const loadApi = () => apiP || (apiP = new Promise((res, rej) => {
-      if (window.YT && YT.Player) return res();
-      window.onYouTubeIframeAPIReady = () => res();
-      const sc = document.createElement("script"); sc.src = "https://www.youtube.com/iframe_api";
-      sc.onerror = () => { apiP = null; rej(new Error("YouTube player could not load")); };
-      document.head.appendChild(sc);
-    }));
+    if (params.get("fit") === "cover") frame.style.setProperty("--fit", "cover");
+    vid.controls = false; vid.disablePictureInPicture = true; vid.disableRemotePlayback = true; vid.playsInline = true;
+    const queue = []; let current = null, started = false, fading = false, capTimer = null, byTimer = null, watchTimer = null;
+    const report = () => videoSend({ to: "main", type: "hello", queue: queue.length + (current || fading ? 1 : 0) });
     const fail = (v) => { videoSend({ to: "main", type: "error", user: v.user, by: v.by, paid: v.paid }); };
+    const FADE_MS = 900;
     function finish() {
       clearTimeout(capTimer); clearTimeout(watchTimer); clearTimeout(byTimer);
-      current = null; started = false;
-      try { player && player.stopVideo(); } catch (_) {}
-      frame.classList.remove("on"); by.classList.remove("show");
+      current = null; started = false; fading = true;
+      frame.classList.remove("on"); by.classList.remove("show");      // the picture fades out first...
+      let fv = setInterval(() => { try { vid.volume = Math.max(0, vid.volume - 50 / FADE_MS); } catch (_) {} }, 50);   // ...and the sound with it
       setStatus(""); report();
-      setTimeout(next, 600);
+      setTimeout(() => {
+        clearInterval(fv);
+        try { vid.pause(); vid.removeAttribute("src"); vid.load(); vid.volume = 1; } catch (_) {}
+        fading = false; report(); next();
+      }, FADE_MS + 100);
     }
-    function onState(e) {
-      if (!window.YT || !current) return;
-      if (e.data === YT.PlayerState.PLAYING) { started = true; setStatus(""); }
-      else if (e.data === YT.PlayerState.ENDED) finish();
-    }
-    function onErr() { const v = current; if (v) fail(v); finish(); }
-    async function play(v) {
-      try { await loadApi(); } catch (e) { fail(v); finish(); return; }
-      if (current !== v) return;
-      started = false;
-      by.textContent = "Requested by " + v.by; by.classList.add("show");
-      byTimer = setTimeout(() => by.classList.remove("show"), 5000);
+    vid.addEventListener("playing", () => {
+      if (!current || started) return;
+      started = true; clearTimeout(watchTimer); setStatus("");
       frame.classList.add("on");
-      if (!player) {
-        player = new YT.Player("yt-player", {
-          width: "100%", height: "100%", videoId: v.id,
-          playerVars: { autoplay: 1, controls: 0, rel: 0, modestbranding: 1, playsinline: 1, iv_load_policy: 3, disablekb: 1, fs: 0 },
-          events: { onReady: e => { try { e.target.setVolume(100); e.target.playVideo(); } catch (_) {} }, onStateChange: onState, onError: onErr }
-        });
-      } else player.loadVideoById(v.id);
-      if (v.max > 0) capTimer = setTimeout(finish, v.max * 1000);
-      watchTimer = setTimeout(() => { if (current === v && !started) setStatus("Click anywhere on this page once to allow video playback"); }, 5000);
+      by.textContent = "Requested by " + current.by; by.classList.add("show");
+      byTimer = setTimeout(() => by.classList.remove("show"), 5000);
+      if (current.max > 0) capTimer = setTimeout(finish, current.max * 1000);
+    });
+    vid.addEventListener("pause", () => { if (current && started && !vid.ended) vid.play().catch(() => {}); });   // nobody can pause it
+    vid.addEventListener("ended", () => { if (current) finish(); });
+    vid.addEventListener("error", () => { const v = current; if (v) { fail(v); finish(); } });
+    async function play(v) {
+      let url;
+      try { url = await resolveVideo(v.id); } catch (e) { if (current === v) { fail(v); finish(); } return; }
+      if (current !== v) return;                                       // skipped while the link was being looked up
+      started = false; vid.volume = 1; vid.src = url;
+      vid.play().catch(e => {
+        if (current !== v) return;
+        if (e && e.name === "NotAllowedError") setStatus("Click anywhere on this page once to allow video playback");
+        else { fail(v); finish(); }
+      });
+      watchTimer = setTimeout(() => { if (current === v && !started) { if (!vid.paused) { fail(v); finish(); } } }, 25000);
     }
     function next() {
-      if (current || !queue.length) return;
+      if (current || fading || !queue.length) return;
       current = queue.shift();
       play(current); report();
     }
@@ -2858,8 +2944,62 @@
         queue.push(m); next(); report();
       } else if (m.type === "skip") { if (current) finish(); }
     });
-    addEventListener("pointerdown", () => { try { if (current && player && player.playVideo) player.playVideo(); } catch (_) {} });
+    addEventListener("pointerdown", () => { try { if (current && vid.paused && vid.src) vid.play().catch(() => {}); } catch (_) {} });
     report(); setInterval(report, 4000);
+  }
+
+  /* ---------- Ambient pulses: main overlay sends, #ambient page draws ---------- */
+  const AMB_COLORS = { follow: "#9147ff", sub: "#9147ff", gift: "#ff5fd2", cgift: "#ffb347", bits: "#9b6bff", raid: "#ff5fd2", lowraid: "#ff5fd2", request: "#4fc3ff", cheer: "#ffcf4a", wheel: "#3ddc97", welcome: "#4fe0d0" };
+  const AMB_KEY = "overlay-ambient-msg-v1";
+  const AMB_INTENSITY = params.has("intensity") ? Math.min(3, Math.max(0.1, parseFloat(params.get("intensity")) || 1)) : 1;
+  let ambBus = null; try { ambBus = new BroadcastChannel("overlay-ambient-v1"); } catch (_) {}
+  const ambSeen = new Set();
+  function ambSend(msg) {
+    msg.n = Date.now() + "-" + Math.random().toString(36).slice(2);
+    ambSeen.add(msg.n);
+    if (ambBus) { try { ambBus.postMessage(msg); } catch (_) {} }
+    try { localStorage.setItem(AMB_KEY, JSON.stringify(msg)); } catch (_) {}
+  }
+  // Same kind within 1.5s is drawn once: the #ambient page hears events both from its own chat connection and from the main overlay.
+  const ambLast = {};
+  function ambDraw(kind, power) {
+    const stage = document.getElementById("ambient-stage");
+    if (!stage || !AMB_COLORS[kind]) return;
+    power = Math.max(1, Math.min(3, power | 0 || 1));
+    const now = Date.now(), prev = ambLast[kind];
+    if (prev && now - prev.t < 1500 && power <= prev.p) return;
+    ambLast[kind] = { t: now, p: power };
+    const color = AMB_COLORS[kind];
+    const peak = Math.min(0.7, [0.22, 0.32, 0.42][power - 1] * AMB_INTENSITY);
+    for (let i = 0; i < power; i++) {
+      const el = document.createElement("div");
+      el.className = "amb-pulse";
+      el.style.setProperty("--c", color);
+      el.style.setProperty("--peak", (peak * (1 - i * 0.18)).toFixed(3));
+      el.style.setProperty("--blur", (170 + power * 60 + i * 50) + "px");
+      el.style.setProperty("--spread", (30 + power * 18 + i * 20) + "px");
+      el.style.setProperty("--dur", (1.9 + power * 0.35 + i * 0.2) + "s");
+      el.style.setProperty("--delay", (i * 0.55) + "s");
+      el.addEventListener("animationend", () => el.remove());
+      stage.appendChild(el);
+    }
+    while (stage.children.length > 9) stage.firstChild.remove();
+  }
+  function ambientPulse(kind, power = 1) {
+    if (!AMB_COLORS[kind]) return;
+    if (AMBIENTMODE) { ambDraw(kind, power); return; }              // the #ambient page draws its own events directly
+    if (VIEWCHAT || VIDEOMODE || TEXTMODE) return;
+    ambSend({ type: "pulse", kind, power: Math.max(1, Math.min(3, power | 0 || 1)) });
+  }
+  function startAmbient() {
+    const h = m => {
+      if (!m || !m.n || ambSeen.has(m.n)) return;
+      ambSeen.add(m.n); if (ambSeen.size > 300) ambSeen.delete(ambSeen.values().next().value);
+      if (m.type === "pulse") ambDraw(m.kind, m.power);
+    };
+    if (ambBus) ambBus.onmessage = e => h(e.data);
+    addEventListener("storage", e => { if (e.key === AMB_KEY && e.newValue) { try { h(JSON.parse(e.newValue)); } catch (_) {} } });
+    if (DEMO) setTimeout(() => ambDraw("cheer", 2), 600);          // &demo=1 on the ambient page shows a test pulse
   }
 
   /* ---------- Cat visits: a cat wanders into chat every minute ---------- */
@@ -2897,10 +3037,15 @@
     push(el, {}, 12);
     if (!MUTE && !allMuted && !sfxMuted) playSfx("meow");     // uses meow.mp3 if you have it, else the built-in meow
   }
-  if (CAT_ON && !VIEWCHAT && !TEXTMODE && !VIDEOMODE && settings.chat && (settings.configured || CHANNEL)) setInterval(showCat, CAT_MS);
+  if (CAT_ON && !VIEWCHAT && !TEXTMODE && !VIDEOMODE && !AMBIENTMODE && settings.chat && (settings.configured || CHANNEL)) setInterval(showCat, CAT_MS);
 
   if (TEXTMODE) document.body.classList.add("text-mode");
-  if (VIDEOMODE) {
+  if (AMBIENTMODE) {
+    document.body.classList.add("ambient-mode");
+    document.title = `${DISPLAY_ACCOUNT} ambient`;
+    startAmbient();
+    if (settings.configured || CHANNEL) { connect(); startFollows(); }     // silent read-only chat connection of its own, so pulses do not depend on the other page
+  } else if (VIDEOMODE) {
     document.body.classList.add("video-mode");
     document.title = `${DISPLAY_ACCOUNT} video player`;
     startVideoPlayer();
@@ -2979,7 +3124,7 @@
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {}
       if (setupStatus) setSetupStatus("TTS language set to English (US).", "ok");
       console.info("TTS language set to English (US).");
-    } else if (event.key === "F2" && !VIEWCHAT && !VIDEOMODE) {
+    } else if (event.key === "F2" && !VIEWCHAT && !VIDEOMODE && !AMBIENTMODE) {
       event.preventDefault();
       openSetup();
     }
