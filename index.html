@@ -23,6 +23,9 @@
      &block=a,b      extra words blocked from TTS
      &sfxvol=0.8     TTS sound-effect volume 0-1
      &sfx=bruh,oof   extra (sfx) names; each plays <name>.mp3 from this folder
+     #videoplayer: a second OBS browser source (full screen). !playvideo <youtube link> (100 cookies; mods free) plays there.
+     &videomax=300   max seconds per video (default 300, 0 = no limit)    &radius=28  corner radius of the video in px
+     !skipvideo      (streamer + lead mods) skips the current video
      &alerts=0       turn alerts off        &alertsec=6  seconds per alert
      &token=...&clientid=...   enables FOLLOW alerts (see notes)
      &alertpos=top   alerts as a top banner instead of in chat
@@ -231,6 +234,24 @@
   body.text-mode #chat, body.text-mode #alerts, body.text-mode #status, body.text-mode #global-setup-backdrop, body.text-mode #setup-hint, body.text-mode #demo { display:none !important; }
   body.text-mode { background:transparent !important; }
 
+  /* ---------- #videoplayer ---------- */
+  #video-stage { display:none; position:fixed; inset:0; background:transparent; }
+  body.video-mode #video-stage { display:block; }
+  body.video-mode #chat, body.video-mode #alerts, body.video-mode #screen-text, body.video-mode #global-setup-backdrop, body.video-mode #setup-hint, body.video-mode #demo { display:none !important; }
+  body.video-mode { background:transparent !important; }
+  #video-frame {
+    position:absolute; inset:0; border-radius:var(--vr, 28px); overflow:hidden; background:#000; isolation:isolate; transform:translateZ(0);
+    opacity:0; visibility:hidden; transition:opacity .35s ease, visibility 0s linear .35s;
+  }
+  #video-frame.on { opacity:1; visibility:visible; transition:opacity .35s ease; }
+  #video-frame iframe, #video-frame #yt-player { position:absolute; inset:0; width:100%; height:100%; border:0; }
+  #video-by {
+    position:absolute; left:18px; top:16px; z-index:3; padding:6px 13px; border-radius:999px; max-width:80%;
+    font:700 15px "Nunito","Segoe UI",sans-serif; color:#fff; background:rgba(14,12,20,.78); border:1px solid rgba(255,255,255,.14);
+    opacity:0; transition:opacity .4s ease; pointer-events:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  #video-by.show { opacity:1; }
+
   /* ---------- Setup dialog ---------- */
   #global-setup-backdrop {
     position: fixed; inset: 0; z-index: 100000; display: flex;
@@ -395,6 +416,7 @@
 <div id="alerts"></div>
 <div id="status"></div>
 <div id="screen-text" aria-live="polite"></div>
+<div id="video-stage"><div id="video-frame"><div id="yt-player"></div><div id="video-by"></div></div></div>
 <div id="global-setup-backdrop" role="dialog" aria-modal="true" aria-labelledby="global-setup-title">
   <section id="global-setup">
     <header class="setup-head">
@@ -494,6 +516,7 @@
   const params = new URLSearchParams(location.search);
   const VIEWCHAT = location.hash.toLowerCase() === "#viewchat";     // read-only chat page for the streamer: black background, no sounds, no setup panel
   const TEXTMODE = location.hash.toLowerCase() === "#text";
+  const VIDEOMODE = location.hash.toLowerCase() === "#videoplayer";
   const ICON_ALIASES = { cookie: "cookie", money: "money", box: "box", moon: "moon", fries: "fries", heart: "heart", follow: "user-plus", raid: "users", sub: "star", gift: "gift", bits: "spark", request: "box", wheel: "dice", volume: "volume", alert: "bell" };
   function makeIcon(name, className = "ui-icon") {
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -613,11 +636,11 @@
   });
   // Show setup by default. The overlay itself is only shown after saving to #overlay.
   // This prevents a previously saved browser setting from making the page look blank.
-  if (location.hash.toLowerCase() === "#overlay" || VIEWCHAT || TEXTMODE) closeSetup();
+  if (location.hash.toLowerCase() === "#overlay" || VIEWCHAT || TEXTMODE || VIDEOMODE) closeSetup();
   else openSetup();
   window.addEventListener("hashchange", () => {
-    if ((location.hash.toLowerCase() === "#viewchat") !== VIEWCHAT || (location.hash.toLowerCase() === "#text") !== TEXTMODE) { location.reload(); return; }
-    if (location.hash.toLowerCase() === "#overlay" || VIEWCHAT || TEXTMODE) closeSetup();
+    if ((location.hash.toLowerCase() === "#viewchat") !== VIEWCHAT || (location.hash.toLowerCase() === "#text") !== TEXTMODE || (location.hash.toLowerCase() === "#videoplayer") !== VIDEOMODE) { location.reload(); return; }
+    if (location.hash.toLowerCase() === "#overlay" || VIEWCHAT || TEXTMODE || VIDEOMODE) closeSetup();
     else openSetup();
   });
   function leaveSetupRoute() {
@@ -869,13 +892,13 @@
   const STORE_KEY = "cookies:" + CHANNEL;
   let cookies = {};
   // Every fresh launch starts a new cookie season, except after !refreshchat (balances are kept).
-  if (!VIEWCHAT) try {                                 // the chat reader never touches saved balances
+  if (!VIEWCHAT && !VIDEOMODE) try {                   // the chat reader and the video player never touch saved balances
     if (sessionStorage.getItem("keep-cookies") === "1") {
       sessionStorage.removeItem("keep-cookies");
       cookies = JSON.parse(localStorage.getItem(STORE_KEY) || "{}") || {};
     } else localStorage.setItem(STORE_KEY, "{}");
   } catch (e) {}
-  const saveCookies = () => { if (VIEWCHAT) return; try { localStorage.setItem(STORE_KEY, JSON.stringify(cookies)); } catch (e) {} };
+  const saveCookies = () => { if (VIEWCHAT || VIDEOMODE) return; try { localStorage.setItem(STORE_KEY, JSON.stringify(cookies)); } catch (e) {} };
   const bal = (u) => cookies[u.toLowerCase()] || 0;
   const addCookies = (u, n) => {
     const k = u.toLowerCase();
@@ -2176,8 +2199,8 @@
     if (!cm) return false;
     const cmd = cm[1].toLowerCase(), arg = (cm[2] || "").trim();
     {                                                                   // show the command as typed (not the silent !give<currency>, not mod-only ones from viewers)
-      const control = ["mutesfx", "unmutesfx", "mutetts", "unmutetts", "disablerequests", "enablerequests", "requestsoff", "requestson", "refreshchat", "resetcookies", "changetext"].includes(cmd) || CUR_CMDS.some(c => cmd === "reset" + c);
-      const open = ["wheel", "request", "gift", "requests"].includes(cmd);
+      const control = ["mutesfx", "unmutesfx", "mutetts", "unmutetts", "disablerequests", "enablerequests", "requestsoff", "requestson", "refreshchat", "resetcookies", "changetext", "skipvideo"].includes(cmd) || CUR_CMDS.some(c => cmd === "reset" + c);
+      const open = ["wheel", "request", "gift", "requests", "playvideo"].includes(cmd);
       if (open || (control && canControlSfx(tags, user)) || (cmd === "donerequest" && isMod(tags))) pushCmdLine(tags, user, message);
     }
     if (cmd === "changetext") {
@@ -2205,6 +2228,8 @@
       case "enablerequests": case "requestson":
         if (canControlSfx(tags, user)) { requestsDisabled = false; sfxNotice("Level requests enabled.", tags, user); }
         return true;
+      case "playvideo":   doPlayVideo(tags, user, arg); return true;
+      case "skipvideo":   if (canControlSfx(tags, user)) videoSend({ to: "player", type: "skip" }); return true;
       case "refreshchat": doRefreshChat(tags, user); return true;
       case "resetcookies": doResetCookies(tags, user, arg); return true;
     }
@@ -2722,6 +2747,121 @@
     }
   }
 
+  /* ---------- Video player: !playvideo (main overlay) and #videoplayer (second OBS source) ---------- */
+  const VIDEO_COST = 100, VIDEO_QUEUE_MAX = 5, VIDEO_KEY = "overlay-video-msg-v1";
+  const VIDEO_MAX_S = params.has("videomax") ? Math.max(0, parseFloat(params.get("videomax")) || 0) : 300;
+  let videoBus = null; try { videoBus = new BroadcastChannel("overlay-video-v1"); } catch (_) {}
+  const videoSeen = new Set();
+  function videoSend(msg) {
+    msg.n = Date.now() + "-" + Math.random().toString(36).slice(2);
+    videoSeen.add(msg.n);
+    if (videoBus) { try { videoBus.postMessage(msg); } catch (_) {} }
+    try { localStorage.setItem(VIDEO_KEY, JSON.stringify(msg)); } catch (_) {}
+  }
+  function videoListen(fn) {
+    const h = m => {
+      if (!m || !m.n || videoSeen.has(m.n)) return;
+      videoSeen.add(m.n); if (videoSeen.size > 300) videoSeen.delete(videoSeen.values().next().value);
+      fn(m);
+    };
+    if (videoBus) videoBus.onmessage = e => h(e.data);
+    addEventListener("storage", e => { if (e.key === VIDEO_KEY && e.newValue) { try { h(JSON.parse(e.newValue)); } catch (_) {} } });
+  }
+  // only real YouTube links are accepted
+  function videoIdOf(t) {
+    t = String(t || "").trim().split(/\s+/)[0];
+    const m = t.match(/(?:youtube\.com\/(?:watch\?(?:[^\s#]*&)?v=|shorts\/|live\/|embed\/)|youtu\.be\/)([\w-]{11})/i);
+    return m ? m[1] : "";
+  }
+
+  // main overlay side: checks, charges, forwards to the player page
+  const videoState = { seen: 0, queue: 0 };
+  function doPlayVideo(tags, user, arg) {
+    if (VIDEOMODE || VIEWCHAT) return;
+    if (cdLeft("video:" + user.toLowerCase(), 5000)) return;
+    const id = videoIdOf(arg);
+    if (!id) { queueAlert("requestinfo", "Play a video", "Use !playvideo followed by a YouTube link.", 8); return; }
+    if (Date.now() - videoState.seen > 20000) { queueAlert("requestinfo", "The video player is not open", "Nothing was charged.", 8); return; }
+    if (videoState.queue >= VIDEO_QUEUE_MAX) { queueAlert("requestinfo", "The video queue is full", "Nothing was charged. Try again in a bit.", 8); return; }
+    const mod = isMod(tags);
+    if (!mod && !canPay(tags, user, VIDEO_COST, "a video")) return;
+    if (!mod) pay(tags, user, VIDEO_COST);
+    markCd("video:" + user.toLowerCase());
+    videoState.queue++;
+    videoSend({ to: "player", type: "play", id, by: nameOf(tags, user), user: user.toLowerCase(), paid: mod ? 0 : VIDEO_COST, max: VIDEO_MAX_S });
+    queueAlert("requestinfo", `${nameOf(tags, user)} queued a video`, "", 6);
+  }
+  if (!VIDEOMODE && !VIEWCHAT) videoListen(m => {
+    if (m.to !== "main") return;
+    if (m.type === "hello") { videoState.seen = Date.now(); videoState.queue = m.queue || 0; }
+    else if (m.type === "error") {
+      if (m.paid > 0 && m.user) addCookies(m.user, m.paid);
+      queueAlert("requestinfo", "That video could not be played", `${m.by || "Viewer"}${m.paid > 0 ? " was refunded " + m.paid + " " + currencyLabel(m.paid) : ""}.`, 8);
+    }
+  });
+
+  // player page side (#videoplayer)
+  function startVideoPlayer() {
+    const frame = document.getElementById("video-frame"), by = document.getElementById("video-by");
+    const radius = params.has("radius") ? Math.min(200, Math.max(0, parseFloat(params.get("radius")) || 0)) : 28;
+    frame.style.setProperty("--vr", radius + "px");
+    const queue = []; let player = null, current = null, started = false, capTimer = null, byTimer = null, watchTimer = null, apiP = null;
+    const report = () => videoSend({ to: "main", type: "hello", queue: queue.length + (current ? 1 : 0) });
+    const loadApi = () => apiP || (apiP = new Promise((res, rej) => {
+      if (window.YT && YT.Player) return res();
+      window.onYouTubeIframeAPIReady = () => res();
+      const sc = document.createElement("script"); sc.src = "https://www.youtube.com/iframe_api";
+      sc.onerror = () => { apiP = null; rej(new Error("YouTube player could not load")); };
+      document.head.appendChild(sc);
+    }));
+    const fail = (v) => { videoSend({ to: "main", type: "error", user: v.user, by: v.by, paid: v.paid }); };
+    function finish() {
+      clearTimeout(capTimer); clearTimeout(watchTimer); clearTimeout(byTimer);
+      current = null; started = false;
+      try { player && player.stopVideo(); } catch (_) {}
+      frame.classList.remove("on"); by.classList.remove("show");
+      setStatus(""); report();
+      setTimeout(next, 600);
+    }
+    function onState(e) {
+      if (!window.YT || !current) return;
+      if (e.data === YT.PlayerState.PLAYING) { started = true; setStatus(""); }
+      else if (e.data === YT.PlayerState.ENDED) finish();
+    }
+    function onErr() { const v = current; if (v) fail(v); finish(); }
+    async function play(v) {
+      try { await loadApi(); } catch (e) { fail(v); finish(); return; }
+      if (current !== v) return;
+      started = false;
+      by.textContent = "Requested by " + v.by; by.classList.add("show");
+      byTimer = setTimeout(() => by.classList.remove("show"), 5000);
+      frame.classList.add("on");
+      if (!player) {
+        player = new YT.Player("yt-player", {
+          width: "100%", height: "100%", videoId: v.id,
+          playerVars: { autoplay: 1, controls: 0, rel: 0, modestbranding: 1, playsinline: 1, iv_load_policy: 3, disablekb: 1, fs: 0 },
+          events: { onReady: e => { try { e.target.setVolume(100); e.target.playVideo(); } catch (_) {} }, onStateChange: onState, onError: onErr }
+        });
+      } else player.loadVideoById(v.id);
+      if (v.max > 0) capTimer = setTimeout(finish, v.max * 1000);
+      watchTimer = setTimeout(() => { if (current === v && !started) setStatus("Click anywhere on this page once to allow video playback"); }, 5000);
+    }
+    function next() {
+      if (current || !queue.length) return;
+      current = queue.shift();
+      play(current); report();
+    }
+    videoListen(m => {
+      if (m.to !== "player") return;
+      if (m.type === "play") {
+        if (queue.length >= VIDEO_QUEUE_MAX) { fail(m); return; }
+        queue.push(m); next(); report();
+      } else if (m.type === "skip") { if (current) finish(); }
+    });
+    addEventListener("pointerdown", () => { try { if (current && player && player.playVideo) player.playVideo(); } catch (_) {} });
+    report(); setInterval(report, 4000);
+  }
+
   /* ---------- Cat visits: a cat wanders into chat every minute ---------- */
   const CAT_ON = params.get("cat") !== "0";
   const CAT_MS = Math.max(10, parseFloat(params.get("catsec")) || 600) * 1000;
@@ -2757,10 +2897,14 @@
     push(el, {}, 12);
     if (!MUTE && !allMuted && !sfxMuted) playSfx("meow");     // uses meow.mp3 if you have it, else the built-in meow
   }
-  if (CAT_ON && !VIEWCHAT && !TEXTMODE && settings.chat && (settings.configured || CHANNEL)) setInterval(showCat, CAT_MS);
+  if (CAT_ON && !VIEWCHAT && !TEXTMODE && !VIDEOMODE && settings.chat && (settings.configured || CHANNEL)) setInterval(showCat, CAT_MS);
 
   if (TEXTMODE) document.body.classList.add("text-mode");
-  if (VIEWCHAT) {
+  if (VIDEOMODE) {
+    document.body.classList.add("video-mode");
+    document.title = `${DISPLAY_ACCOUNT} video player`;
+    startVideoPlayer();
+  } else if (VIEWCHAT) {
     document.body.classList.add("viewchat");
     document.title = `${DISPLAY_ACCOUNT}'s chat`;
     const head = document.createElement("div"); head.id = "vc-head"; head.textContent = `${DISPLAY_ACCOUNT}'s chat`;
@@ -2835,7 +2979,7 @@
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {}
       if (setupStatus) setSetupStatus("TTS language set to English (US).", "ok");
       console.info("TTS language set to English (US).");
-    } else if (event.key === "F2" && !VIEWCHAT) {
+    } else if (event.key === "F2" && !VIEWCHAT && !VIDEOMODE) {
       event.preventDefault();
       openSetup();
     }
