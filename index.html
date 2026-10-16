@@ -27,7 +27,7 @@
      #songplayer: a second OBS browser source (audio only, nothing is drawn). !playsong <youtube link> (100 cookies; mods free) plays the song in the background.
      &songmax=300    max seconds per song (default 300, 0 = no limit)    &songvol=1  song volume 0-1
      !skipsong       (streamer + lead mods) skips the current song
-     &songapi=http://127.0.0.1:8787   address of the optional yt-resolver.py helper (tried first)   &songinst=https://my.piped.api  extra Piped/Invidious hosts
+     &songinst=https://my.piped.api   extra Piped/Invidious hosts (only used if YouTube won't embed a video)
      (#videoplayer still works: it redirects to #songplayer)
      #ambient: a third OBS browser source (full screen, transparent): soft low-opacity edge pulses on cheers, gifts, subs, raids, follows, bits
      &intensity=1    strength of the ambient pulses (0.3 = very faint, 2 = stronger)
@@ -254,6 +254,7 @@
 
   /* ---------- #songplayer (audio only, nothing visible) ---------- */
   #song-stage { display:none; }
+  body.song-mode #song-stage { display:block; position:fixed; left:-10000px; top:0; width:320px; height:200px; overflow:hidden; opacity:0; pointer-events:none; }
   body.song-mode #chat, body.song-mode #alerts, body.song-mode #screen-text, body.song-mode #global-setup-backdrop, body.song-mode #setup-hint, body.song-mode #demo { display:none !important; }
   body.song-mode { background:transparent !important; }
 
@@ -2838,7 +2839,6 @@
 
   // player page side (#songplayer): only the sound of the YouTube video is played, in a hidden <audio> element.
   // Nothing is drawn on the page: no video, no player, no controls.
-  const SONG_LOCAL_API = (params.get("songapi") || params.get("videoapi") || "http://127.0.0.1:8787").replace(/\/+$/, "");
   const SONG_HOSTS = [
     ...(params.get("songinst") || params.get("videoinst") || "").split(",").map(x => x.trim().replace(/\/+$/, "")).filter(x => /^https?:\/\//.test(x)),
     "https://pipedapi.kavin.rocks", "https://pipedapi.adminforge.de", "https://api.piped.private.coffee",
@@ -2853,75 +2853,117 @@
   const bestOf = (list, qual, isMp4) => list.slice().sort((a, b) => (isMp4(b) - isMp4(a)) || (qual(b) - qual(a)))[0];
   // returns a direct playable audio URL for a YouTube video id (helper first, then public Piped / Invidious hosts)
   async function resolveSong(id) {
-    try {
-      const j = await songJson(`${SONG_LOCAL_API}/resolve?id=${id}&audio=1`, 45000);
-      if (j && j.url) return j.url;
-    } catch (_) {}
     const deadline = Date.now() + 40000;
     for (const base of SONG_HOSTS) {
       if (Date.now() > deadline) break;
-      try {                                                        // Piped API: audio-only streams first, muxed video as a fallback
+      try {                                                        // Piped API (same lookup the video player used)
         const j = await songJson(`${base}/streams/${id}`, 6000);
-        const au = (j.audioStreams || []).filter(v => v && v.url);
+        const list = (j.videoStreams || []).filter(v => v && v.url && !v.videoOnly && qNum(v.quality) <= 1080);
+        const v = list.length && bestOf(list, x => qNum(x.quality), x => /mp4|mpeg_4/i.test((x.format || "") + (x.mimeType || "")) ? 1 : 0);
+        if (v) return v.url;
+        const au = (j.audioStreams || []).filter(x => x && x.url);
         const a = au.length && bestOf(au, x => x.bitrate || 0, x => /mp4|m4a|mpeg_4/i.test((x.format || "") + (x.mimeType || "")) ? 1 : 0);
         if (a) return a.url;
-        const vs = (j.videoStreams || []).filter(v => v && v.url && !v.videoOnly);
-        const v = vs.length && bestOf(vs, x => -qNum(x.quality), x => /mp4|mpeg_4/i.test((x.format || "") + (x.mimeType || "")) ? 1 : 0);
-        if (v) return v.url;
       } catch (_) {}
       try {                                                        // Invidious API
         const j = await songJson(`${base}/api/v1/videos/${id}?local=true`, 6000);
-        const au = (j.adaptiveFormats || []).filter(v => v && v.url && /^audio\//i.test(v.type || ""));
+        const list = (j.formatStreams || []).filter(v => v && v.url);
+        const v = list.length && bestOf(list, x => qNum(x.qualityLabel || x.resolution), x => x.container === "mp4" ? 1 : 0);
+        if (v) return v.url.startsWith("/") ? base + v.url : v.url;
+        const au = (j.adaptiveFormats || []).filter(x => x && x.url && /^audio\//i.test(x.type || ""));
         const a = au.length && bestOf(au, x => parseInt(x.bitrate, 10) || 0, x => /mp4/i.test(x.type || "") ? 1 : 0);
         if (a) return a.url.startsWith("/") ? base + a.url : a.url;
-        const vs = (j.formatStreams || []).filter(v => v && v.url);
-        const v = vs.length && bestOf(vs, x => -qNum(x.qualityLabel || x.resolution), x => x.container === "mp4" ? 1 : 0);
-        if (v) return v.url.startsWith("/") ? base + v.url : v.url;
       } catch (_) {}
     }
     throw new Error("No song source answered.");
   }
 
   function startSongPlayer() {
-    const aud = new Audio(); aud.preload = "auto";
+    const stage = document.getElementById("song-stage");
+    // the song plays in YouTube's own player, hidden off-screen (no picture, nothing drawn). If YouTube refuses to embed a video,
+    // the same song is looked up as a plain file instead and played in a hidden <video> element.
+    const holder = document.createElement("div"); holder.id = "song-yt"; stage.appendChild(holder);
+    const vid = document.createElement("video");
+    vid.preload = "auto"; vid.playsInline = true; vid.controls = false; vid.disablePictureInPicture = true; vid.disableRemotePlayback = true;
+    stage.appendChild(vid);
+    let yt = null, ytReady = false, ytFailed = false, mode = "";
     const queue = []; let current = null, started = false, fading = false, capTimer = null, watchTimer = null;
     const report = () => songSend({ to: "main", type: "hello", queue: queue.length + (current || fading ? 1 : 0) });
     const fail = (v) => { songSend({ to: "main", type: "error", user: v.user, by: v.by, paid: v.paid }); };
     const FADE_MS = 900;
-    function finish() {
-      clearTimeout(capTimer); clearTimeout(watchTimer);
-      current = null; started = false; fading = true;
-      let fv = setInterval(() => { try { aud.volume = Math.max(0, aud.volume - SONG_VOL * 50 / FADE_MS); } catch (_) {} }, 50);   // fade the sound out
-      setStatus(""); report();
-      setTimeout(() => {
-        clearInterval(fv);
-        try { aud.pause(); aud.removeAttribute("src"); aud.load(); aud.volume = SONG_VOL; } catch (_) {}
-        fading = false; report(); next();
-      }, FADE_MS + 100);
-    }
-    aud.volume = SONG_VOL;
-    aud.addEventListener("playing", () => {
+    const setVol = x => { x = Math.max(0, Math.min(1, x)); try { if (mode === "yt" && yt) yt.setVolume(Math.round(x * 100)); else vid.volume = x; } catch (_) {} };
+    const getVol = () => { try { return mode === "yt" && yt ? yt.getVolume() / 100 : vid.volume; } catch (_) { return SONG_VOL; } };
+    const stopAll = () => { try { if (yt && ytReady) yt.stopVideo(); } catch (_) {} try { vid.pause(); vid.removeAttribute("src"); vid.load(); } catch (_) {} };
+
+    function started_() {
       if (!current || started) return;
       started = true; clearTimeout(watchTimer); setStatus("");
       if (current.max > 0) capTimer = setTimeout(finish, current.max * 1000);
-    });
-    aud.addEventListener("pause", () => { if (current && started && !aud.ended) aud.play().catch(() => {}); });   // nobody can pause it
-    aud.addEventListener("ended", () => { if (current) finish(); });
-    aud.addEventListener("error", () => { const v = current; if (v) { fail(v); finish(); } });
-    async function play(v) {
+    }
+    function finish() {
+      clearTimeout(capTimer); clearTimeout(watchTimer);
+      current = null; started = false; fading = true;
+      let fv = setInterval(() => setVol(getVol() - SONG_VOL * 50 / FADE_MS), 50);      // fade the sound out
+      setStatus(""); report();
+      setTimeout(() => {
+        clearInterval(fv); stopAll(); mode = "";
+        fading = false; report(); next();
+      }, FADE_MS + 100);
+    }
+
+    // --- YouTube player (hidden)
+    const tag = document.createElement("script"); tag.src = "https://www.youtube.com/iframe_api"; tag.onerror = () => { ytFailed = true; next(); };
+    window.onYouTubeIframeAPIReady = () => {
+      try {
+        const vars = { autoplay: 1, controls: 0, disablekb: 1, playsinline: 1, rel: 0, fs: 0, iv_load_policy: 3, modestbranding: 1 };
+        if (/^https?:/i.test(location.origin)) vars.origin = location.origin;
+        yt = new YT.Player("song-yt", {
+          width: 320, height: 200, playerVars: vars,
+          events: {
+            onReady: () => { ytReady = true; next(); },
+            onStateChange: e => {
+              if (mode !== "yt" || !current) return;
+              if (e.data === 1) started_();
+              else if (e.data === 0) finish();
+              else if (e.data === 2 && started) { try { yt.playVideo(); } catch (_) {} }   // nobody can pause it
+            },
+            onError: () => { const v = current; if (v && mode === "yt") playFile(v); }
+          }
+        });
+      } catch (_) { ytFailed = true; next(); }
+    };
+    document.head.appendChild(tag);
+    setTimeout(() => { if (!ytReady) { ytFailed = true; next(); } }, 10000);
+
+    // --- fallback: plain file in a hidden <video>
+    vid.addEventListener("playing", () => { if (mode === "file") started_(); });
+    vid.addEventListener("pause", () => { if (mode === "file" && current && started && !vid.ended) vid.play().catch(() => {}); });
+    vid.addEventListener("ended", () => { if (mode === "file" && current) finish(); });
+    vid.addEventListener("error", () => { const v = current; if (v && mode === "file") { fail(v); finish(); } });
+    async function playFile(v) {
+      mode = "file"; clearTimeout(watchTimer); try { if (yt && ytReady) yt.stopVideo(); } catch (_) {}
       let url;
       try { url = await resolveSong(v.id); } catch (e) { if (current === v) { fail(v); finish(); } return; }
       if (current !== v) return;                                       // skipped while the link was being looked up
-      started = false; aud.volume = SONG_VOL; aud.src = url;
-      aud.play().catch(e => {
+      started = false; vid.volume = SONG_VOL; vid.src = url;
+      vid.play().catch(e => {
         if (current !== v) return;
         if (e && e.name === "NotAllowedError") setStatus("Click anywhere on this page once to allow song playback");
         else { fail(v); finish(); }
       });
-      watchTimer = setTimeout(() => { if (current === v && !started) { if (!aud.paused) { fail(v); finish(); } } }, 25000);
+      watchTimer = setTimeout(() => { if (current === v && !started) { if (!vid.paused) { fail(v); finish(); } } }, 25000);
+    }
+    function play(v) {
+      started = false;
+      if (ytReady && !ytFailed) {
+        mode = "yt";
+        try { yt.setVolume(Math.round(SONG_VOL * 100)); yt.loadVideoById(v.id); yt.playVideo(); } catch (_) { playFile(v); return; }
+        watchTimer = setTimeout(() => { if (current === v && !started) playFile(v); }, 12000);   // never started: try the file instead
+      } else playFile(v);
     }
     function next() {
       if (current || fading || !queue.length) return;
+      if (!ytReady && !ytFailed) return;                               // wait for the YouTube player (or give up on it)
       current = queue.shift();
       play(current); report();
     }
@@ -2932,7 +2974,9 @@
         queue.push(m); next(); report();
       } else if (m.type === "skip") { if (current) finish(); }
     });
-    addEventListener("pointerdown", () => { try { if (current && aud.paused && aud.src) aud.play().catch(() => {}); } catch (_) {} });
+    addEventListener("pointerdown", () => {
+      try { if (current && mode === "file" && vid.paused && vid.src) vid.play().catch(() => {}); else if (current && mode === "yt" && yt) yt.playVideo(); } catch (_) {}
+    });
     report(); setInterval(report, 4000);
   }
 
