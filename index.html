@@ -544,7 +544,9 @@
 
     const hex = /^[0-9a-f]{6}$/i.test(params.get("color") || "") ? params.get("color") : "8fd8ff";
     const shade = (h, f) => "#" + [0, 2, 4].map(i => Math.max(0, Math.min(255, Math.round(parseInt(h.substr(i, 2), 16) * f))).toString(16).padStart(2, "0")).join("");
-    const fur = "#" + hex, line = shade(hex, 0.42), cream = "#fff4e4", pink = "#ff9db4", ink = "#2b1a30";
+    const furColors = ["#9534eb", "#3461eb", "#eb3486"];
+    const fur = "#" + (params.get("color") || furColors[Math.floor(Math.random() * furColors.length)]).replace("#", "");
+    const line = shade(fur.slice(1), 0.42), cream = fur, pink = "#ff9db4", ink = "#2b1a30";
     const SENS = Math.max(0.1, Math.min(10, parseFloat(params.get("sens")) || 2.5));
 
     // fluffy-cheeked fox head (symmetric around x=200)
@@ -583,7 +585,7 @@
             <use href="#mc-tail-p" fill="none" stroke="${line}" stroke-width="5" stroke-linejoin="round"/>
           </g>
           <path d="M96 430 C96 340 142 300 200 300 C258 300 304 340 304 430 Z" fill="${fur}" stroke="${line}" stroke-width="5" stroke-linejoin="round"/>
-          <path d="M200 300 C176 308 158 330 164 366 L180 354 L190 380 L200 358 L210 380 L220 354 L236 366 C242 330 224 308 200 300 Z" fill="${cream}" stroke="${line}" stroke-width="4" stroke-linejoin="round"/>
+          <path d="M200 300 C176 308 158 330 164 366 L180 354 L190 380 L200 358 L210 380 L220 354 L236 366 C242 330 224 308 200 300 Z" fill="${fur}" stroke="${line}" stroke-width="4" stroke-linejoin="round"/>
           <path d="M102 346 L116 338 L118 356 L136 348 L138 367" fill="none" stroke="${line}" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
           <path d="M298 346 L284 338 L282 356 L264 348 L262 367" fill="none" stroke="${line}" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
           <g id="mc-head">
