@@ -24,11 +24,11 @@
      &sfxvol=0.8     TTS sound-effect volume 0-1
      TTS voices: [scream] [natural] [spongebob] switch the voice for the rest of the message; <scream>BRO</scream> styles just that part
      &sfx=bruh,oof   extra (sfx) names; each plays <name>.mp3 from this folder
-     #videoplayer: a second OBS browser source (full screen). !playvideo <youtube link> (100 cookies; mods free) plays there.
-     &videomax=300   max seconds per video (default 300, 0 = no limit)    &radius=28  corner radius of the video in px
-     !skipvideo      (streamer + lead mods) skips the current video
-     &videoapi=http://127.0.0.1:8787   address of the optional yt-resolver.py helper (tried first)   &videoinst=https://my.piped.api  extra Piped/Invidious hosts
-     &fit=cover      fill the whole screen (crops) instead of letterboxing
+     #songplayer: a second OBS browser source (audio only, nothing is drawn). !playsong <youtube link> (100 cookies; mods free) plays the song in the background.
+     &songmax=300    max seconds per song (default 300, 0 = no limit)    &songvol=1  song volume 0-1
+     !skipsong       (streamer + lead mods) skips the current song
+     &songapi=http://127.0.0.1:8787   address of the optional yt-resolver.py helper (tried first)   &songinst=https://my.piped.api  extra Piped/Invidious hosts
+     (#videoplayer still works: it redirects to #songplayer)
      #ambient: a third OBS browser source (full screen, transparent): soft low-opacity edge pulses on cheers, gifts, subs, raids, follows, bits
      &intensity=1    strength of the ambient pulses (0.3 = very faint, 2 = stronger)
      &alerts=0       turn alerts off        &alertsec=6  seconds per alert
@@ -43,7 +43,7 @@
      &cat=0          turn the cat visits off
      &catsec=600     seconds between cat visits (default 600 / 10 minutes)
      #viewchat: press P to pop the chat out into an always-on-top window (Chrome / Edge; other browsers get a normal small window). Press P again to put it back
-     Commands:  !changetext "Something" (owner + configured lead mods; updates /#text)  !<currency> (e.g. !cookies)  !cheer <n>  !tts <text>  !resetcookies <name|all>  !loudtojump (1000 cookies, command only)  !knocking  !lotsofgunshots  !ambienceone  !ambiencetwo  !shocked  or (knocking) (lotsofgunshots) (ambienceone) inside !tts
+     Commands:  !changetext "Something" (owner + configured lead mods; updates /#text)  !<currency> (e.g. !cookies)  !cheer <n>  !tts <text>  !resetcookies <name|all>  !loudtojump (1000 cookies, command only)  !knocking  !lotsofgunshots  !ambienceone  !ambiencetwo  !shocked  !55  !drip  !money  !bell  !rizz  or (knocking) (lotsofgunshots) (ambienceone) (55) (drip) (money) (bell) (rizz) inside !tts
                 !mutesfx / !unmutesfx  (streamer + lead mods only; lead mods are set in the setup panel or with &leadmod=)  */
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
   body.bg { background: #0e0e10; }
@@ -242,7 +242,7 @@
   /* ---------- #ambient ---------- */
   #ambient-stage { display:none; position:fixed; inset:0; pointer-events:none; overflow:hidden; background:transparent; }
   body.ambient-mode #ambient-stage { display:block; }
-  body.ambient-mode #chat, body.ambient-mode #alerts, body.ambient-mode #screen-text, body.ambient-mode #global-setup-backdrop, body.ambient-mode #setup-hint, body.ambient-mode #demo, body.ambient-mode #video-stage { display:none !important; }
+  body.ambient-mode #chat, body.ambient-mode #alerts, body.ambient-mode #screen-text, body.ambient-mode #global-setup-backdrop, body.ambient-mode #setup-hint, body.ambient-mode #demo, body.ambient-mode #song-stage { display:none !important; }
   body.ambient-mode { background:transparent !important; }
   body.ambient-mode.bg { background:#0e0e10 !important; }
   .amb-pulse {
@@ -252,24 +252,10 @@
   }
   @keyframes ambPulse { 0% { opacity:0; transform:scale(1.05); } 28% { opacity:var(--peak, .25); } 100% { opacity:0; transform:scale(1); } }
 
-  /* ---------- #videoplayer ---------- */
-  #video-stage { display:none; position:fixed; inset:0; background:transparent; }
-  body.video-mode #video-stage { display:block; }
-  body.video-mode #chat, body.video-mode #alerts, body.video-mode #screen-text, body.video-mode #global-setup-backdrop, body.video-mode #setup-hint, body.video-mode #demo { display:none !important; }
-  body.video-mode { background:transparent !important; }
-  #video-frame {
-    position:absolute; inset:0; border-radius:var(--vr, 28px); overflow:hidden; background:#000; isolation:isolate; transform:translateZ(0);
-    opacity:0; visibility:hidden; transition:opacity .9s ease, visibility 0s linear .9s; pointer-events:none;
-  }
-  #video-frame.on { opacity:1; visibility:visible; transition:opacity .6s ease; }
-  #video-el { position:absolute; inset:0; width:100%; height:100%; object-fit:var(--fit, contain); background:#000; border:0; pointer-events:none; outline:none; }
-  #video-el::-webkit-media-controls { display:none !important; }
-  #video-by {
-    position:absolute; left:18px; top:16px; z-index:3; padding:6px 13px; border-radius:999px; max-width:80%;
-    font:700 15px "Nunito","Segoe UI",sans-serif; color:#fff; background:rgba(14,12,20,.78); border:1px solid rgba(255,255,255,.14);
-    opacity:0; transition:opacity .4s ease; pointer-events:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  }
-  #video-by.show { opacity:1; }
+  /* ---------- #songplayer (audio only, nothing visible) ---------- */
+  #song-stage { display:none; }
+  body.song-mode #chat, body.song-mode #alerts, body.song-mode #screen-text, body.song-mode #global-setup-backdrop, body.song-mode #setup-hint, body.song-mode #demo { display:none !important; }
+  body.song-mode { background:transparent !important; }
 
   /* ---------- Setup dialog ---------- */
   #global-setup-backdrop {
@@ -436,7 +422,7 @@
 <div id="status"></div>
 <div id="screen-text" aria-live="polite"></div>
 <div id="ambient-stage"></div>
-<div id="video-stage"><div id="video-frame"><video id="video-el" playsinline preload="auto" disablepictureinpicture disableremoteplayback controlslist="nodownload noplaybackrate noremoteplayback"></video><div id="video-by"></div></div></div>
+<div id="song-stage"></div>
 <div id="global-setup-backdrop" role="dialog" aria-modal="true" aria-labelledby="global-setup-title">
   <section id="global-setup">
     <header class="setup-head">
@@ -536,7 +522,8 @@
   const params = new URLSearchParams(location.search);
   const VIEWCHAT = location.hash.toLowerCase() === "#viewchat";     // read-only chat page for the streamer: black background, no sounds, no setup panel
   const TEXTMODE = location.hash.toLowerCase() === "#text";
-  const VIDEOMODE = location.hash.toLowerCase() === "#videoplayer";
+  if (location.hash.toLowerCase() === "#videoplayer") location.replace(location.pathname + location.search + "#songplayer");   // old link: #videoplayer now opens #songplayer
+  const SONGMODE = location.hash.toLowerCase() === "#songplayer";
   const AMBIENTMODE = location.hash.toLowerCase() === "#ambient";
   const ICON_ALIASES = { cookie: "cookie", money: "money", box: "box", moon: "moon", fries: "fries", heart: "heart", follow: "user-plus", raid: "users", sub: "star", gift: "gift", bits: "spark", request: "box", wheel: "dice", volume: "volume", alert: "bell" };
   function makeIcon(name, className = "ui-icon") {
@@ -657,11 +644,12 @@
   });
   // Show setup by default. The overlay itself is only shown after saving to #overlay.
   // This prevents a previously saved browser setting from making the page look blank.
-  if (location.hash.toLowerCase() === "#overlay" || VIEWCHAT || TEXTMODE || VIDEOMODE || AMBIENTMODE) closeSetup();
+  if (location.hash.toLowerCase() === "#overlay" || VIEWCHAT || TEXTMODE || SONGMODE || AMBIENTMODE) closeSetup();
   else openSetup();
   window.addEventListener("hashchange", () => {
-    if ((location.hash.toLowerCase() === "#viewchat") !== VIEWCHAT || (location.hash.toLowerCase() === "#text") !== TEXTMODE || (location.hash.toLowerCase() === "#videoplayer") !== VIDEOMODE || (location.hash.toLowerCase() === "#ambient") !== AMBIENTMODE) { location.reload(); return; }
-    if (location.hash.toLowerCase() === "#overlay" || VIEWCHAT || TEXTMODE || VIDEOMODE || AMBIENTMODE) closeSetup();
+    if (location.hash.toLowerCase() === "#videoplayer") { location.replace(location.pathname + location.search + "#songplayer"); return; }
+    if ((location.hash.toLowerCase() === "#viewchat") !== VIEWCHAT || (location.hash.toLowerCase() === "#text") !== TEXTMODE || (location.hash.toLowerCase() === "#songplayer") !== SONGMODE || (location.hash.toLowerCase() === "#ambient") !== AMBIENTMODE) { location.reload(); return; }
+    if (location.hash.toLowerCase() === "#overlay" || VIEWCHAT || TEXTMODE || SONGMODE || AMBIENTMODE) closeSetup();
     else openSetup();
   });
   function leaveSetupRoute() {
@@ -914,13 +902,13 @@
   const STORE_KEY = "cookies:" + CHANNEL;
   let cookies = {};
   // Every fresh launch starts a new cookie season, except after !refreshchat (balances are kept).
-  if (!VIEWCHAT && !VIDEOMODE && !AMBIENTMODE) try {                   // the chat reader and the video player never touch saved balances
+  if (!VIEWCHAT && !SONGMODE && !AMBIENTMODE) try {                   // the chat reader and the song player never touch saved balances
     if (sessionStorage.getItem("keep-cookies") === "1") {
       sessionStorage.removeItem("keep-cookies");
       cookies = JSON.parse(localStorage.getItem(STORE_KEY) || "{}") || {};
     } else localStorage.setItem(STORE_KEY, "{}");
   } catch (e) {}
-  const saveCookies = () => { if (VIEWCHAT || VIDEOMODE || AMBIENTMODE) return; try { localStorage.setItem(STORE_KEY, JSON.stringify(cookies)); } catch (e) {} };
+  const saveCookies = () => { if (VIEWCHAT || SONGMODE || AMBIENTMODE) return; try { localStorage.setItem(STORE_KEY, JSON.stringify(cookies)); } catch (e) {} };
   const bal = (u) => cookies[u.toLowerCase()] || 0;
   const addCookies = (u, n) => {
     const k = u.toLowerCase();
@@ -1414,7 +1402,7 @@
   }
 
   /* ---------- SFX (used inside TTS) ---------- */
-  const SFX_NAMES = new Set(["meow", "lotsofmeows", "gunshot", "lotsofgunshots", "vineboom", "airhorns", "knocking", "ambienceone", "ambiencetwo", "bwomp", "fireinthehole", "geometrydash", "loudtojump", "metalpipe", "spongebobfail", "shocked", ...EXTRA_SFX]);
+  const SFX_NAMES = new Set(["meow", "lotsofmeows", "gunshot", "lotsofgunshots", "vineboom", "airhorns", "knocking", "ambienceone", "ambiencetwo", "bwomp", "fireinthehole", "geometrydash", "loudtojump", "metalpipe", "spongebobfail", "shocked", "55", "drip", "money", "bell", "rizz", ...EXTRA_SFX]);
   const SFX_MAX = 3;
   const SFX_VARIANTS = { meow: ["meow-1", "meow-2", "meow-3", "meow-4"] };   // each play picks one of these files at random
   [...SFX_NAMES, "cheer", "lowcheer", "follow", "raid", "gift", "request", "lowraid"].forEach(preloadSfx);
@@ -2243,8 +2231,8 @@
     if (!cm) return false;
     const cmd = cm[1].toLowerCase(), arg = (cm[2] || "").trim();
     {                                                                   // show the command as typed (not the silent !give<currency>, not mod-only ones from viewers)
-      const control = ["mutesfx", "unmutesfx", "mutetts", "unmutetts", "disablerequests", "enablerequests", "requestsoff", "requestson", "refreshchat", "resetcookies", "changetext", "skipvideo"].includes(cmd) || CUR_CMDS.some(c => cmd === "reset" + c);
-      const open = ["wheel", "request", "gift", "requests", "playvideo"].includes(cmd);
+      const control = ["mutesfx", "unmutesfx", "mutetts", "unmutetts", "disablerequests", "enablerequests", "requestsoff", "requestson", "refreshchat", "resetcookies", "changetext", "skipsong"].includes(cmd) || CUR_CMDS.some(c => cmd === "reset" + c);
+      const open = ["wheel", "request", "gift", "requests", "playsong"].includes(cmd);
       if (open || (control && canControlSfx(tags, user)) || (cmd === "donerequest" && isMod(tags))) pushCmdLine(tags, user, message);
     }
     if (cmd === "changetext") {
@@ -2272,8 +2260,8 @@
       case "enablerequests": case "requestson":
         if (canControlSfx(tags, user)) { requestsDisabled = false; sfxNotice("Level requests enabled.", tags, user); }
         return true;
-      case "playvideo":   doPlayVideo(tags, user, arg); return true;
-      case "skipvideo":   if (!AMBIENTMODE && canControlSfx(tags, user)) videoSend({ to: "player", type: "skip" }); return true;
+      case "playsong":    doPlaySong(tags, user, arg); return true;
+      case "skipsong":    if (!AMBIENTMODE && canControlSfx(tags, user)) songSend({ to: "player", type: "skip" }); return true;
       case "refreshchat": doRefreshChat(tags, user); return true;
       case "resetcookies": doResetCookies(tags, user, arg); return true;
     }
@@ -2794,157 +2782,157 @@
     }
   }
 
-  /* ---------- Video player: !playvideo (main overlay) and #videoplayer (second OBS source) ---------- */
-  const VIDEO_COST = 100, VIDEO_QUEUE_MAX = 5, VIDEO_KEY = "overlay-video-msg-v1";
-  const VIDEO_MAX_S = params.has("videomax") ? Math.max(0, parseFloat(params.get("videomax")) || 0) : 300;
-  let videoBus = null; try { videoBus = new BroadcastChannel("overlay-video-v1"); } catch (_) {}
-  const videoSeen = new Set();
-  function videoSend(msg) {
+  /* ---------- Song player: !playsong (main overlay) and #songplayer (second OBS source, audio only) ---------- */
+  const SONG_COST = 100, SONG_QUEUE_MAX = 5, SONG_KEY = "overlay-song-msg-v1";
+  const SONG_MAX_S = params.has("songmax") ? Math.max(0, parseFloat(params.get("songmax")) || 0) : 300;
+  const SONG_VOL = params.has("songvol") ? Math.min(1, Math.max(0, parseFloat(params.get("songvol")) || 0)) : 1;
+  let songBus = null; try { songBus = new BroadcastChannel("overlay-song-v1"); } catch (_) {}
+  const songSeen = new Set();
+  function songSend(msg) {
     msg.n = Date.now() + "-" + Math.random().toString(36).slice(2);
-    videoSeen.add(msg.n);
-    if (videoBus) { try { videoBus.postMessage(msg); } catch (_) {} }
-    try { localStorage.setItem(VIDEO_KEY, JSON.stringify(msg)); } catch (_) {}
+    songSeen.add(msg.n);
+    if (songBus) { try { songBus.postMessage(msg); } catch (_) {} }
+    try { localStorage.setItem(SONG_KEY, JSON.stringify(msg)); } catch (_) {}
   }
-  function videoListen(fn) {
+  function songListen(fn) {
     const h = m => {
-      if (!m || !m.n || videoSeen.has(m.n)) return;
-      videoSeen.add(m.n); if (videoSeen.size > 300) videoSeen.delete(videoSeen.values().next().value);
+      if (!m || !m.n || songSeen.has(m.n)) return;
+      songSeen.add(m.n); if (songSeen.size > 300) songSeen.delete(songSeen.values().next().value);
       fn(m);
     };
-    if (videoBus) videoBus.onmessage = e => h(e.data);
-    addEventListener("storage", e => { if (e.key === VIDEO_KEY && e.newValue) { try { h(JSON.parse(e.newValue)); } catch (_) {} } });
+    if (songBus) songBus.onmessage = e => h(e.data);
+    addEventListener("storage", e => { if (e.key === SONG_KEY && e.newValue) { try { h(JSON.parse(e.newValue)); } catch (_) {} } });
   }
   // only real YouTube links are accepted
-  function videoIdOf(t) {
+  function songIdOf(t) {
     t = String(t || "").trim().split(/\s+/)[0];
     const m = t.match(/(?:youtube\.com\/(?:watch\?(?:[^\s#]*&)?v=|shorts\/|live\/|embed\/)|youtu\.be\/)([\w-]{11})/i);
     return m ? m[1] : "";
   }
 
   // main overlay side: checks, charges, forwards to the player page
-  const videoState = { seen: 0, queue: 0 };
-  function doPlayVideo(tags, user, arg) {
-    if (VIDEOMODE || VIEWCHAT || AMBIENTMODE) return;
-    if (cdLeft("video:" + user.toLowerCase(), 5000)) return;
-    const id = videoIdOf(arg);
-    if (!id) { queueAlert("requestinfo", "Play a video", "Use !playvideo followed by a YouTube link.", 8); return; }
-    if (Date.now() - videoState.seen > 20000) { queueAlert("requestinfo", "The video player is not open", "Nothing was charged.", 8); return; }
-    if (videoState.queue >= VIDEO_QUEUE_MAX) { queueAlert("requestinfo", "The video queue is full", "Nothing was charged. Try again in a bit.", 8); return; }
+  const songState = { seen: 0, queue: 0 };
+  function doPlaySong(tags, user, arg) {
+    if (SONGMODE || VIEWCHAT || AMBIENTMODE) return;
+    if (cdLeft("song:" + user.toLowerCase(), 5000)) return;
+    const id = songIdOf(arg);
+    if (!id) { queueAlert("requestinfo", "Play a song", "Use !playsong followed by a YouTube link.", 8); return; }
+    if (Date.now() - songState.seen > 20000) { queueAlert("requestinfo", "The song player is not open", "Nothing was charged.", 8); return; }
+    if (songState.queue >= SONG_QUEUE_MAX) { queueAlert("requestinfo", "The song queue is full", "Nothing was charged. Try again in a bit.", 8); return; }
     const free = isMod(tags) || canControlSfx(tags, user) || /(^|,)lead_moderator\//.test(tags.badges || "");   // streamer, mods and lead mods play for free
-    if (!free && !canPay(tags, user, VIDEO_COST, "a video")) return;
-    if (!free) pay(tags, user, VIDEO_COST);
-    markCd("video:" + user.toLowerCase());
-    videoState.queue++;
-    videoSend({ to: "player", type: "play", id, by: nameOf(tags, user), user: user.toLowerCase(), paid: free ? 0 : VIDEO_COST, max: VIDEO_MAX_S });
-    queueAlert("requestinfo", `${nameOf(tags, user)} queued a video`, "", 6);
+    if (!free && !canPay(tags, user, SONG_COST, "a song")) return;
+    if (!free) pay(tags, user, SONG_COST);
+    markCd("song:" + user.toLowerCase());
+    songState.queue++;
+    songSend({ to: "player", type: "play", id, by: nameOf(tags, user), user: user.toLowerCase(), paid: free ? 0 : SONG_COST, max: SONG_MAX_S });
+    queueAlert("requestinfo", `${nameOf(tags, user)} queued a song`, "", 6);
   }
-  if (!VIDEOMODE && !VIEWCHAT && !AMBIENTMODE) videoListen(m => {
+  if (!SONGMODE && !VIEWCHAT && !AMBIENTMODE) songListen(m => {
     if (m.to !== "main") return;
-    if (m.type === "hello") { videoState.seen = Date.now(); videoState.queue = m.queue || 0; }
+    if (m.type === "hello") { songState.seen = Date.now(); songState.queue = m.queue || 0; }
     else if (m.type === "error") {
       if (m.paid > 0 && m.user) addCookies(m.user, m.paid);
-      queueAlert("requestinfo", "That video could not be played", `${m.by || "Viewer"}${m.paid > 0 ? " was refunded " + m.paid + " " + currencyLabel(m.paid) : ""}.`, 8);
+      queueAlert("requestinfo", "That song could not be played", `${m.by || "Viewer"}${m.paid > 0 ? " was refunded " + m.paid + " " + currencyLabel(m.paid) : ""}.`, 8);
     }
   });
 
-  // player page side (#videoplayer): the real video file is played in a plain <video> element,
-  // so there is no YouTube player at all: no controls, no pause button, no captions, no title.
-  const VIDEO_LOCAL_API = (params.get("videoapi") || "http://127.0.0.1:8787").replace(/\/+$/, "");
-  const VIDEO_HOSTS = [
-    ...(params.get("videoinst") || "").split(",").map(x => x.trim().replace(/\/+$/, "")).filter(x => /^https?:\/\//.test(x)),
+  // player page side (#songplayer): only the sound of the YouTube video is played, in a hidden <audio> element.
+  // Nothing is drawn on the page: no video, no player, no controls.
+  const SONG_LOCAL_API = (params.get("songapi") || params.get("videoapi") || "http://127.0.0.1:8787").replace(/\/+$/, "");
+  const SONG_HOSTS = [
+    ...(params.get("songinst") || params.get("videoinst") || "").split(",").map(x => x.trim().replace(/\/+$/, "")).filter(x => /^https?:\/\//.test(x)),
     "https://pipedapi.kavin.rocks", "https://pipedapi.adminforge.de", "https://api.piped.private.coffee",
     "https://yewtu.be", "https://inv.nadeko.net", "https://invidious.nerdvpn.de"
   ];
-  async function videoJson(url, ms) {
+  async function songJson(url, ms) {
     const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), ms);
     try { const r = await fetch(url, { signal: ctl.signal }); if (!r.ok) throw new Error("HTTP " + r.status); return await r.json(); }
     finally { clearTimeout(t); }
   }
   const qNum = q => parseInt(String(q || "").replace(/\D/g, ""), 10) || 0;
   const bestOf = (list, qual, isMp4) => list.slice().sort((a, b) => (isMp4(b) - isMp4(a)) || (qual(b) - qual(a)))[0];
-  // returns a direct playable file URL for a YouTube video id (helper first, then public Piped / Invidious hosts)
-  async function resolveVideo(id) {
+  // returns a direct playable audio URL for a YouTube video id (helper first, then public Piped / Invidious hosts)
+  async function resolveSong(id) {
     try {
-      const j = await videoJson(`${VIDEO_LOCAL_API}/resolve?id=${id}`, 45000);
+      const j = await songJson(`${SONG_LOCAL_API}/resolve?id=${id}&audio=1`, 45000);
       if (j && j.url) return j.url;
     } catch (_) {}
     const deadline = Date.now() + 40000;
-    for (const base of VIDEO_HOSTS) {
+    for (const base of SONG_HOSTS) {
       if (Date.now() > deadline) break;
-      try {                                                        // Piped API
-        const j = await videoJson(`${base}/streams/${id}`, 6000);
-        const list = (j.videoStreams || []).filter(v => v && v.url && !v.videoOnly && qNum(v.quality) <= 1080);
-        const v = list.length && bestOf(list, x => qNum(x.quality), x => /mp4|mpeg_4/i.test((x.format || "") + (x.mimeType || "")) ? 1 : 0);
+      try {                                                        // Piped API: audio-only streams first, muxed video as a fallback
+        const j = await songJson(`${base}/streams/${id}`, 6000);
+        const au = (j.audioStreams || []).filter(v => v && v.url);
+        const a = au.length && bestOf(au, x => x.bitrate || 0, x => /mp4|m4a|mpeg_4/i.test((x.format || "") + (x.mimeType || "")) ? 1 : 0);
+        if (a) return a.url;
+        const vs = (j.videoStreams || []).filter(v => v && v.url && !v.videoOnly);
+        const v = vs.length && bestOf(vs, x => -qNum(x.quality), x => /mp4|mpeg_4/i.test((x.format || "") + (x.mimeType || "")) ? 1 : 0);
         if (v) return v.url;
       } catch (_) {}
       try {                                                        // Invidious API
-        const j = await videoJson(`${base}/api/v1/videos/${id}?local=true`, 6000);
-        const list = (j.formatStreams || []).filter(v => v && v.url);
-        const v = list.length && bestOf(list, x => qNum(x.qualityLabel || x.resolution), x => x.container === "mp4" ? 1 : 0);
+        const j = await songJson(`${base}/api/v1/videos/${id}?local=true`, 6000);
+        const au = (j.adaptiveFormats || []).filter(v => v && v.url && /^audio\//i.test(v.type || ""));
+        const a = au.length && bestOf(au, x => parseInt(x.bitrate, 10) || 0, x => /mp4/i.test(x.type || "") ? 1 : 0);
+        if (a) return a.url.startsWith("/") ? base + a.url : a.url;
+        const vs = (j.formatStreams || []).filter(v => v && v.url);
+        const v = vs.length && bestOf(vs, x => -qNum(x.qualityLabel || x.resolution), x => x.container === "mp4" ? 1 : 0);
         if (v) return v.url.startsWith("/") ? base + v.url : v.url;
       } catch (_) {}
     }
-    throw new Error("No video source answered.");
+    throw new Error("No song source answered.");
   }
 
-  function startVideoPlayer() {
-    const frame = document.getElementById("video-frame"), by = document.getElementById("video-by"), vid = document.getElementById("video-el");
-    const radius = params.has("radius") ? Math.min(200, Math.max(0, parseFloat(params.get("radius")) || 0)) : 28;
-    frame.style.setProperty("--vr", radius + "px");
-    if (params.get("fit") === "cover") frame.style.setProperty("--fit", "cover");
-    vid.controls = false; vid.disablePictureInPicture = true; vid.disableRemotePlayback = true; vid.playsInline = true;
-    const queue = []; let current = null, started = false, fading = false, capTimer = null, byTimer = null, watchTimer = null;
-    const report = () => videoSend({ to: "main", type: "hello", queue: queue.length + (current || fading ? 1 : 0) });
-    const fail = (v) => { videoSend({ to: "main", type: "error", user: v.user, by: v.by, paid: v.paid }); };
+  function startSongPlayer() {
+    const aud = new Audio(); aud.preload = "auto";
+    const queue = []; let current = null, started = false, fading = false, capTimer = null, watchTimer = null;
+    const report = () => songSend({ to: "main", type: "hello", queue: queue.length + (current || fading ? 1 : 0) });
+    const fail = (v) => { songSend({ to: "main", type: "error", user: v.user, by: v.by, paid: v.paid }); };
     const FADE_MS = 900;
     function finish() {
-      clearTimeout(capTimer); clearTimeout(watchTimer); clearTimeout(byTimer);
+      clearTimeout(capTimer); clearTimeout(watchTimer);
       current = null; started = false; fading = true;
-      frame.classList.remove("on"); by.classList.remove("show");      // the picture fades out first...
-      let fv = setInterval(() => { try { vid.volume = Math.max(0, vid.volume - 50 / FADE_MS); } catch (_) {} }, 50);   // ...and the sound with it
+      let fv = setInterval(() => { try { aud.volume = Math.max(0, aud.volume - SONG_VOL * 50 / FADE_MS); } catch (_) {} }, 50);   // fade the sound out
       setStatus(""); report();
       setTimeout(() => {
         clearInterval(fv);
-        try { vid.pause(); vid.removeAttribute("src"); vid.load(); vid.volume = 1; } catch (_) {}
+        try { aud.pause(); aud.removeAttribute("src"); aud.load(); aud.volume = SONG_VOL; } catch (_) {}
         fading = false; report(); next();
       }, FADE_MS + 100);
     }
-    vid.addEventListener("playing", () => {
+    aud.volume = SONG_VOL;
+    aud.addEventListener("playing", () => {
       if (!current || started) return;
       started = true; clearTimeout(watchTimer); setStatus("");
-      frame.classList.add("on");
-      by.textContent = "Requested by " + current.by; by.classList.add("show");
-      byTimer = setTimeout(() => by.classList.remove("show"), 5000);
       if (current.max > 0) capTimer = setTimeout(finish, current.max * 1000);
     });
-    vid.addEventListener("pause", () => { if (current && started && !vid.ended) vid.play().catch(() => {}); });   // nobody can pause it
-    vid.addEventListener("ended", () => { if (current) finish(); });
-    vid.addEventListener("error", () => { const v = current; if (v) { fail(v); finish(); } });
+    aud.addEventListener("pause", () => { if (current && started && !aud.ended) aud.play().catch(() => {}); });   // nobody can pause it
+    aud.addEventListener("ended", () => { if (current) finish(); });
+    aud.addEventListener("error", () => { const v = current; if (v) { fail(v); finish(); } });
     async function play(v) {
       let url;
-      try { url = await resolveVideo(v.id); } catch (e) { if (current === v) { fail(v); finish(); } return; }
+      try { url = await resolveSong(v.id); } catch (e) { if (current === v) { fail(v); finish(); } return; }
       if (current !== v) return;                                       // skipped while the link was being looked up
-      started = false; vid.volume = 1; vid.src = url;
-      vid.play().catch(e => {
+      started = false; aud.volume = SONG_VOL; aud.src = url;
+      aud.play().catch(e => {
         if (current !== v) return;
-        if (e && e.name === "NotAllowedError") setStatus("Click anywhere on this page once to allow video playback");
+        if (e && e.name === "NotAllowedError") setStatus("Click anywhere on this page once to allow song playback");
         else { fail(v); finish(); }
       });
-      watchTimer = setTimeout(() => { if (current === v && !started) { if (!vid.paused) { fail(v); finish(); } } }, 25000);
+      watchTimer = setTimeout(() => { if (current === v && !started) { if (!aud.paused) { fail(v); finish(); } } }, 25000);
     }
     function next() {
       if (current || fading || !queue.length) return;
       current = queue.shift();
       play(current); report();
     }
-    videoListen(m => {
+    songListen(m => {
       if (m.to !== "player") return;
       if (m.type === "play") {
-        if (queue.length >= VIDEO_QUEUE_MAX) { fail(m); return; }
+        if (queue.length >= SONG_QUEUE_MAX) { fail(m); return; }
         queue.push(m); next(); report();
       } else if (m.type === "skip") { if (current) finish(); }
     });
-    addEventListener("pointerdown", () => { try { if (current && vid.paused && vid.src) vid.play().catch(() => {}); } catch (_) {} });
+    addEventListener("pointerdown", () => { try { if (current && aud.paused && aud.src) aud.play().catch(() => {}); } catch (_) {} });
     report(); setInterval(report, 4000);
   }
 
@@ -2988,7 +2976,7 @@
   function ambientPulse(kind, power = 1) {
     if (!AMB_COLORS[kind]) return;
     if (AMBIENTMODE) { ambDraw(kind, power); return; }              // the #ambient page draws its own events directly
-    if (VIEWCHAT || VIDEOMODE || TEXTMODE) return;
+    if (VIEWCHAT || SONGMODE || TEXTMODE) return;
     ambSend({ type: "pulse", kind, power: Math.max(1, Math.min(3, power | 0 || 1)) });
   }
   function startAmbient() {
@@ -3037,7 +3025,7 @@
     push(el, {}, 12);
     if (!MUTE && !allMuted && !sfxMuted) playSfx("meow");     // uses meow.mp3 if you have it, else the built-in meow
   }
-  if (CAT_ON && !VIEWCHAT && !TEXTMODE && !VIDEOMODE && !AMBIENTMODE && settings.chat && (settings.configured || CHANNEL)) setInterval(showCat, CAT_MS);
+  if (CAT_ON && !VIEWCHAT && !TEXTMODE && !SONGMODE && !AMBIENTMODE && settings.chat && (settings.configured || CHANNEL)) setInterval(showCat, CAT_MS);
 
   if (TEXTMODE) document.body.classList.add("text-mode");
   if (AMBIENTMODE) {
@@ -3045,10 +3033,10 @@
     document.title = `${DISPLAY_ACCOUNT} ambient`;
     startAmbient();
     if (settings.configured || CHANNEL) { connect(); startFollows(); }     // silent read-only chat connection of its own, so pulses do not depend on the other page
-  } else if (VIDEOMODE) {
-    document.body.classList.add("video-mode");
-    document.title = `${DISPLAY_ACCOUNT} video player`;
-    startVideoPlayer();
+  } else if (SONGMODE) {
+    document.body.classList.add("song-mode");
+    document.title = `${DISPLAY_ACCOUNT} song player`;
+    startSongPlayer();
   } else if (VIEWCHAT) {
     document.body.classList.add("viewchat");
     document.title = `${DISPLAY_ACCOUNT}'s chat`;
@@ -3124,7 +3112,7 @@
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {}
       if (setupStatus) setSetupStatus("TTS language set to English (US).", "ok");
       console.info("TTS language set to English (US).");
-    } else if (event.key === "F2" && !VIEWCHAT && !VIDEOMODE && !AMBIENTMODE) {
+    } else if (event.key === "F2" && !VIEWCHAT && !SONGMODE && !AMBIENTMODE) {
       event.preventDefault();
       openSetup();
     }
