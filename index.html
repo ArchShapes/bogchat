@@ -2591,6 +2591,7 @@
     push(buildChatLine(tags, user, message, false), tags);
   }
 
+  const seenMsgIds = new Set();
   function addMessage(tags, user, message) {
     if (String(message).length > 899) return;
     message = message.replace(/[\u{E0000}\u200B-\u200D\uFEFF]/gu, "").trim();       // Twitch adds invisible characters to repeated messages
@@ -2598,8 +2599,12 @@
     const m = message.match(/^\x01ACTION (.*)\x01$/);
     if (m) { isAction = true; message = m[1]; }
 
+    if (tags.id) {                                    // the same message must never be processed twice (double delivery = double cookies)
+      if (seenMsgIds.has(tags.id)) return;
+      seenMsgIds.add(tags.id);
+      if (seenMsgIds.size > 500) seenMsgIds.delete(seenMsgIds.values().next().value);
+    }
     if (isMod(tags)) knownMods.add(user.toLowerCase());
-    if (!VIEWCHAT && !BOTS.has(user.toLowerCase()) && isMod(tags)) addCookies(user, 1);
     welcomeFirstChatter(tags, user);          // before commands/spam filter so a first "!tts" still counts
 
     const nowMs = Date.now();
@@ -2637,7 +2642,11 @@
     if (!isTrusted(tags, user) && isSpam(user, tags, message)) return;
 
     // Viewers earn random drops; moderators earn their guaranteed +1 above for every message.
-    if (!VIEWCHAT && !isMod(tags) && Math.random() < DROP) addCookies(user, 1);
+    // (commands such as !vineboom return earlier, so they never earn anything)
+    if (!VIEWCHAT) {
+      if (isMod(tags)) addCookies(user, 1);
+      else if (Math.random() < DROP) addCookies(user, 1);
+    }
     if (wasSilent) ting();
 
     push(buildChatLine(tags, user, message, isAction), tags);
