@@ -548,16 +548,17 @@
     const SENS = Math.max(0.1, Math.min(10, parseFloat(params.get("sens")) || 2.5));
 
     // fluffy-cheeked fox head (symmetric around x=200)
-    const HEAD = "M200 95 C268 95 322 138 328 198 L356 214 L330 236 L350 258 L312 268 C296 296 250 308 200 308 C150 308 104 296 88 268 L50 258 L70 236 L44 214 L72 198 C78 138 132 95 200 95 Z";
+    const HEAD = "M200 94 C211 92 218 101 224 109 Q234 94 245 105 Q256 95 267 111 C302 124 326 154 332 190 L354 207 L337 222 L357 241 L333 252 L345 267 L311 270 C292 300 250 311 200 311 C150 311 108 300 89 270 L55 267 L67 252 L43 241 L63 222 L46 207 L68 190 C74 154 98 124 133 111 Q144 95 155 105 Q166 94 176 109 C182 101 189 92 200 94 Z";
     const TAIL = "M268 430 C350 420 398 350 384 258 C380 228 362 206 342 196 C350 252 330 304 262 326 Z";
     const eye = (cx) => `
-      <g transform="translate(${cx} 180)"><g class="mc-look">
-        <ellipse rx="29" ry="35" fill="${ink}"/>
-        <ellipse rx="24" ry="30" fill="url(#mc-iris)"/>
-        <ellipse cx="0" cy="3" rx="10" ry="14" fill="${ink}"/>
-        <circle cx="-10" cy="-13" r="9" fill="#fff"/>
-        <circle cx="9" cy="13" r="4" fill="#fff" opacity=".9"/>
-      </g></g>`;
+      <g transform="translate(${cx} 180)">
+        <ellipse rx="28" ry="34" fill="#fff8f1" stroke="${ink}" stroke-width="4"/>
+        <ellipse cy="2" rx="22" ry="28" fill="url(#mc-iris)"/>
+        <ellipse cx="1" cy="5" rx="11" ry="16" fill="${ink}"/>
+        <ellipse cx="-8" cy="-12" rx="7.5" ry="9" fill="#fff"/>
+        <circle cx="10" cy="14" r="4.5" fill="#fff" opacity=".95"/>
+        <path d="M-19 -14 Q0 -31 19 -13" fill="none" stroke="#ffffff" stroke-opacity=".28" stroke-width="2.5" stroke-linecap="round"/>
+      </g>`;
 
     const root = document.createElement("div");
     root.id = "mascot-root";
@@ -587,32 +588,30 @@
           <path d="M298 346 L284 338 L282 356 L264 348 L262 367" fill="none" stroke="${line}" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
           <g id="mc-head">
             <g id="mc-ear-l">
-              <path d="M138 122 C115 74 90 42 60 26 C46 70 52 112 78 146 Z" fill="${fur}" stroke="none"/>
-              <path d="M112 112 C98 84 84 66 70 56 C66 82 70 106 86 126 Z" fill="${pink}"/>
+              <path d="M140 132 C116 93 91 52 60 26 C43 78 53 119 83 151 Q110 133 140 132 Z" fill="${fur}" stroke="${line}" stroke-width="5" stroke-linejoin="round"/>
+              <path d="M116 111 Q91 72 69 51 C63 82 73 109 91 128 Z" fill="${pink}"/>
             </g>
             <g id="mc-ear-r">
-              <path d="M262 122 C285 74 310 42 340 26 C354 70 348 112 322 146 Z" fill="${fur}" stroke="none"/>
-              <path d="M288 112 C302 84 316 66 330 56 C334 82 330 106 314 126 Z" fill="${pink}"/>
+              <path d="M260 132 C284 93 309 52 340 26 C357 78 347 119 317 151 Q290 133 260 132 Z" fill="${fur}" stroke="${line}" stroke-width="5" stroke-linejoin="round"/>
+              <path d="M284 111 Q309 72 331 51 C337 82 327 109 309 128 Z" fill="${pink}"/>
             </g>
             <use href="#mc-head-p" fill="${fur}"/>
             <path d="M145 108 Q158 91 174 108 Q188 87 200 106 Q214 87 228 108 Q244 91 257 108 L250 126 Q226 116 200 124 Q174 116 150 126 Z" fill="${fur}" stroke="${line}" stroke-width="3.5" stroke-linejoin="round"/>
-            <path d="M91 232 Q76 222 69 235 Q83 241 91 251 Q79 252 77 263 Q94 263 105 253 Z" fill="${fur}" stroke="${line}" stroke-width="3" stroke-linejoin="round"/>
-            <path d="M309 232 Q324 222 331 235 Q317 241 309 251 Q321 252 323 263 Q306 263 295 253 Z" fill="${fur}" stroke="${line}" stroke-width="3" stroke-linejoin="round"/>
+            <path d="M91 226 Q76 215 67 231 L83 240 Q67 244 70 258 L91 251 L101 263 L111 250 Z" fill="${fur}" stroke="${line}" stroke-width="3.5" stroke-linejoin="round"/>
+            <path d="M309 226 Q324 215 333 231 L317 240 Q333 244 330 258 L309 251 L299 263 L289 250 Z" fill="${fur}" stroke="${line}" stroke-width="3.5" stroke-linejoin="round"/>
             <path d="M88 192 Q70 180 64 194 Q73 198 79 207 Q64 208 65 222 Q81 219 92 211 Z" fill="${fur}" stroke="${line}" stroke-width="3" stroke-linejoin="round"/>
             <path d="M312 192 Q330 180 336 194 Q327 198 321 207 Q336 208 335 222 Q319 219 308 211 Z" fill="${fur}" stroke="${line}" stroke-width="3" stroke-linejoin="round"/>
             <path d="M118 284 Q132 300 148 295 L143 310 Q161 312 170 303 Q184 316 200 308 Q216 316 230 303 Q242 312 257 310 L252 295 Q268 300 282 284" fill="${fur}" stroke="${line}" stroke-width="3.5" stroke-linejoin="round"/>
             <path d="M30 252 C100 214 150 246 200 240 C250 246 300 214 370 252 L370 340 L30 340 Z" fill="${cream}" clip-path="url(#mc-head-clip)"/>
             <use href="#mc-head-p" fill="none" stroke="${line}" stroke-width="5" stroke-linejoin="round"/>
-            <path d="M138 122 C115 74 90 42 60 26 C46 70 52 112 78 146" fill="none" stroke="${line}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M262 122 C285 74 310 42 340 26 C354 70 348 112 322 146" fill="none" stroke="${line}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
             <ellipse cx="108" cy="236" rx="20" ry="12" fill="#ff7a9a" opacity=".42"/>
             <ellipse cx="292" cy="236" rx="20" ry="12" fill="#ff7a9a" opacity=".42"/>
-            <g id="mc-brows" stroke="${line}" stroke-width="5" stroke-linecap="round" fill="none">
+            <g id="mc-brows" stroke="${line}" stroke-width="4" stroke-linecap="round" fill="none">
               <path d="M126 142 Q146 132 166 141"/><path d="M234 141 Q254 132 274 142"/>
             </g>
             <g id="mc-eyes">
               ${eye(146)}${eye(254)}
-              <path d="M122 166 L111 158 M278 166 L289 158" stroke="${ink}" stroke-width="5" stroke-linecap="round"/>
+              <path d="M122 166 L111 158 M278 166 L289 158" stroke="${ink}" stroke-width="4" stroke-linecap="round"/>
             </g>
             <path d="M187 222 Q200 215 213 222 Q209 235 200 237 Q191 235 187 222 Z" fill="#3b2038" stroke="#3b2038" stroke-width="2" stroke-linejoin="round"/>
             <ellipse cx="195" cy="222" rx="4" ry="2" fill="#fff" opacity=".6"/>
