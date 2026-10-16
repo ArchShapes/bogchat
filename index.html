@@ -30,7 +30,7 @@
      &songinst=https://my.piped.api   extra Piped/Invidious hosts (only used if YouTube won't embed a video)
      (#videoplayer still works: it redirects to #songplayer)
      #mascot: another OBS browser source (transparent). A mascot that opens its mouth when you talk (needs your microphone; allow it when asked)
-     &sens=1         mascot mic sensitivity (2 = reacts to quieter speech, 0.5 = needs louder)    &color=9147ff  mascot color (hex, no #)
+     &sens=1         mascot mic sensitivity (2 = reacts to quieter speech, 0.5 = needs louder)    &color=ff9a4d  mascot fur color (hex, no #)
      &mic=name       pick a microphone (part of its name, e.g. "usb")
      #ambient: a third OBS browser source (full screen, transparent): soft low-opacity edge pulses on cheers, gifts, subs, raids, follows, bits
      &intensity=1    strength of the ambient pulses (0.3 = very faint, 2 = stronger)
@@ -542,45 +542,81 @@
     document.title = "Mascot";
     window.addEventListener("hashchange", () => location.reload());
 
-    const hex = /^[0-9a-f]{6}$/i.test(params.get("color") || "") ? params.get("color") : "9147ff";
+    const hex = /^[0-9a-f]{6}$/i.test(params.get("color") || "") ? params.get("color") : "ff9a4d";
     const shade = (h, f) => "#" + [0, 2, 4].map(i => Math.max(0, Math.min(255, Math.round(parseInt(h.substr(i, 2), 16) * f))).toString(16).padStart(2, "0")).join("");
-    const base = "#" + hex, dark = shade(hex, 0.62), light = shade(hex, 1.3), belly = shade(hex, 1.55);
-    const SENS = Math.max(0.1, Math.min(10, parseFloat(params.get("sens")) || 1));
+    const fur = "#" + hex, line = shade(hex, 0.42), cream = "#fff4e4", pink = "#ff9db4", ink = "#2b1a30";
+    const SENS = Math.max(0.1, Math.min(10, parseFloat(params.get("sens")) || 2.5));
+
+    // fluffy-cheeked fox head (symmetric around x=200)
+    const HEAD = "M200 95 C268 95 322 138 328 198 L356 214 L330 236 L350 258 L312 268 C296 296 250 308 200 308 C150 308 104 296 88 268 L50 258 L70 236 L44 214 L72 198 C78 138 132 95 200 95 Z";
+    const TAIL = "M268 430 C350 420 398 350 384 258 C380 228 362 206 342 196 C350 252 330 304 262 326 Z";
+    const eye = (cx) => `
+      <g transform="translate(${cx} 180)"><g class="mc-look">
+        <ellipse rx="29" ry="35" fill="${ink}"/>
+        <ellipse rx="24" ry="30" fill="url(#mc-iris)"/>
+        <ellipse cx="0" cy="3" rx="10" ry="14" fill="${ink}"/>
+        <circle cx="-10" cy="-13" r="9" fill="#fff"/>
+        <circle cx="9" cy="13" r="4" fill="#fff" opacity=".9"/>
+      </g></g>`;
 
     const root = document.createElement("div");
     root.id = "mascot-root";
     root.innerHTML = `
       <svg viewBox="0 0 400 400" preserveAspectRatio="xMidYMax meet" xmlns="http://www.w3.org/2000/svg">
-        <defs><clipPath id="mc-clip"><ellipse id="mc-clip-e" cx="200" cy="262" rx="22" ry="3"/></clipPath></defs>
-        <ellipse cx="200" cy="384" rx="120" ry="10" fill="rgba(0,0,0,.25)"/>
+        <defs>
+          <linearGradient id="mc-iris" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f8f94"/><stop offset="1" stop-color="#9df2dc"/></linearGradient>
+          <path id="mc-head-p" d="${HEAD}"/>
+          <path id="mc-tail-p" d="${TAIL}"/>
+          <clipPath id="mc-head-clip"><use href="#mc-head-p"/></clipPath>
+          <clipPath id="mc-tail-clip"><use href="#mc-tail-p"/></clipPath>
+          <clipPath id="mc-clip"><path id="mc-clip-p" d="M187 241 Q200 237 213 241 Z"/></clipPath>
+        </defs>
         <g id="mc-body">
-          <ellipse cx="140" cy="372" rx="38" ry="18" fill="${dark}"/>
-          <ellipse cx="260" cy="372" rx="38" ry="18" fill="${dark}"/>
-          <path d="M70 120 L88 40 L158 92 Z" fill="${base}" stroke="${dark}" stroke-width="6" stroke-linejoin="round"/>
-          <path d="M330 120 L312 40 L242 92 Z" fill="${base}" stroke="${dark}" stroke-width="6" stroke-linejoin="round"/>
-          <path d="M92 108 L98 66 L132 92 Z" fill="${belly}"/>
-          <path d="M308 108 L302 66 L268 92 Z" fill="${belly}"/>
-          <ellipse cx="200" cy="230" rx="160" ry="142" fill="${base}" stroke="${dark}" stroke-width="6"/>
-          <ellipse cx="200" cy="290" rx="100" ry="70" fill="${belly}" opacity=".55"/>
-          <g id="mc-eyes">
-            <ellipse cx="148" cy="186" rx="27" ry="31" fill="#fff" stroke="${dark}" stroke-width="4"/>
-            <ellipse cx="252" cy="186" rx="27" ry="31" fill="#fff" stroke="${dark}" stroke-width="4"/>
-            <circle id="mc-pl" cx="150" cy="190" r="13" fill="#1b1030"/>
-            <circle id="mc-pr" cx="250" cy="190" r="13" fill="#1b1030"/>
-            <circle cx="155" cy="184" r="4.5" fill="#fff"/><circle cx="255" cy="184" r="4.5" fill="#fff"/>
+          <g id="mc-tail">
+            <use href="#mc-tail-p" fill="${fur}"/>
+            <ellipse cx="368" cy="226" rx="46" ry="52" fill="${cream}" clip-path="url(#mc-tail-clip)"/>
+            <use href="#mc-tail-p" fill="none" stroke="${line}" stroke-width="5" stroke-linejoin="round"/>
           </g>
-          <circle cx="100" cy="246" r="20" fill="#ff7ab6" opacity=".45"/>
-          <circle cx="300" cy="246" r="20" fill="#ff7ab6" opacity=".45"/>
-          <path d="M192 236 L208 236 L200 246 Z" fill="${dark}" stroke="${dark}" stroke-width="3" stroke-linejoin="round"/>
-          <ellipse id="mc-mouth" cx="200" cy="262" rx="22" ry="3" fill="#2a0f2e" stroke="${dark}" stroke-width="4"/>
-          <ellipse id="mc-tongue" cx="200" cy="262" rx="12" ry="2" fill="#ff6f8f" clip-path="url(#mc-clip)"/>
+          <path d="M96 430 C96 340 142 300 200 300 C258 300 304 340 304 430 Z" fill="${fur}" stroke="${line}" stroke-width="5" stroke-linejoin="round"/>
+          <path d="M200 300 C176 308 158 330 164 366 L180 354 L190 380 L200 358 L210 380 L220 354 L236 366 C242 330 224 308 200 300 Z" fill="${cream}" stroke="${line}" stroke-width="4" stroke-linejoin="round"/>
+          <g id="mc-head">
+            <g id="mc-ear-l">
+              <path d="M138 118 C115 74 90 42 60 26 C46 70 52 112 78 146 Z" fill="${fur}" stroke="${line}" stroke-width="5" stroke-linejoin="round"/>
+              <path d="M112 112 C98 84 84 66 70 56 C66 82 70 106 86 126 Z" fill="${pink}"/>
+            </g>
+            <g id="mc-ear-r">
+              <path d="M262 118 C285 74 310 42 340 26 C354 70 348 112 322 146 Z" fill="${fur}" stroke="${line}" stroke-width="5" stroke-linejoin="round"/>
+              <path d="M288 112 C302 84 316 66 330 56 C334 82 330 106 314 126 Z" fill="${pink}"/>
+            </g>
+            <use href="#mc-head-p" fill="${fur}"/>
+            <path d="M145 108 Q158 91 174 108 Q188 87 200 106 Q214 87 228 108 Q244 91 257 108 L250 126 Q226 116 200 124 Q174 116 150 126 Z" fill="${fur}" stroke="${line}" stroke-width="3.5" stroke-linejoin="round"/>
+            <path d="M91 232 Q76 222 69 235 Q83 241 91 251 Q79 252 77 263 Q94 263 105 253 Z" fill="${fur}" stroke="${line}" stroke-width="3" stroke-linejoin="round"/>
+            <path d="M309 232 Q324 222 331 235 Q317 241 309 251 Q321 252 323 263 Q306 263 295 253 Z" fill="${fur}" stroke="${line}" stroke-width="3" stroke-linejoin="round"/>
+            <path d="M30 252 C100 214 150 246 200 240 C250 246 300 214 370 252 L370 340 L30 340 Z" fill="${cream}" clip-path="url(#mc-head-clip)"/>
+            <use href="#mc-head-p" fill="none" stroke="${line}" stroke-width="5" stroke-linejoin="round"/>
+            <ellipse cx="108" cy="236" rx="20" ry="12" fill="#ff7a9a" opacity=".42"/>
+            <ellipse cx="292" cy="236" rx="20" ry="12" fill="#ff7a9a" opacity=".42"/>
+            <g id="mc-brows" stroke="${line}" stroke-width="5" stroke-linecap="round" fill="none">
+              <path d="M126 142 Q146 132 166 141"/><path d="M234 141 Q254 132 274 142"/>
+            </g>
+            <g id="mc-eyes">
+              ${eye(146)}${eye(254)}
+              <path d="M122 166 L111 158 M278 166 L289 158" stroke="${ink}" stroke-width="5" stroke-linecap="round"/>
+            </g>
+            <path d="M187 222 Q200 215 213 222 Q209 235 200 237 Q191 235 187 222 Z" fill="#3b2038" stroke="#3b2038" stroke-width="2" stroke-linejoin="round"/>
+            <ellipse cx="195" cy="222" rx="4" ry="2" fill="#fff" opacity=".6"/>
+            <path id="mc-smile" d="M200 236 L200 244 M200 244 Q188 259 174 247 M200 244 Q212 259 226 247" stroke="${ink}" stroke-width="4.5" stroke-linecap="round" fill="none"/>
+            <path id="mc-mouth" d="M187 241 Q200 237 213 241 Z" fill="#40162e" stroke="${ink}" stroke-width="4.5" stroke-linejoin="round" opacity="0"/>
+            <ellipse id="mc-tongue" cx="200" cy="250" rx="8" ry="3" fill="#ff7f9e" clip-path="url(#mc-clip)"/>
+          </g>
         </g>
       </svg>
       <div id="mascot-hint"></div>`;
     document.body.appendChild(root);
     const $ = (id) => root.querySelector("#" + id);
-    const bodyG = $("mc-body"), eyes = $("mc-eyes"), mouth = $("mc-mouth"), tongue = $("mc-tongue"), clipE = $("mc-clip-e");
-    const pl = $("mc-pl"), pr = $("mc-pr"), hint = $("mascot-hint");
+    const bodyG = $("mc-body"), headG = $("mc-head"), tailG = $("mc-tail"), earL = $("mc-ear-l"), earR = $("mc-ear-r");
+    const eyes = $("mc-eyes"), brows = $("mc-brows"), mouth = $("mc-mouth"), clipP = $("mc-clip-p"), smile = $("mc-smile"), tongue = $("mc-tongue");
+    const looks = root.querySelectorAll(".mc-look"), hint = $("mascot-hint");
     const showHint = (t) => { hint.textContent = t; hint.style.display = t ? "block" : "none"; };
 
     /* microphone */
@@ -621,7 +657,7 @@
     openMic();
 
     /* animation */
-    let floor = 0.01, open = 0, blinkAt = performance.now() + 2500, blinkT = 0, look = 0, lookTo = 0, lookAt = 0, last = performance.now();
+    let floor = 0.008, open = 0, blinkAt = performance.now() + 700 + Math.random() * 700, blinkT = 0, look = 0, lookTo = 0, lookAt = 0, last = performance.now();
     function frame(now) {
       const dt = Math.min(0.05, (now - last) / 1000); last = now;
       let rms = 0;
@@ -632,29 +668,38 @@
       }
       // adaptive noise floor: drops quickly, rises very slowly, so room hiss never opens the mouth
       floor = rms < floor ? floor * 0.9 + rms * 0.1 : Math.min(0.03, floor + (rms - floor) * 0.0003);
-      const gate = floor * 2 + 0.006;
-      const level = Math.max(0, Math.min(1, (rms - gate) / (0.12 / SENS)));
+      const gate = floor * 1.45 + 0.0025;
+      const level = Math.max(0, Math.min(1, (rms - gate) / (0.075 / SENS)));
       const target = Math.pow(level, 0.7);
-      open += (target - open) * (target > open ? 0.6 : 0.2);
+      open += (target - open) * (target > open ? 0.82 : 0.32);
 
-      // mouth
-      const ry = 3 + 36 * open, rx = 22 + 12 * open, cy = 262 + 14 * open;
-      for (const e of [mouth, clipE]) { e.setAttribute("rx", rx.toFixed(1)); e.setAttribute("ry", ry.toFixed(1)); e.setAttribute("cy", cy.toFixed(1)); }
-      tongue.setAttribute("cy", (cy + ry * 0.55).toFixed(1)); tongue.setAttribute("rx", (rx * 0.6).toFixed(1)); tongue.setAttribute("ry", (ry * 0.5 + 1).toFixed(1));
+      // mouth: ":3" smile when quiet, a D-shaped open mouth with a tongue when talking
+      const H = 4 + 46 * open, rx = 13 + 13 * open, c = H * 1.333, y0 = 241;
+      const d = `M${(200 - rx).toFixed(1)} ${y0} Q200 ${y0 - 4} ${(200 + rx).toFixed(1)} ${y0} C${(200 + rx).toFixed(1)} ${(y0 + c).toFixed(1)} ${(200 - rx).toFixed(1)} ${(y0 + c).toFixed(1)} ${(200 - rx).toFixed(1)} ${y0} Z`;
+      mouth.setAttribute("d", d); clipP.setAttribute("d", d);
+      const vis = Math.min(1, open * 10);
+      mouth.setAttribute("opacity", vis.toFixed(2)); smile.setAttribute("opacity", (1 - vis).toFixed(2));
+      tongue.setAttribute("cy", (y0 + H * 0.78).toFixed(1)); tongue.setAttribute("rx", (rx * 0.62).toFixed(1)); tongue.setAttribute("ry", (H * 0.3 + 1).toFixed(1));
 
-      // body: gentle breathing, bounce while talking
+      // body: gentle breathing, bounce + head bob + ear flicks while talking, tail wag
       const t = now / 1000, breathe = Math.sin(t * 2) * 0.006;
-      const sy = 1 + breathe + open * 0.025, sx = 1 - breathe - open * 0.02, ty = -open * 8;
-      bodyG.setAttribute("transform", `translate(0 ${ty.toFixed(2)}) translate(200 372) scale(${sx.toFixed(4)} ${sy.toFixed(4)}) translate(-200 -372)`);
+      const sy = 1 + breathe + open * 0.02, sx = 1 - breathe - open * 0.015, ty = -open * 6;
+      bodyG.setAttribute("transform", `translate(0 ${ty.toFixed(2)}) translate(200 400) scale(${sx.toFixed(4)} ${sy.toFixed(4)}) translate(-200 -400)`);
+      headG.setAttribute("transform", `rotate(${(Math.sin(t * 7) * open * 2.2 + Math.sin(t * 0.9) * 0.8).toFixed(2)} 200 300)`);
+      const sway = Math.sin(t * 1.3) * 1.5;
+      earL.setAttribute("transform", `rotate(${(-sway - open * 5).toFixed(2)} 112 128)`);
+      earR.setAttribute("transform", `rotate(${(sway + open * 5).toFixed(2)} 288 128)`);
+      tailG.setAttribute("transform", `rotate(${(Math.sin(t * 2.4) * 5 + open * Math.sin(t * 14) * 3).toFixed(2)} 275 380)`);
+      brows.setAttribute("transform", `translate(0 ${(-open * 5).toFixed(2)})`);
 
       // blink + glancing around
       if (now > blinkAt && !blinkT) blinkT = now;
       let eyeY = 1;
-      if (blinkT) { const k = (now - blinkT) / 140; if (k >= 1) { blinkT = 0; blinkAt = now + 2000 + Math.random() * 3500; } else eyeY = Math.max(0.08, Math.abs(k * 2 - 1)); }
-      eyes.setAttribute("transform", `translate(0 186) scale(1 ${eyeY.toFixed(3)}) translate(0 -186)`);
-      if (now > lookAt) { lookTo = (Math.random() - 0.5) * 8; lookAt = now + 1200 + Math.random() * 2500; }
-      look += (lookTo - look) * Math.min(1, dt * 6);
-      pl.setAttribute("cx", (150 + look).toFixed(2)); pr.setAttribute("cx", (250 + look).toFixed(2));
+      if (blinkT) { const k = (now - blinkT) / 85; if (k >= 1) { blinkT = 0; blinkAt = now + 900 + Math.random() * 1500; } else eyeY = Math.max(0.08, Math.abs(k * 2 - 1)); }
+      eyes.setAttribute("transform", `translate(0 180) scale(1 ${eyeY.toFixed(3)}) translate(0 -180)`);
+      if (now > lookAt) { lookTo = (Math.random() - 0.5) * 8; lookAt = now + 700 + Math.random() * 1500; }
+      look += (lookTo - look) * Math.min(1, dt * 11);
+      looks.forEach(g => g.setAttribute("transform", `translate(${look.toFixed(2)} 0)`));
       requestAnimationFrame(frame);
     }
     requestAnimationFrame(frame);
@@ -783,7 +828,7 @@
   else openSetup();
   window.addEventListener("hashchange", () => {
     if (location.hash.toLowerCase() === "#videoplayer") { location.replace(location.pathname + location.search + "#songplayer"); return; }
-    if ((location.hash.toLowerCase() === "#viewchat") !== VIEWCHAT || (location.hash.toLowerCase() === "#text") !== TEXTMODE || (location.hash.toLowerCase() === "#songplayer") !== SONGMODE || (location.hash.toLowerCase() === "#ambient") !== AMBIENTMODE) { location.reload(); return; }
+    if ((location.hash.toLowerCase() === "#viewchat") !== VIEWCHAT || (location.hash.toLowerCase() === "#text") !== TEXTMODE || (location.hash.toLowerCase() === "#songplayer") !== SONGMODE || (location.hash.toLowerCase() === "#ambient") !== AMBIENTMODE || (location.hash.toLowerCase() === "#mascot") !== MASCOTMODE) { location.reload(); return; }
     if (location.hash.toLowerCase() === "#overlay" || VIEWCHAT || TEXTMODE || SONGMODE || AMBIENTMODE) closeSetup();
     else openSetup();
   });
