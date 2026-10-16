@@ -29,6 +29,9 @@
      !skipsong       (streamer + lead mods) skips the current song
      &songinst=https://my.piped.api   extra Piped/Invidious hosts (only used if YouTube won't embed a video)
      (#videoplayer still works: it redirects to #songplayer)
+     #mascot: another OBS browser source (transparent). A mascot that opens its mouth when you talk (needs your microphone; allow it when asked)
+     &sens=1         mascot mic sensitivity (2 = reacts to quieter speech, 0.5 = needs louder)    &color=9147ff  mascot color (hex, no #)
+     &mic=name       pick a microphone (part of its name, e.g. "usb")
      #ambient: a third OBS browser source (full screen, transparent): soft low-opacity edge pulses on cheers, gifts, subs, raids, follows, bits
      &intensity=1    strength of the ambient pulses (0.3 = very faint, 2 = stronger)
      &alerts=0       turn alerts off        &alertsec=6  seconds per alert
@@ -46,6 +49,10 @@
      Commands:  !changetext "Something" (owner + configured lead mods; updates /#text)  !<currency> (e.g. !cookies)  !cheer <n>  !tts <text>  !resetcookies <name|all>  !loudtojump (1000 cookies, command only)  !knocking  !lotsofgunshots  !ambienceone  !ambiencetwo  !shocked  !55  !drip  !money  !bell  !rizz  or (knocking) (lotsofgunshots) (ambienceone) (55) (drip) (money) (bell) (rizz) inside !tts
                 !mutesfx / !unmutesfx  (streamer + lead mods only; lead mods are set in the setup panel or with &leadmod=)  */
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+  body.mascot-mode > *:not(#mascot-root) { display: none !important; }
+  #mascot-root { position: fixed; inset: 0; font-family: "Nunito", "Segoe UI", Arial, sans-serif; }
+  #mascot-root svg { width: 100%; height: 100%; display: block; }
+  #mascot-hint { position: absolute; top: 8px; left: 8px; right: 8px; text-align: center; font-weight: 800; font-size: 14px; color: #fff; background: rgba(0,0,0,.65); border-radius: 8px; padding: 6px 10px; display: none; cursor: pointer; }
   body.bg { background: #0e0e10; }
   #chat {
     position: absolute; inset: 0;
@@ -526,6 +533,133 @@
   if (location.hash.toLowerCase() === "#videoplayer") location.replace(location.pathname + location.search + "#songplayer");   // old link: #videoplayer now opens #songplayer
   const SONGMODE = location.hash.toLowerCase() === "#songplayer";
   const AMBIENTMODE = location.hash.toLowerCase() === "#ambient";
+  const MASCOTMODE = location.hash.toLowerCase() === "#mascot";
+
+  /* ---------- #mascot: talking mascot driven by the microphone (standalone: no chat, no cookies, no setup panel) ---------- */
+  function startMascot() {
+    document.body.classList.add("mascot-mode");
+    if (params.get("bg") === "1") document.body.classList.add("bg");
+    document.title = "Mascot";
+    window.addEventListener("hashchange", () => location.reload());
+
+    const hex = /^[0-9a-f]{6}$/i.test(params.get("color") || "") ? params.get("color") : "9147ff";
+    const shade = (h, f) => "#" + [0, 2, 4].map(i => Math.max(0, Math.min(255, Math.round(parseInt(h.substr(i, 2), 16) * f))).toString(16).padStart(2, "0")).join("");
+    const base = "#" + hex, dark = shade(hex, 0.62), light = shade(hex, 1.3), belly = shade(hex, 1.55);
+    const SENS = Math.max(0.1, Math.min(10, parseFloat(params.get("sens")) || 1));
+
+    const root = document.createElement("div");
+    root.id = "mascot-root";
+    root.innerHTML = `
+      <svg viewBox="0 0 400 400" preserveAspectRatio="xMidYMax meet" xmlns="http://www.w3.org/2000/svg">
+        <defs><clipPath id="mc-clip"><ellipse id="mc-clip-e" cx="200" cy="262" rx="22" ry="3"/></clipPath></defs>
+        <ellipse cx="200" cy="384" rx="120" ry="10" fill="rgba(0,0,0,.25)"/>
+        <g id="mc-body">
+          <ellipse cx="140" cy="372" rx="38" ry="18" fill="${dark}"/>
+          <ellipse cx="260" cy="372" rx="38" ry="18" fill="${dark}"/>
+          <path d="M70 120 L88 40 L158 92 Z" fill="${base}" stroke="${dark}" stroke-width="6" stroke-linejoin="round"/>
+          <path d="M330 120 L312 40 L242 92 Z" fill="${base}" stroke="${dark}" stroke-width="6" stroke-linejoin="round"/>
+          <path d="M92 108 L98 66 L132 92 Z" fill="${belly}"/>
+          <path d="M308 108 L302 66 L268 92 Z" fill="${belly}"/>
+          <ellipse cx="200" cy="230" rx="160" ry="142" fill="${base}" stroke="${dark}" stroke-width="6"/>
+          <ellipse cx="200" cy="290" rx="100" ry="70" fill="${belly}" opacity=".55"/>
+          <g id="mc-eyes">
+            <ellipse cx="148" cy="186" rx="27" ry="31" fill="#fff" stroke="${dark}" stroke-width="4"/>
+            <ellipse cx="252" cy="186" rx="27" ry="31" fill="#fff" stroke="${dark}" stroke-width="4"/>
+            <circle id="mc-pl" cx="150" cy="190" r="13" fill="#1b1030"/>
+            <circle id="mc-pr" cx="250" cy="190" r="13" fill="#1b1030"/>
+            <circle cx="155" cy="184" r="4.5" fill="#fff"/><circle cx="255" cy="184" r="4.5" fill="#fff"/>
+          </g>
+          <circle cx="100" cy="246" r="20" fill="#ff7ab6" opacity=".45"/>
+          <circle cx="300" cy="246" r="20" fill="#ff7ab6" opacity=".45"/>
+          <path d="M192 236 L208 236 L200 246 Z" fill="${dark}" stroke="${dark}" stroke-width="3" stroke-linejoin="round"/>
+          <ellipse id="mc-mouth" cx="200" cy="262" rx="22" ry="3" fill="#2a0f2e" stroke="${dark}" stroke-width="4"/>
+          <ellipse id="mc-tongue" cx="200" cy="262" rx="12" ry="2" fill="#ff6f8f" clip-path="url(#mc-clip)"/>
+        </g>
+      </svg>
+      <div id="mascot-hint"></div>`;
+    document.body.appendChild(root);
+    const $ = (id) => root.querySelector("#" + id);
+    const bodyG = $("mc-body"), eyes = $("mc-eyes"), mouth = $("mc-mouth"), tongue = $("mc-tongue"), clipE = $("mc-clip-e");
+    const pl = $("mc-pl"), pr = $("mc-pr"), hint = $("mascot-hint");
+    const showHint = (t) => { hint.textContent = t; hint.style.display = t ? "block" : "none"; };
+
+    /* microphone */
+    let analyser = null, buf = null, actx = null, stream = null;
+    async function openMic() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { showHint("Microphone is not available here. Open this page over https:// or from localhost."); return; }
+      try {
+        if (stream) stream.getTracks().forEach(t => t.stop());
+        stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: true, autoGainControl: false } });
+        const want = (params.get("mic") || "").toLowerCase();
+        if (want) {                                           // pick a microphone by part of its name
+          const dev = (await navigator.mediaDevices.enumerateDevices()).find(d => d.kind === "audioinput" && d.label.toLowerCase().includes(want));
+          const cur = stream.getAudioTracks()[0] && stream.getAudioTracks()[0].getSettings().deviceId;
+          if (dev && dev.deviceId !== cur) {
+            stream.getTracks().forEach(t => t.stop());
+            stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: dev.deviceId }, echoCancellation: false, noiseSuppression: true, autoGainControl: false } });
+          }
+        }
+        if (actx) { try { actx.close(); } catch (e) {} }
+        actx = new (window.AudioContext || window.webkitAudioContext)();
+        const src = actx.createMediaStreamSource(stream);
+        analyser = actx.createAnalyser();
+        analyser.fftSize = 1024; analyser.smoothingTimeConstant = 0;
+        src.connect(analyser);                                // never connected to the speakers, so no echo
+        buf = new Float32Array(analyser.fftSize);
+        const tr = stream.getAudioTracks()[0];
+        if (tr) tr.onended = () => { analyser = null; showHint("Microphone disconnected. Retrying…"); setTimeout(openMic, 3000); };
+        if (actx.state === "suspended") await actx.resume().catch(() => {});
+        showHint(actx.state === "running" ? "" : "Click here to start the mascot");
+      } catch (e) {
+        analyser = null;
+        const denied = e && (e.name === "NotAllowedError" || e.name === "SecurityError");
+        showHint(denied ? "Microphone blocked. Allow it for this page, then click here." : "No microphone found. Plug one in, then click here.");
+      }
+    }
+    hint.addEventListener("click", openMic);
+    document.addEventListener("click", () => { if (actx && actx.state === "suspended") actx.resume().then(() => showHint("")).catch(() => {}); });
+    openMic();
+
+    /* animation */
+    let floor = 0.01, open = 0, blinkAt = performance.now() + 2500, blinkT = 0, look = 0, lookTo = 0, lookAt = 0, last = performance.now();
+    function frame(now) {
+      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      let rms = 0;
+      if (analyser) {
+        analyser.getFloatTimeDomainData(buf);
+        let sum = 0; for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+        rms = Math.sqrt(sum / buf.length);
+      }
+      // adaptive noise floor: drops quickly, rises very slowly, so room hiss never opens the mouth
+      floor = rms < floor ? floor * 0.9 + rms * 0.1 : Math.min(0.03, floor + (rms - floor) * 0.0003);
+      const gate = floor * 2 + 0.006;
+      const level = Math.max(0, Math.min(1, (rms - gate) / (0.12 / SENS)));
+      const target = Math.pow(level, 0.7);
+      open += (target - open) * (target > open ? 0.6 : 0.2);
+
+      // mouth
+      const ry = 3 + 36 * open, rx = 22 + 12 * open, cy = 262 + 14 * open;
+      for (const e of [mouth, clipE]) { e.setAttribute("rx", rx.toFixed(1)); e.setAttribute("ry", ry.toFixed(1)); e.setAttribute("cy", cy.toFixed(1)); }
+      tongue.setAttribute("cy", (cy + ry * 0.55).toFixed(1)); tongue.setAttribute("rx", (rx * 0.6).toFixed(1)); tongue.setAttribute("ry", (ry * 0.5 + 1).toFixed(1));
+
+      // body: gentle breathing, bounce while talking
+      const t = now / 1000, breathe = Math.sin(t * 2) * 0.006;
+      const sy = 1 + breathe + open * 0.025, sx = 1 - breathe - open * 0.02, ty = -open * 8;
+      bodyG.setAttribute("transform", `translate(0 ${ty.toFixed(2)}) translate(200 372) scale(${sx.toFixed(4)} ${sy.toFixed(4)}) translate(-200 -372)`);
+
+      // blink + glancing around
+      if (now > blinkAt && !blinkT) blinkT = now;
+      let eyeY = 1;
+      if (blinkT) { const k = (now - blinkT) / 140; if (k >= 1) { blinkT = 0; blinkAt = now + 2000 + Math.random() * 3500; } else eyeY = Math.max(0.08, Math.abs(k * 2 - 1)); }
+      eyes.setAttribute("transform", `translate(0 186) scale(1 ${eyeY.toFixed(3)}) translate(0 -186)`);
+      if (now > lookAt) { lookTo = (Math.random() - 0.5) * 8; lookAt = now + 1200 + Math.random() * 2500; }
+      look += (lookTo - look) * Math.min(1, dt * 6);
+      pl.setAttribute("cx", (150 + look).toFixed(2)); pr.setAttribute("cx", (250 + look).toFixed(2));
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  }
+  if (MASCOTMODE) { startMascot(); return; }
   const ICON_ALIASES = { cookie: "cookie", money: "money", box: "box", moon: "moon", fries: "fries", heart: "heart", follow: "user-plus", raid: "users", sub: "star", gift: "gift", bits: "spark", request: "box", wheel: "dice", volume: "volume", alert: "bell" };
   function makeIcon(name, className = "ui-icon") {
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
