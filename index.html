@@ -541,7 +541,7 @@
     if (params.get("bg") === "1") document.body.classList.add("bg");
     document.title = "Mascot";
     window.addEventListener("hashchange", () => location.reload());
-    const SENS = Math.max(0.1, Math.min(10, parseFloat(params.get("sens")) || 2.5));
+    const SENS = Math.max(0.1, Math.min(10, parseFloat(params.get("sens")) || 5));
 
     const root = document.createElement("div");
     root.id = "mascot-root";
@@ -559,7 +559,7 @@
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { showHint("Microphone is not available here. Open this page over https:// or from localhost."); return; }
       try {
         if (stream) stream.getTracks().forEach(t => t.stop());
-        stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: true, autoGainControl: false } });
+        stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true } });
         const want = (params.get("mic") || "").toLowerCase();
         if (want) {                                           // pick a microphone by part of its name
           const dev = (await navigator.mediaDevices.enumerateDevices()).find(d => d.kind === "audioinput" && d.label.toLowerCase().includes(want));
@@ -591,7 +591,7 @@
     openMic();
 
     /* Switch between the supplied closed-mouth and open-mouth PNGs. */
-    let floor = 0.008, isOpen = false, last = performance.now();
+    let floor = 0.002, isOpen = false, last = performance.now();
     const normalSrc = new URL("normal.png", location.href).href;
     const openSrc = new URL("open.png", location.href).href;
     const openImage = new Image();
@@ -604,10 +604,10 @@
         for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
         rms = Math.sqrt(sum / buf.length);
       }
-      floor = rms < floor ? floor * 0.9 + rms * 0.1 : Math.min(0.03, floor + (rms - floor) * 0.0003);
-      const gate = floor * 1.45 + 0.0025;
-      const level = Math.max(0, Math.min(1, (rms - gate) / (0.075 / SENS)));
-      const nextOpen = level > 0.075;
+      floor = rms < floor ? floor * 0.92 + rms * 0.08 : Math.min(0.02, floor + (rms - floor) * 0.001);
+      const gate = floor * 1.2 + 0.0006;
+      const level = Math.max(0, Math.min(1, (rms - gate) / (0.04 / SENS)));
+      const nextOpen = level > 0.025;
       if (nextOpen !== isOpen) {
         isOpen = nextOpen;
         sprite.src = isOpen ? openSrc : normalSrc;
