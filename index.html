@@ -2833,7 +2833,7 @@
     if (m.type === "hello") { songState.seen = Date.now(); songState.queue = m.queue || 0; }
     else if (m.type === "error") {
       if (m.paid > 0 && m.user) addCookies(m.user, m.paid);
-      queueAlert("requestinfo", "That song could not be played", `${m.by || "Viewer"}${m.paid > 0 ? " was refunded " + m.paid + " " + currencyLabel(m.paid) : ""}.`, 8);
+      queueAlert("requestinfo", "That song could not be played", `${m.by || "Viewer"}${m.paid > 0 ? " was refunded " + m.paid + " " + currencyLabel(m.paid) : ""}.${m.why ? " " + m.why + "." : ""}`, 10);
     }
   });
 
@@ -2889,7 +2889,8 @@
     let yt = null, ytReady = false, ytFailed = false, mode = "";
     const queue = []; let current = null, started = false, fading = false, capTimer = null, watchTimer = null;
     const report = () => songSend({ to: "main", type: "hello", queue: queue.length + (current || fading ? 1 : 0) });
-    const fail = (v) => { songSend({ to: "main", type: "error", user: v.user, by: v.by, paid: v.paid }); };
+    let why = "";
+    const fail = (v, w) => { songSend({ to: "main", type: "error", user: v.user, by: v.by, paid: v.paid, why: w || why }); };
     const FADE_MS = 900;
     const setVol = x => { x = Math.max(0, Math.min(1, x)); try { if (mode === "yt" && yt) yt.setVolume(Math.round(x * 100)); else vid.volume = x; } catch (_) {} };
     const getVol = () => { try { return mode === "yt" && yt ? yt.getVolume() / 100 : vid.volume; } catch (_) { return SONG_VOL; } };
@@ -2927,7 +2928,12 @@
               else if (e.data === 0) finish();
               else if (e.data === 2 && started) { try { yt.playVideo(); } catch (_) {} }   // nobody can pause it
             },
-            onError: () => { const v = current; if (v && mode === "yt") playFile(v); }
+            onError: e => {
+              const c = e && e.data, v = current;
+              why = "YouTube error " + c + ({ 2: " (bad link)", 5: " (player problem)", 100: " (video not found or private)", 101: " (embedding turned off for this video)", 150: " (embedding turned off for this video)", 153: " (YouTube blocked the embed: open the song player from an https:// address, not a local file)" }[c] || "");
+              console.warn("[songplayer]", why);
+              if (v && mode === "yt") playFile(v);
+            }
           }
         });
       } catch (_) { ytFailed = true; next(); }
@@ -2943,29 +2949,30 @@
     async function playFile(v) {
       mode = "file"; clearTimeout(watchTimer); try { if (yt && ytReady) yt.stopVideo(); } catch (_) {}
       let url;
-      try { url = await resolveSong(v.id); } catch (e) { if (current === v) { fail(v); finish(); } return; }
+      try { url = await resolveSong(v.id); } catch (e) { why = (why ? why + "; " : "") + "no backup source answered"; console.warn("[songplayer]", why); if (current === v) { fail(v); finish(); } return; }
       if (current !== v) return;                                       // skipped while the link was being looked up
       started = false; vid.volume = SONG_VOL; vid.src = url;
       vid.play().catch(e => {
         if (current !== v) return;
         if (e && e.name === "NotAllowedError") setStatus("Click anywhere on this page once to allow song playback");
-        else { fail(v); finish(); }
+        else { fail(v, why || "browser refused to play it"); finish(); }
       });
-      watchTimer = setTimeout(() => { if (current === v && !started) { if (!vid.paused) { fail(v); finish(); } } }, 25000);
+      watchTimer = setTimeout(() => { if (current === v && !started) { if (!vid.paused) { fail(v, why || "it never started"); finish(); } } }, 25000);
     }
     function play(v) {
       started = false;
       if (ytReady && !ytFailed) {
         mode = "yt";
         try { yt.setVolume(Math.round(SONG_VOL * 100)); yt.loadVideoById(v.id); yt.playVideo(); } catch (_) { playFile(v); return; }
-        watchTimer = setTimeout(() => { if (current === v && !started) playFile(v); }, 12000);   // never started: try the file instead
+        setTimeout(() => { if (current === v && !started && mode === "yt") setStatus("Click anywhere on this page once to allow song playback"); }, 4000);
+        watchTimer = setTimeout(() => { if (current === v && !started) { why = why || "YouTube player never started"; playFile(v); } }, 15000);   // never started: try the file instead
       } else playFile(v);
     }
     function next() {
       if (current || fading || !queue.length) return;
       if (!ytReady && !ytFailed) return;                               // wait for the YouTube player (or give up on it)
       current = queue.shift();
-      play(current); report();
+      why = ""; play(current); report();
     }
     songListen(m => {
       if (m.to !== "player") return;
