@@ -542,7 +542,7 @@
     document.title = "Mascot";
     window.addEventListener("hashchange", () => location.reload());
 
-    const hex = /^[0-9a-f]{6}$/i.test(params.get("color") || "") ? params.get("color") : "ff9a4d";
+    const hex = /^[0-9a-f]{6}$/i.test(params.get("color") || "") ? params.get("color") : "8fd8ff";
     const shade = (h, f) => "#" + [0, 2, 4].map(i => Math.max(0, Math.min(255, Math.round(parseInt(h.substr(i, 2), 16) * f))).toString(16).padStart(2, "0")).join("");
     const fur = "#" + hex, line = shade(hex, 0.42), cream = "#fff4e4", pink = "#ff9db4", ink = "#2b1a30";
     const SENS = Math.max(0.1, Math.min(10, parseFloat(params.get("sens")) || 2.5));
@@ -574,7 +574,11 @@
         <g id="mc-body">
           <g id="mc-tail">
             <use href="#mc-tail-p" fill="${fur}"/>
-            <ellipse cx="368" cy="226" rx="46" ry="52" fill="${cream}" clip-path="url(#mc-tail-clip)"/>
+            <g clip-path="url(#mc-tail-clip)" fill="none" stroke="#e5f7ff" stroke-width="13" stroke-linecap="round">
+              <path d="M344 211 C366 230 378 254 376 278"/>
+              <path d="M365 251 C383 276 378 302 361 324"/>
+              <path d="M355 291 C368 314 352 338 331 350"/>
+            </g>
             <use href="#mc-tail-p" fill="none" stroke="${line}" stroke-width="5" stroke-linejoin="round"/>
           </g>
           <path d="M96 430 C96 340 142 300 200 300 C258 300 304 340 304 430 Z" fill="${fur}" stroke="${line}" stroke-width="5" stroke-linejoin="round"/>
