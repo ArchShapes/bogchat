@@ -3195,6 +3195,7 @@
     if (event.key.toLowerCase() === "b") {
       document.body.classList.toggle("bg");
     } else if (event.key.toLowerCase() === "t") {
+      event.preventDefault();                                   // otherwise the "t" is typed into the text box that just got focus
       if (steBackdrop.classList.contains("closed")) openTextEditor(); else closeTextEditor();
     } else if (event.key.toLowerCase() === "m") {
       toggleMuteAll();
