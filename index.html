@@ -1090,7 +1090,7 @@
     const head = document.createElement("div");
     head.className = "chead";
     if (short) {
-      head.append(who, document.createTextNode(` has ${have}, needs ${cost} ${CURRENCY_NAME} for ${what} `));
+      head.append(who, document.createTextNode(`: you cannot afford this right now. You have ${have}, ${what} needs ${cost} ${CURRENCY_NAME} `));
       appendCurrencyIcon(head, "currency-icon inline-currency");
     } else {
       head.append(who);
@@ -1721,7 +1721,7 @@
   }
 
   // !<sfxname> plays that sound; !mutesfx / !unmutesfx are for the streamer and lead mods only
-  const SFX_CMD_COST = 0, SFX_CMD_CD = 2500;      // set SFX_CMD_COST above 0 to charge currency per sound
+  const SFX_CMD_COST = 5, SFX_CMD_CD = 2500;      // currency charged per !sound (streamer + lead mods play free); 0 = free for everyone
   const sfxCmdLast = new Map();
   let sfxGlobalLast = 0;
   function canControlSfx(tags, user) {
@@ -1748,7 +1748,8 @@
     if (now - sfxGlobalLast < 1200) return;                                   // no pile-ups
     if (!mod && now - (sfxCmdLast.get(user) || 0) < SFX_CMD_CD) return;       // per-user cooldown
     const cost = SFX_COSTS[name] ?? SFX_CMD_COST;
-    if (cost > 0) { if (!canPay(tags, user, cost, name)) return; pay(tags, user, cost); }
+    const free = canControlSfx(tags, user) && !(name in SFX_COSTS);          // streamer + lead mods play free (except priced sounds)
+    if (cost > 0 && !free) { if (!canPay(tags, user, cost, "!" + name)) return; pay(tags, user, cost); }
     sfxGlobalLast = now; sfxCmdLast.set(user, now);
     audio();
     if (ttsQueue.length < TTS_QUEUE_MAX * 2) { ttsQueue.push([{ sfx: name }]); runTts(); }   // starts immediately when the shared TTS/SFX queue is free
@@ -2071,18 +2072,17 @@
     if (letters.length && latin.length / letters.length < 0.7) return;
 
     const mod = isMod(tags);
+    const free = canControlSfx(tags, user);                  // only the streamer and lead mods use TTS for free
     const have = bal(user);
-    if (!mod && have < TTS_COST) { addCookieCard(tags, user, true); return; }
+    if (!free && have < TTS_COST) { addCookieCard(tags, user, true); return; }
     if (ttsBlocked(text)) return;                           // blocked text is never charged
     if (ttsQueue.length >= TTS_QUEUE_MAX) return;           // queue full, not charged
     const segs = parseSegments(text);
     if (!segs.length) return;
     const now = Date.now();
-    if (!mod) {
-      if (now - (ttsLastUser.get(user) || 0) < TTS_USER_CD) return;
-      addCookies(user, -TTS_COST);
-      ttsLastUser.set(user, now);
-    }
+    if (!mod && now - (ttsLastUser.get(user) || 0) < TTS_USER_CD) return;
+    if (!free) addCookies(user, -TTS_COST);
+    if (!mod) ttsLastUser.set(user, now);
 
     pushCmdLine(tags, user, message);
 
