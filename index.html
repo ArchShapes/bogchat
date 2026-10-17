@@ -40,7 +40,7 @@
      &cat=0          turn the cat visits off
      &catsec=600     seconds between cat visits (default 600 / 10 minutes)
      #viewchat: press P to pop the chat out into an always-on-top window (Chrome / Edge; other browsers get a normal small window). Press P again to put it back
-     Commands:  !changetext "Something" (owner + configured lead mods; updates /#text)  !changeicon --defaults star|heart|burger|mglass|twitch|none  !changeicon --imagelink <url> (same people; icon on /#text)  !<currency> (e.g. !cookies)  !cheer <n>  !tts <text>  !resetcookies <name|all>  !loudtojump (1000 cookies, command only)  !knocking  !lotsofgunshots  !ambienceone  !ambiencetwo  !shocked  !55  !drip  !money  !bell  !rizz  or (knocking) (lotsofgunshots) (ambienceone) (55) (drip) (money) (bell) (rizz) inside !tts
+     Commands:  !changetext "Something" (owner + configured lead mods; updates /#text)  !changeicon --defaults star|heart|burger|mglass|twitch|none  !changeicon --imagelink <url>  !changeicon --side left|right (lead mods + streamer only; icon on /#text)  !<currency> (e.g. !cookies)  !cheer <n>  !tts <text>  !resetcookies <name|all>  !loudtojump (1000 cookies, command only)  !knocking  !lotsofgunshots  !ambienceone  !ambiencetwo  !shocked  !55  !drip  !money  !bell  !rizz  or (knocking) (lotsofgunshots) (ambienceone) (55) (drip) (money) (bell) (rizz) inside !tts
                 !mutesfx / !unmutesfx  (streamer + lead mods only; lead mods are set in the setup panel or with &leadmod=)  */
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
   body.bg { background: #0e0e10; }
@@ -237,6 +237,7 @@
   #st-logo { flex:none; display:block; width:1.05em; height:1.05em; filter:drop-shadow(0 2px 5px rgba(0,0,0,.55)); animation:st-logo 5s ease-in-out infinite; }
   #st-logo svg, #st-logo img { display:block; width:100%; height:100%; object-fit:contain; }
   #st-logo.none { display:none; }
+  #st-wrap.right { flex-direction:row-reverse; }
   #st-label { min-width:0; }
   .st-word { display:inline-block; white-space:nowrap; }
   .st-ch { display:inline-block; white-space:pre; animation:st-bob 3.4s ease-in-out infinite; }
@@ -244,13 +245,13 @@
   @keyframes st-logo  { 0%,100% { transform:rotate(-3deg) scale(1); } 50% { transform:rotate(3deg) scale(1.04); } }
   @keyframes st-bob   { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-.06em); } }
   @media (prefers-reduced-motion: reduce) { #st-wrap, #st-logo, .st-ch { animation:none; } }
-  body.text-mode #chat, body.text-mode #alerts, body.text-mode #status, body.text-mode #global-setup-backdrop, body.text-mode #setup-hint, body.text-mode #demo { display:none !important; }
+  body.text-mode #chat, body.text-mode #alerts, body.text-mode #status, body.text-mode #setup-hint, body.text-mode #demo { display:none !important; }
   body.text-mode { background:transparent !important; }
 
   /* ---------- #ambient ---------- */
   #ambient-stage { display:none; position:fixed; inset:0; pointer-events:none; overflow:hidden; background:transparent; }
   body.ambient-mode #ambient-stage { display:block; }
-  body.ambient-mode #chat, body.ambient-mode #alerts, body.ambient-mode #screen-text, body.ambient-mode #global-setup-backdrop, body.ambient-mode #setup-hint, body.ambient-mode #demo, body.ambient-mode #song-stage { display:none !important; }
+  body.ambient-mode #chat, body.ambient-mode #alerts, body.ambient-mode #screen-text, body.ambient-mode #setup-hint, body.ambient-mode #demo, body.ambient-mode #song-stage { display:none !important; }
   body.ambient-mode { background:transparent !important; }
   body.ambient-mode.bg { background:#0e0e10 !important; }
   .amb-pulse {
@@ -259,6 +260,34 @@
     animation: ambPulse var(--dur, 2s) cubic-bezier(.3,.6,.4,1) var(--delay, 0s) both;
   }
   @keyframes ambPulse { 0% { opacity:0; transform:scale(1.05); } 28% { opacity:var(--peak, .25); } 100% { opacity:0; transform:scale(1); } }
+
+  /* ---------- T panel: edit /#text ---------- */
+  #st-edit-backdrop {
+    position: fixed; inset: 0; z-index: 100001; display: flex; align-items: center; justify-content: center;
+    padding: 18px; box-sizing: border-box; background: rgba(8,8,10,.78); backdrop-filter: blur(3px);
+    font: 14px/1.45 Inter, "Segoe UI Variable", "Segoe UI", system-ui, sans-serif; color: #e9e9ed; text-shadow: none;
+  }
+  #st-edit-backdrop.closed { display: none; }
+  #st-edit-backdrop [hidden] { display: none !important; }
+  #st-edit { width: min(480px, 100%); box-sizing: border-box; overflow: hidden; background: #171719; border: 1px solid #343438; border-radius: 12px; box-shadow: 0 18px 50px rgba(0,0,0,.4); }
+  .ste-head { padding: 18px 22px 12px; border-bottom: 1px solid #2a2a2e; }
+  #st-edit h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 4px; font-size: 18px; font-weight: 650; letter-spacing: -.02em; }
+  .ste-note { margin: 0; color: #a5a5ad; font-size: 13px; }
+  #st-edit kbd { padding: 1px 5px; border: 1px solid #3f3f46; border-bottom-width: 2px; border-radius: 4px; background: #202024; font: 11px ui-monospace, Consolas, monospace; color: #d6d6dc; }
+  .ste-body { display: flex; flex-direction: column; gap: 14px; padding: 18px 22px; }
+  .ste-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  #st-edit label { display: flex; flex-direction: column; gap: 5px; min-width: 0; color: #c9c9d0; font-size: 12px; font-weight: 550; }
+  #st-edit label .opt { color: #7e7e88; font-weight: 400; }
+  #st-edit input, #st-edit select { box-sizing: border-box; width: 100%; min-width: 0; padding: 9px 11px; border: 1px solid #3a3a40; border-radius: 6px; background: #101012; color: #f2f2f4; font: inherit; outline: none; }
+  #st-edit input:focus, #st-edit select:focus { border-color: #a970ff; box-shadow: 0 0 0 3px rgba(145,71,255,.18); }
+  .ste-foot { display: flex; align-items: center; gap: 10px; padding: 12px 22px; border-top: 1px solid #2a2a2e; background: #141416; }
+  #ste-status { flex: 1; min-height: 1.3em; margin: 0; font-size: 12px; color: #a5a5ad; }
+  #ste-status.error { color: #ff9a9a; }
+  #st-edit button { border: 1px solid transparent; border-radius: 6px; padding: 9px 14px; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; }
+  #ste-close { background: #232326; border-color: #414146; color: #e8e8ec; }
+  #ste-close:hover { background: #2c2c30; }
+  #ste-save { background: #9147ff; color: #fff; }
+  #ste-save:hover { background: #7d35e8; }
 
   /* ---------- Setup dialog ---------- */
   #global-setup-backdrop {
@@ -428,6 +457,43 @@
   <span id="st-label"></span>
 </div></div>
 <div id="ambient-stage"></div>
+<div id="st-edit-backdrop" class="closed" role="dialog" aria-modal="true" aria-labelledby="st-edit-title">
+  <section id="st-edit">
+    <header class="ste-head">
+      <h2 id="st-edit-title"><span class="setup-live-dot" aria-hidden="true"></span>Edit /#text</h2>
+      <p class="ste-note">Press <kbd>T</kbd> any time to open or close this panel.</p>
+    </header>
+    <div class="ste-body">
+      <label><span>Text <span class="opt">(empty = automatic name)</span></span>
+        <input id="ste-text" autocomplete="off" maxlength="500" placeholder="Your channel name">
+      </label>
+      <div class="ste-row">
+        <label><span>Icon</span>
+          <select id="ste-icon">
+            <option value="twitch">Twitch logo (default)</option>
+            <option value="star">Star</option>
+            <option value="heart">Heart</option>
+            <option value="burger">Burger</option>
+            <option value="mglass">Magnifying glass</option>
+            <option value="none">None</option>
+            <option value="image">Image link…</option>
+          </select>
+        </label>
+        <label><span>Icon side</span>
+          <select id="ste-side"><option value="left">Left</option><option value="right">Right</option></select>
+        </label>
+      </div>
+      <label id="ste-link-wrap" hidden><span>Image link</span>
+        <input id="ste-link" autocomplete="off" placeholder="https://example.com/pic.png">
+      </label>
+    </div>
+    <footer class="ste-foot">
+      <p id="ste-status" aria-live="polite"></p>
+      <button id="ste-close" type="button">Close</button>
+      <button id="ste-save" type="button">Save</button>
+    </footer>
+  </section>
+</div>
 <div id="global-setup-backdrop" role="dialog" aria-modal="true" aria-labelledby="global-setup-title">
   <section id="global-setup">
     <header class="setup-head">
@@ -669,7 +735,8 @@
   function leaveSetupRoute() {
     const q = new URLSearchParams(location.search);
     if (settings.channel) q.set("channel", settings.channel);
-    history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q.toString() : "") + "#overlay");
+    const keep = VIEWCHAT ? "#viewchat" : TEXTMODE ? "#text" : AMBIENTMODE ? "#ambient" : "#overlay";   // stay on the page you opened F2 on
+    history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q.toString() : "") + keep);
   }
   document.getElementById("global-setup-save").addEventListener("click", () => {
     for (const [key, id] of Object.entries(setupFields)) settings[key] = document.getElementById(id).value.trim();
@@ -717,6 +784,17 @@
     const name = ST_ICON_ALIASES[k] || k;
     return (name === "none" || SCREEN_ICON_SVG[name]) ? name : null;
   };
+  const SCREEN_SIDE_KEY = "overlay-screen-side-v1";
+  const stWrap = document.getElementById("st-wrap");
+  const normScreenSide = v => { const t = String(v ?? "").trim().toLowerCase(); return t === "left" || t === "right" ? t : null; };
+  function renderScreenSide(value) { if (stWrap) stWrap.classList.toggle("right", normScreenSide(value) === "right"); }
+  function setScreenSide(value, broadcast = true) {
+    const v = normScreenSide(value) || "left";
+    try { localStorage.setItem(SCREEN_SIDE_KEY, v); } catch (_) {}
+    renderScreenSide(v);
+    if (broadcast && screenTextBus) { try { screenTextBus.postMessage({ side: v }); } catch (_) {} }
+  }
+  try { renderScreenSide(localStorage.getItem(SCREEN_SIDE_KEY) || "left"); } catch (_) {}
   const stIcon = document.getElementById("st-logo");
   function renderScreenIcon(value) {
     if (!stIcon) return;
@@ -773,10 +851,12 @@
   if (screenTextBus) screenTextBus.onmessage = event => {
     if (event.data && typeof event.data.text === "string") setScreenText(event.data.text, false);
     if (event.data && typeof event.data.icon === "string") setScreenIcon(event.data.icon, false);
+    if (event.data && typeof event.data.side === "string") setScreenSide(event.data.side, false);
   };
   addEventListener("storage", event => {
     if (event.key === SCREEN_TEXT_KEY) setScreenText(event.newValue || "", false);
     else if (event.key === SCREEN_ICON_KEY) renderScreenIcon(event.newValue || "twitch");
+    else if (event.key === SCREEN_SIDE_KEY) renderScreenSide(event.newValue || "left");
     else if (event.key === SETTINGS_KEY && event.newValue) {          // the name was changed in F2 on another page: update this one live
       try { settings.textName = String(JSON.parse(event.newValue).textName || ""); setScreenText(localStorage.getItem(SCREEN_TEXT_KEY) || "", false); } catch (_) {}
     }
@@ -2329,8 +2409,14 @@
     }
     if (cmd === "changeicon") {
       if (!canControlSfx(tags, user)) return true;
+      const sd = arg.match(/^--(?:side|position)\s+(\S+)\s*$/i) || arg.match(/^--(left|right)\s*$/i);
+      if (sd) {
+        const side = normScreenSide(sd[1]);
+        if (!side) sfxNotice("Use !changeicon --side left or !changeicon --side right", tags, user); else setScreenSide(side);
+        return true;
+      }
       const m = arg.match(/^--(defaults?|imagelink|image|link)\s+(\S+)/i);
-      const usage = "Use !changeicon --defaults star|heart|burger|mglass|twitch|none or !changeicon --imagelink https://…";
+      const usage = "Use !changeicon --defaults star|heart|burger|mglass|twitch|none, !changeicon --imagelink https://… or !changeicon --side left|right";
       if (!m) { sfxNotice(usage, tags, user); return true; }
       const value = /^default/i.test(m[1]) ? m[2] : m[2];
       const icon = /^default/i.test(m[1]) ? (() => { const n = normScreenIcon(value); return n && !/^https?:/i.test(n) ? n : null; })() : (/^https?:\/\//i.test(value) ? normScreenIcon(value) : null);
@@ -3066,10 +3152,50 @@
     } else setStatus("");
   }
 
+  const steBackdrop = document.getElementById("st-edit-backdrop");
+  const steEl = id => document.getElementById(id);
+  const steStatus = (msg, bad) => { const e = steEl("ste-status"); e.textContent = msg || ""; e.className = bad ? "error" : ""; };
+  const steLinkToggle = () => { steEl("ste-link-wrap").hidden = steEl("ste-icon").value !== "image"; };
+  steEl("ste-icon").addEventListener("change", () => { steLinkToggle(); if (!steEl("ste-link-wrap").hidden) steEl("ste-link").focus(); });
+  function openTextEditor() {
+    let text = "", icon = "twitch", side = "left";
+    try {
+      text = localStorage.getItem(SCREEN_TEXT_KEY) || "";
+      icon = normScreenIcon(localStorage.getItem(SCREEN_ICON_KEY)) || "twitch";
+      side = normScreenSide(localStorage.getItem(SCREEN_SIDE_KEY)) || "left";
+    } catch (_) {}
+    steEl("ste-text").value = text;
+    if (/^https?:/i.test(icon)) { steEl("ste-icon").value = "image"; steEl("ste-link").value = icon; }
+    else { steEl("ste-icon").value = icon; steEl("ste-link").value = ""; }
+    steEl("ste-side").value = side;
+    steLinkToggle(); steStatus("");
+    steBackdrop.classList.remove("closed");
+    steEl("ste-text").focus();
+  }
+  function closeTextEditor() { steBackdrop.classList.add("closed"); }
+  function saveTextEditor() {
+    let icon = steEl("ste-icon").value;
+    if (icon === "image") {
+      icon = normScreenIcon(steEl("ste-link").value);
+      if (!icon || !/^https?:/i.test(icon)) { steStatus("Enter an image link that starts with http:// or https://", true); return; }
+    }
+    setScreenText(steEl("ste-text").value);
+    setScreenIcon(icon);
+    setScreenSide(steEl("ste-side").value);
+    closeTextEditor();
+  }
+  steEl("ste-save").addEventListener("click", saveTextEditor);
+  steEl("ste-close").addEventListener("click", closeTextEditor);
+  steBackdrop.addEventListener("mousedown", e => { if (e.target === steBackdrop) closeTextEditor(); });
+  steBackdrop.addEventListener("keydown", e => { if (e.key === "Enter" && e.target.tagName === "INPUT") { e.preventDefault(); saveTextEditor(); } });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && !steBackdrop.classList.contains("closed")) closeTextEditor(); });
+
   document.addEventListener("keydown", (event) => {
     if (event.repeat || event.ctrlKey || event.metaKey || event.altKey || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || event.target.isContentEditable) return;
     if (event.key.toLowerCase() === "b") {
       document.body.classList.toggle("bg");
+    } else if (event.key.toLowerCase() === "t") {
+      if (steBackdrop.classList.contains("closed")) openTextEditor(); else closeTextEditor();
     } else if (event.key.toLowerCase() === "m") {
       toggleMuteAll();
     } else if (event.key.toLowerCase() === "p" && VIEWCHAT) {
@@ -3079,7 +3205,7 @@
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {}
       if (setupStatus) setSetupStatus("TTS language set to English (US).", "ok");
       console.info("TTS language set to English (US).");
-    } else if (event.key === "F2" && !VIEWCHAT && !AMBIENTMODE) {
+    } else if (event.key === "F2") {
       event.preventDefault();
       openSetup();
     }
