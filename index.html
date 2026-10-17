@@ -441,6 +441,9 @@
           <label><span>Overlay display name <span class="opt">(optional)</span></span>
             <input id="cfg-account" autocomplete="off" placeholder="My Stream">
           </label>
+          <label><span>Name shown on /#text <span class="opt">(optional, empty = your channel name)</span></span>
+            <input id="cfg-textname" autocomplete="off" maxlength="60" placeholder="Bogdan">
+          </label>
         </div>
       </div>
 
@@ -543,7 +546,7 @@
 
   const SETTINGS_KEY = "global-overlay-settings-v1";
   const defaultSettings = {
-    channel: "", ytVideo: "", ytKey: "", twitchClientId: "", twitchToken: "", account: "", currency: "Cookies", symbol: "cookie", ttsUrl: "", voice: "", apiKey: "", browserVoice: "", ttsEngine: "online", onlineVoice: "Brian", leadMods: "",
+    channel: "", ytVideo: "", ytKey: "", twitchClientId: "", twitchToken: "", account: "", textName: "", currency: "Cookies", symbol: "cookie", ttsUrl: "", voice: "", apiKey: "", browserVoice: "", ttsEngine: "online", onlineVoice: "Brian", leadMods: "",
     language: "en-US", tts: true, alerts: true, chat: true, configured: false
   };
   let settings = { ...defaultSettings };
@@ -565,7 +568,7 @@
   const setupStatus = document.getElementById("global-setup-status");
   function setSetupStatus(msg, kind = "") { setupStatus.textContent = msg; setupStatus.className = kind; }
   const setupFields = {
-    channel: "cfg-channel", account: "cfg-account", currency: "cfg-currency", symbol: "cfg-symbol", leadMods: "cfg-leadmods", ytVideo: "cfg-ytvideo", ytKey: "cfg-ytkey"
+    channel: "cfg-channel", account: "cfg-account", textName: "cfg-textname", currency: "cfg-currency", symbol: "cfg-symbol", leadMods: "cfg-leadmods", ytVideo: "cfg-ytvideo", ytKey: "cfg-ytkey"
   };
   function updateOverlayLink() {
     const ch = normChannel(document.getElementById("cfg-channel").value);
@@ -703,15 +706,28 @@
       stLabel.appendChild(w);
     });
   }
+  function defaultScreenName() {                         // the name typed in F2 setup, else your channel name (bogdanthegdplayer shows as Bogdan)
+    const custom = String(settings.textName || "").trim();
+    if (custom) return custom;
+    const who = String(settings.account || CHANNEL || "").trim().replace(/^@/, "");
+    if (who.toLowerCase() === "bogdanthegdplayer") return "Bogdan";
+    if (!who) return "Stream";
+    return who === who.toLowerCase() ? who.charAt(0).toUpperCase() + who.slice(1) : who;
+  }
   function setScreenText(value, broadcast = true) {
     const clean = String(value ?? "").slice(0, 500);
     try { localStorage.setItem(SCREEN_TEXT_KEY, clean); } catch (_) {}
-    renderScreenText(clean || "Bogdan");
+    renderScreenText(clean || defaultScreenName());
     if (broadcast && screenTextBus) { try { screenTextBus.postMessage({ text: clean }); } catch (_) {} }
   }
   try { setScreenText(localStorage.getItem(SCREEN_TEXT_KEY) || "", false); } catch (_) {}
   if (screenTextBus) screenTextBus.onmessage = event => { if (event.data && typeof event.data.text === "string") setScreenText(event.data.text, false); };
-  addEventListener("storage", event => { if (event.key === SCREEN_TEXT_KEY) setScreenText(event.newValue || "", false); });
+  addEventListener("storage", event => {
+    if (event.key === SCREEN_TEXT_KEY) setScreenText(event.newValue || "", false);
+    else if (event.key === SETTINGS_KEY && event.newValue) {          // the name was changed in F2 on another page: update this one live
+      try { settings.textName = String(JSON.parse(event.newValue).textName || ""); setScreenText(localStorage.getItem(SCREEN_TEXT_KEY) || "", false); } catch (_) {}
+    }
+  });
   const CURRENCY_NAME = "Cookies";
   settings.currency = "Cookies";
   settings.symbol = "cookie";
