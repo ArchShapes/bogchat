@@ -38,7 +38,7 @@
      &cat=0          turn the cat visits off
      &catsec=600     seconds between cat visits (default 600 / 10 minutes)
      #viewchat: press P to pop the chat out into an always-on-top window (Chrome / Edge; other browsers get a normal small window). Press P again to put it back
-     Commands:  !changetext "Something" (owner + configured lead mods; updates /#text)  !<currency> (e.g. !cookies)  !cheer <n>  !tts <text>  !resetcookies <name|all>  !loudtojump (1000 cookies, command only)  !knocking  !lotsofgunshots  !ambienceone  !ambiencetwo  !shocked  !55  !drip  !money  !bell  !rizz  or (knocking) (lotsofgunshots) (ambienceone) (55) (drip) (money) (bell) (rizz) inside !tts
+     Commands:  !changetext "Something" (owner + configured lead mods; updates /#text)  !changeicon --defaults star|heart|burger|mglass|twitch|none  !changeicon --imagelink <url> (same people; icon on /#text)  !<currency> (e.g. !cookies)  !cheer <n>  !tts <text>  !resetcookies <name|all>  !loudtojump (1000 cookies, command only)  !knocking  !lotsofgunshots  !ambienceone  !ambiencetwo  !shocked  !55  !drip  !money  !bell  !rizz  or (knocking) (lotsofgunshots) (ambienceone) (55) (drip) (money) (bell) (rizz) inside !tts
                 !mutesfx / !unmutesfx  (streamer + lead mods only; lead mods are set in the setup panel or with &leadmod=)  */
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
   body.bg { background: #0e0e10; }
@@ -232,7 +232,9 @@
   #screen-text { display:none; position:fixed; inset:0; align-items:center; justify-content:center; padding:3vw; box-sizing:border-box; color:#fff; font:800 clamp(28px,5vw,88px)/1.15 "Nunito", "Segoe UI", sans-serif; text-align:center; overflow-wrap:anywhere; white-space:pre-wrap; text-shadow:0 2px 6px rgba(0,0,0,.9),0 0 4px rgba(0,0,0,.9); }
   body.text-mode #screen-text { display:flex; }
   #st-wrap { display:flex; align-items:center; justify-content:center; gap:.3em; max-width:100%; animation:st-float 6s ease-in-out infinite; }
-  #st-logo { flex:none; width:1.05em; height:1.05em; filter:drop-shadow(0 2px 5px rgba(0,0,0,.55)); animation:st-logo 5s ease-in-out infinite; }
+  #st-logo { flex:none; display:block; width:1.05em; height:1.05em; filter:drop-shadow(0 2px 5px rgba(0,0,0,.55)); animation:st-logo 5s ease-in-out infinite; }
+  #st-logo svg, #st-logo img { display:block; width:100%; height:100%; object-fit:contain; }
+  #st-logo.none { display:none; }
   #st-label { min-width:0; }
   .st-word { display:inline-block; white-space:nowrap; }
   .st-ch { display:inline-block; white-space:pre; animation:st-bob 3.4s ease-in-out infinite; }
@@ -420,7 +422,7 @@
 <div id="alerts"></div>
 <div id="status"></div>
 <div id="screen-text" aria-live="polite"><div id="st-wrap">
-  <svg id="st-logo" viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0z"/><path fill="#9146FF" d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/></svg>
+  <span id="st-logo" aria-hidden="true"></span>
   <span id="st-label"></span>
 </div></div>
 <div id="ambient-stage"></div>
@@ -442,7 +444,7 @@
             <input id="cfg-account" autocomplete="off" placeholder="My Stream">
           </label>
           <label><span>Name shown on /#text <span class="opt">(optional, empty = your channel name)</span></span>
-            <input id="cfg-textname" autocomplete="off" maxlength="60" placeholder="Bogdan">
+            <input id="cfg-textname" autocomplete="off" maxlength="60" placeholder="Your channel name">
           </label>
         </div>
       </div>
@@ -581,6 +583,13 @@
     if (yk) q.set("ytkey", yk); else q.delete("ytkey");
     document.getElementById("cfg-overlay-link").value = location.origin + location.pathname + (q.toString() ? "?" + q.toString() : "") + "#overlay";
   }
+  const isBogdanChannel = v => normChannel(v) === "bogdanthegdplayer";
+  function autoFillTextName() {                            // the box fills itself with Bogdan only for the bogdanthegdplayer channel
+    const box = document.getElementById("cfg-textname"), ch = document.getElementById("cfg-channel").value;
+    if (isBogdanChannel(ch)) { if (!box.value.trim()) box.value = "Bogdan"; }
+    else if (box.value.trim() === "Bogdan" && !settings.textName) box.value = "";
+  }
+  document.getElementById("cfg-channel").addEventListener("input", autoFillTextName);
   function fillSetup() {
     for (const [key, id] of Object.entries(setupFields)) {
       const field = document.getElementById(id);
@@ -588,6 +597,7 @@
       if (key === "symbol" && !["cookie", "money", "box", "moon", "fries", "heart"].includes(value)) value = "cookie";
       field.value = value;
     }
+    autoFillTextName();
     document.getElementById("cfg-tts-enabled").checked = !!settings.tts;
     document.getElementById("cfg-alerts-enabled").checked = !!settings.alerts;
     document.getElementById("cfg-chat-enabled").checked = !!settings.chat;
@@ -689,6 +699,43 @@
   const screenTextEl = document.getElementById("screen-text");
   let screenTextBus = null;
   try { screenTextBus = new BroadcastChannel(SCREEN_TEXT_CHANNEL); } catch (_) {}
+  const SCREEN_ICON_KEY = "overlay-screen-icon-v1";
+  const SCREEN_ICON_SVG = {
+    twitch: '<svg viewBox="0 0 24 24"><path fill="#fff" d="M6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0z"/><path fill="#9146FF" d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/></svg>',
+    star: '<svg viewBox="0 0 24 24"><path fill="#FFC83D" stroke="#F59E0B" stroke-width="1" stroke-linejoin="round" d="M12 2.3l2.9 6.2 6.8.8-5 4.7 1.3 6.7L12 17.3l-6 3.4 1.3-6.7-5-4.7 6.8-.8z"/></svg>',
+    heart: '<svg viewBox="0 0 24 24"><path fill="#F4212E" d="M12 21.2S3.2 15.6 3.2 9.6C3.2 6.5 5.5 4.4 8.2 4.4c1.6 0 3 .8 3.8 2.1.8-1.3 2.2-2.1 3.8-2.1 2.7 0 5 2.1 5 5.2 0 6-8.8 11.6-8.8 11.6z"/><path fill="#fff" fill-opacity=".35" d="M6.2 8.4c.3-1.2 1.2-1.9 2.2-1.9.4 0 .7.1 1 .3-1.4-.1-2.6.6-3.2 1.6z"/></svg>',
+    burger: '<svg viewBox="0 0 24 24"><path fill="#E8A33D" d="M3 11a9 7 0 0 1 18 0z"/><g fill="#FFF1C9"><ellipse cx="8" cy="7.2" rx="1" ry=".55"/><ellipse cx="12" cy="5.6" rx="1" ry=".55"/><ellipse cx="16" cy="7.2" rx="1" ry=".55"/><ellipse cx="10" cy="9" rx="1" ry=".55"/><ellipse cx="14" cy="9" rx="1" ry=".55"/></g><path fill="#6BBF3A" d="M2.5 11.4c1.2 1.6 2.4 1.6 3.6 0s2.4-1.6 3.6 0 2.4 1.6 3.6 0 2.4-1.6 3.6 0 2.4 1.6 3.6 0v1.4H2.5z"/><rect x="3" y="12.8" width="18" height="3" rx="1.5" fill="#6B3A1E"/><path fill="#FFD23F" d="M3.5 15.8h17l-2.2 2.3-2-2.3-2.1 2.3-2.1-2.3-2 2.3-2.1-2.3-2.2 2.3z"/><path fill="#E8A33D" d="M3 18.4h18v.6a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 19z"/></svg>',
+    mglass: '<svg viewBox="0 0 24 24"><circle cx="10" cy="10" r="6.6" fill="#BFE3FF" stroke="#4B5563" stroke-width="2.4"/><path d="M14.9 14.9L21 21" stroke="#4B5563" stroke-width="3.2" stroke-linecap="round"/><path d="M6.6 9.4a3.7 3.7 0 0 1 2.7-2.8" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/></svg>'
+  };
+  const ST_ICON_ALIASES = { love: "heart", hearts: "heart", stars: "star", hamburger: "burger", magnifier: "mglass", magnifyingglass: "mglass", search: "mglass", magnify: "mglass", default: "twitch", off: "none" };
+  const normScreenIcon = v => {                                  // "star" / "love" / ... or an http(s) image link; anything else -> null
+    const t = String(v ?? "").trim();
+    if (/^https?:\/\/\S+$/i.test(t)) return t.slice(0, 1000);
+    const k = t.toLowerCase().replace(/[^a-z]/g, "");
+    const name = ST_ICON_ALIASES[k] || k;
+    return (name === "none" || SCREEN_ICON_SVG[name]) ? name : null;
+  };
+  const stIcon = document.getElementById("st-logo");
+  function renderScreenIcon(value) {
+    if (!stIcon) return;
+    const v = normScreenIcon(value) || "twitch";
+    stIcon.className = v === "none" ? "none" : "";
+    stIcon.textContent = "";
+    if (v === "none") return;
+    if (SCREEN_ICON_SVG[v]) { stIcon.innerHTML = SCREEN_ICON_SVG[v]; return; }
+    const img = document.createElement("img");
+    img.alt = ""; img.referrerPolicy = "no-referrer";
+    img.onerror = () => { stIcon.innerHTML = SCREEN_ICON_SVG.twitch; };     // a link that does not load shows the Twitch logo instead
+    img.src = v;
+    stIcon.appendChild(img);
+  }
+  function setScreenIcon(value, broadcast = true) {
+    const v = normScreenIcon(value) || "twitch";
+    try { localStorage.setItem(SCREEN_ICON_KEY, v); } catch (_) {}
+    renderScreenIcon(v);
+    if (broadcast && screenTextBus) { try { screenTextBus.postMessage({ icon: v }); } catch (_) {} }
+  }
+  try { renderScreenIcon(localStorage.getItem(SCREEN_ICON_KEY) || "twitch"); } catch (_) { renderScreenIcon("twitch"); }
   const stLabel = document.getElementById("st-label");
   function renderScreenText(text) {                       // every letter bobs a tiny bit out of step with its neighbours, so the text looks alive
     if (!stLabel) return;
@@ -721,9 +768,13 @@
     if (broadcast && screenTextBus) { try { screenTextBus.postMessage({ text: clean }); } catch (_) {} }
   }
   try { setScreenText(localStorage.getItem(SCREEN_TEXT_KEY) || "", false); } catch (_) {}
-  if (screenTextBus) screenTextBus.onmessage = event => { if (event.data && typeof event.data.text === "string") setScreenText(event.data.text, false); };
+  if (screenTextBus) screenTextBus.onmessage = event => {
+    if (event.data && typeof event.data.text === "string") setScreenText(event.data.text, false);
+    if (event.data && typeof event.data.icon === "string") setScreenIcon(event.data.icon, false);
+  };
   addEventListener("storage", event => {
     if (event.key === SCREEN_TEXT_KEY) setScreenText(event.newValue || "", false);
+    else if (event.key === SCREEN_ICON_KEY) renderScreenIcon(event.newValue || "twitch");
     else if (event.key === SETTINGS_KEY && event.newValue) {          // the name was changed in F2 on another page: update this one live
       try { settings.textName = String(JSON.parse(event.newValue).textName || ""); setScreenText(localStorage.getItem(SCREEN_TEXT_KEY) || "", false); } catch (_) {}
     }
@@ -2263,7 +2314,7 @@
     if (!cm) return false;
     const cmd = cm[1].toLowerCase(), arg = (cm[2] || "").trim();
     {                                                                   // show the command as typed (not the silent !give<currency>, not mod-only ones from viewers)
-      const control = ["mutesfx", "unmutesfx", "mutetts", "unmutetts", "disablerequests", "enablerequests", "requestsoff", "requestson", "refreshchat", "resetcookies", "changetext"].includes(cmd) || CUR_CMDS.some(c => cmd === "reset" + c);
+      const control = ["mutesfx", "unmutesfx", "mutetts", "unmutetts", "disablerequests", "enablerequests", "requestsoff", "requestson", "refreshchat", "resetcookies", "changetext", "changeicon"].includes(cmd) || CUR_CMDS.some(c => cmd === "reset" + c);
       const open = ["wheel", "request", "gift", "requests"].includes(cmd);
       if (open || (control && canControlSfx(tags, user)) || (cmd === "donerequest" && isMod(tags))) pushCmdLine(tags, user, message);
     }
@@ -2272,6 +2323,17 @@
       const quoted = arg.match(/^(?:"([\s\S]*)"|'([\s\S]*)')$/);
       const value = (quoted ? (quoted[1] ?? quoted[2]) : arg).trim().slice(0, 500);
       setScreenText(value);
+      return true;
+    }
+    if (cmd === "changeicon") {
+      if (!canControlSfx(tags, user)) return true;
+      const m = arg.match(/^--(defaults?|imagelink|image|link)\s+(\S+)/i);
+      const usage = "Use !changeicon --defaults star|heart|burger|mglass|twitch|none or !changeicon --imagelink https://…";
+      if (!m) { sfxNotice(usage, tags, user); return true; }
+      const value = /^default/i.test(m[1]) ? m[2] : m[2];
+      const icon = /^default/i.test(m[1]) ? (() => { const n = normScreenIcon(value); return n && !/^https?:/i.test(n) ? n : null; })() : (/^https?:\/\//i.test(value) ? normScreenIcon(value) : null);
+      if (!icon) { sfxNotice(/^default/i.test(m[1]) ? "Unknown icon. " + usage : "That is not an image link (it must start with http:// or https://).", tags, user); return true; }
+      setScreenIcon(icon);
       return true;
     }
     switch (cmd) {
