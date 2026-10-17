@@ -24,7 +24,7 @@
      &drop=35        % chance a message earns 1 cookie
      &block=a,b      extra words blocked from TTS
      &sfxvol=0.8     TTS sound-effect volume 0-1
-     TTS voices: [scream] [spongebob] switch the voice for the rest of the message; <scream>BRO</scream> styles just that part
+     TTS uses the normal voice
      &sfx=bruh,oof   extra *sfx* names; each plays <name>.mp3 from this folder
      #ambient: a third OBS browser source (full screen, transparent): soft low-opacity edge pulses on cheers, gifts, subs, raids, follows, bits
      &intensity=1    strength of the ambient pulses (0.3 = very faint, 2 = stronger)
@@ -603,6 +603,7 @@
 <script>
 (() => {
   const params = new URLSearchParams(location.search);
+  const OVERLAYMODE = location.hash.toLowerCase() === "#overlay";
   const VIEWCHAT = location.hash.toLowerCase() === "#viewchat";     // read-only chat page for the streamer: black background, no sounds, no setup panel
   const TEXTMODE = location.hash.toLowerCase() === "#text";
   const AMBIENTMODE = location.hash.toLowerCase() === "#ambient";
@@ -706,6 +707,7 @@
   const ttsStatus = document.getElementById("global-setup-tts-status");
   let ttsTestRun = 0;
   document.getElementById("global-tts-test").addEventListener("click", async () => {
+    if (!OVERLAYMODE) { ttsStatus.textContent = "TTS testing is available on #overlay only."; return; }
     const button = document.getElementById("global-tts-test");
     const val = id => document.getElementById(id).value.trim();
     const cfg = { ...settings, strict: true, ttsUrl: "", ttsEngine: "online", onlineVoice: "Brian" };
@@ -884,14 +886,14 @@
   const SILENT_USERS = new Set((params.get("silent") || "").toLowerCase().split(",").map(s => s.trim()).filter(Boolean));
   const FADE_S  = parseFloat(params.get("fade") ?? (VIEWCHAT ? "0" : "30"));     // the chat page keeps messages (no fading) so you can read back
   const MAX_MSG = Math.max(1, parseInt(params.get("max") || (VIEWCHAT ? "200" : "6"), 10));
-  const MUTE    = VIEWCHAT || AMBIENTMODE || params.get("mute") === "1";          // the chat reader never plays sound
+  const MUTE    = !OVERLAYMODE || params.get("mute") === "1";                     // only #overlay can play sounds
   const SPAM_ON = params.get("spam") !== "0";
-  const TTS_ON = !VIEWCHAT && !AMBIENTMODE && settings.tts && params.get("tts") !== "0";
+  const TTS_ON = OVERLAYMODE && settings.tts && params.get("tts") !== "0";
   const TTS_VOL = params.has("ttsvol") ? Math.min(1, Math.max(0, parseFloat(params.get("ttsvol")) || 0)) : 1;
   const TTS_VOICE = (params.get("ttsvoice") || "").toLowerCase();
   const DROP = (params.has("drop") ? Math.min(100, Math.max(0, parseFloat(params.get("drop")) || 0)) : 35) / 100;
   const EXTRA_BLOCK = (params.get("block") || "").toLowerCase().split(",").map(s => s.trim()).filter(Boolean);
-  const TTS_COST = 10, TTS_MAX_CHARS = 150, TTS_QUEUE_MAX = 5, TTS_USER_CD = 3000;
+  const SFX_QUEUE_MAX = 10;
   const ALERTS_ON = settings.alerts && params.get("alerts") !== "0";
   const ALERT_SEC = Math.max(2, parseFloat(params.get("alertsec")) || 6);
   const SFX_VOL = params.has("sfxvol") ? Math.min(1, Math.max(0, parseFloat(params.get("sfxvol")) || 0)) : 0.8;
@@ -1075,15 +1077,16 @@
   const STORE_KEY = "cookies:" + CHANNEL;
   let cookies = {};
   // Every fresh launch starts a new cookie season, except after !refreshchat (balances are kept).
-  if (!VIEWCHAT && !AMBIENTMODE) try {                   // the chat reader never touches saved balances
+  if (OVERLAYMODE) try {                                  // only the overlay manages cookie balances
     if (sessionStorage.getItem("keep-cookies") === "1") {
       sessionStorage.removeItem("keep-cookies");
       cookies = JSON.parse(localStorage.getItem(STORE_KEY) || "{}") || {};
     } else localStorage.setItem(STORE_KEY, "{}");
   } catch (e) {}
-  const saveCookies = () => { if (VIEWCHAT || AMBIENTMODE) return; try { localStorage.setItem(STORE_KEY, JSON.stringify(cookies)); } catch (e) {} };
+  const saveCookies = () => { if (!OVERLAYMODE) return; try { localStorage.setItem(STORE_KEY, JSON.stringify(cookies)); } catch (e) {} };
   const bal = (u) => cookies[u.toLowerCase()] || 0;
   const addCookies = (u, n) => {
+    if (!OVERLAYMODE) return;
     const k = u.toLowerCase();
     cookies[k] = Math.max(0, (cookies[k] || 0) + n);
     saveCookies();
@@ -1521,8 +1524,12 @@
      It only runs if &token=...&clientid=... are in the URL. */
   function startFollows() {
     if (!ALERTS_ON || !CHANNEL) return;
-    startFollowsKeyless();
-    return;
+    // Use Twitch EventSub when credentials are configured: it provides the exact new follower name.
+    // Without credentials, fall back to public follower-count polling (names depend on Twitch public access).
+    if (!TOKEN || !CLIENT_ID) {
+      startFollowsKeyless();
+      return;
+    }
     const H = { "Authorization": "Bearer " + TOKEN, "Client-Id": CLIENT_ID };
     let ids = null, current = null, retry = 0;
     async function getIds() {
@@ -1852,6 +1859,7 @@
   // plays <name>.mp3 from this folder; if it's missing, uses the built-in sound (if there is one)
   function playSfx(name) {
     return new Promise(resolve => {
+      if (!OVERLAYMODE) return resolve();
       if (SFX_VOL === 0 || sfxMuted) return resolve();
       let finished = false, started = false, fell = false, a = null, capTimer = null;
       const done = () => { if (!finished) { finished = true; sfxStops.delete(stop); if (a && a._rec) { a._rec.busy = false; a._rec = null; } resolve(); } };
@@ -1923,7 +1931,7 @@
     if (cost > 0 && !free) { if (!canPay(tags, user, cost, "!" + name)) return; pay(tags, user, cost); }
     sfxGlobalLast = now; sfxCmdLast.set(user, now);
     audio();
-    if (ttsQueue.length < TTS_QUEUE_MAX * 2) { ttsQueue.push([{ sfx: name }]); runTts(); }   // starts immediately when the shared TTS/SFX queue is free
+    if (ttsQueue.length < SFX_QUEUE_MAX * 2) { ttsQueue.push([{ sfx: name }]); runTts(); }   // starts immediately when the shared TTS/SFX queue is free
     pushCmdLine(tags, user, message || ("!" + name));
   }
   function doMuteSfx(tags, user, mute) {
@@ -1934,7 +1942,17 @@
   }
 
   /* ---------- TTS ---------- */
-  const BLOCK = ["nigg", "fagg", "retard", "killyourself", ...EXTRA_BLOCK];
+  // Blocked words
+  // Use Ctrl+F and search for "Blocked words" to edit this list.
+  // Add lowercase word fragments as quoted strings, separated by commas.
+  const BLOCKED_WORDS = [
+    "nigg",
+    "fagg",
+    "retard",
+    "killyourself"
+    // Add more blocked words here, for example: "exampleword",
+  ];
+  const BLOCK = [...BLOCKED_WORDS, ...EXTRA_BLOCK];
   function ttsBlocked(t) {
     const flat = t.toLowerCase()
       .replace(/[0]/g, "o").replace(/[@4]/g, "a").replace(/[1!|]/g, "i").replace(/\$/g, "s").replace(/3/g, "e")
@@ -1983,36 +2001,31 @@
   }
 
   function cleanTts(t) {
-    return t.replace(/https?:\/\/\S+|www\.\S+/gi, "")
+    return t.replace(/\[(?:scream|spongebob)\]|<\/?(?:scream|spongebob)>/gi, "")
+            .replace(/https?:\/\/\S+|www\.\S+/gi, "")
             .replace(/@\w+/g, "")
             .replace(/(.)\1{4,}/gu, "$1$1$1")
-            .replace(/\s+/g, " ").trim()
-            .slice(0, TTS_MAX_CHARS);
+            .replace(/\s+/g, " ").trim();
   }
 
   // "hello *meow* there" -> [say hello, sfx meow, say there]
   function parseSegments(text) {
-    // voice tags: [scream] changes the voice from there on; <scream>...</scream> styles only what is inside
+    // Legacy voice tags are stripped; speech always uses the normal voice.
     const segs = [];
-    let last = 0, count = 0, base = "", inner = "", m;
-    const re = /\[(scream|spongebob)\]|<(scream|spongebob)>|<\/(?:scream|spongebob)>|\*([a-z0-9_-]+)\*/gi;
-    const flush = (end) => { if (end > last) segs.push({ say: text.slice(last, end).replace(/\*/g, ""), style: inner || base }); };   // stray asterisks are not read out
+    let last = 0, count = 0, m;
+    const re = /\\*([a-z0-9_-]+)\\*/gi;
+    const flush = (end) => {
+      if (end > last) segs.push({ say: text.slice(last, end).replace(/\\*/g, "") });
+    };
     while ((m = re.exec(text))) {
-      if (m[3] !== undefined) {                              // *sfx*
-        const name = m[3].toLowerCase();
-        if (!SFX_NAMES.has(name)) continue;
-        flush(m.index); last = m.index + m[0].length;
-        if (CMD_ONLY_SFX.has(name)) continue;                // command-only: drop it from the speech, never play it
-        if (count++ < SFX_MAX) segs.push({ sfx: name });
-        continue;
-      }
+      const name = m[1].toLowerCase();
+      if (!SFX_NAMES.has(name)) continue;
       flush(m.index); last = m.index + m[0].length;
-      if (m[1]) base = m[1].toLowerCase();
-      else if (m[2]) inner = m[2].toLowerCase();
-      else inner = "";
+      if (CMD_ONLY_SFX.has(name)) continue;
+      if (count++ < SFX_MAX) segs.push({ sfx: name });
     }
     flush(text.length);
-    return segs.map(x => x.sfx ? x : { say: x.say.trim(), style: x.style }).filter(x => x.sfx || x.say);
+    return segs.map(x => x.sfx ? x : { say: x.say.trim() }).filter(x => x.sfx || x.say);
   }
 
   // Browser voices load asynchronously. Wait briefly for them instead of speaking with none.
@@ -2050,7 +2063,7 @@
   }
 
   let allMuted = false, ttsAudioStop = null;     // M key: mutes every sound and TTS
-  const ttsQueue = [], ttsLastUser = new Map();
+  const ttsQueue = [];
   let ttsBusy = false, ttsLocked = false;
   const liveUtterances = new Set();                 // Chrome drops "end" events for utterances that get garbage-collected, so keep a reference
   const wait = ms => new Promise(r => setTimeout(r, ms));
@@ -2119,7 +2132,7 @@
         clearTimeout(startTimer);
         if (!fx.rate) return;                                  // normal voice: untouched
         try { audio.preservesPitch = audio.mozPreservesPitch = audio.webkitPreservesPitch = fx.pre !== false; } catch (_) {}
-        if (fx.wobble) {                                       // speed (and so pitch) flips back and forth: shaky scream / mocking sing-song
+        if (fx.wobble) {
           const [lo, hi, ms] = fx.wobble; let up = false;
           audio.playbackRate = lo;
           wobbleTimer = setInterval(() => { up = !up; try { audio.playbackRate = up ? hi : lo; } catch (_) {} }, ms);
@@ -2138,18 +2151,9 @@
   }
 
   // Hosted no-signup TTS proxy. No Puter, no Google Translate direct endpoint, no system-voice fallback.
-  const TTS_FX = {
-    // pitch/speed go to the voice service; rate is the playback speed on top (pitch is kept, so only the tempo changes)
-    scream:    { pitch: 1, speed: 1,    rate: 1.2, shout: true },   // normal pitch, 1.2x, every word shouted on its own: IT. IS. NOT. WORKING!!!
-    spongebob: { pitch: 2, speed: 0.75, rate: 1.5 }                 // pitch 2, drawn-out letters sped up by 1.5x
-  };
-  function screamText(text) {                              // "it is not working" -> "IT. IS. NOT. WORKING!!!" (the full stops make the gaps)
-    const words = String(text).replace(/[.!?,;:]+/g, " ").trim().split(/\s+/).filter(Boolean).map(w => w.toUpperCase());
-    return words.map((w, i) => i === words.length - 1 ? w + "!!!" : w + ".").join(" ");
-  }
+  const TTS_FX = {};
   async function speakOnline(text, cfg = settings, style = "") {
     const fx = TTS_FX[style];
-    if (fx && fx.shout) text = screamText(text) || text;
     const url = "https://tts-api.netlify.app/?text=" + encodeURIComponent(text) + "&lang=en" + (fx ? `&pitch=${fx.pitch}&speed=${fx.speed}` : "&pitch=0.8&speed=1.5");
     await playAudioUrl(url, fx);
   }
@@ -2241,23 +2245,11 @@
     const text = cleanTts(messageWithEmoteNames.replace(/^!tts\s*/i, ""));
     if (!text) return;
 
-    // English only: ignore messages written mostly in other scripts (not charged)
-    const letters = text.match(/\p{L}/gu) || [];
-    const latin = text.match(/\p{Script=Latin}/gu) || [];
-    if (letters.length && latin.length / letters.length < 0.7) return;
-
-    const mod = isMod(tags);
-    const free = canControlSfx(tags, user);                  // only the streamer and lead mods use TTS for free
-    const have = bal(user);
-    if (!free && have < TTS_COST) { addCookieCard(tags, user, true); return; }
-    if (ttsBlocked(text)) return;                           // blocked text is never charged
-    if (ttsQueue.length >= TTS_QUEUE_MAX) return;           // queue full, not charged
+    // No message-length, language, cooldown, cookie-cost, or queue-size limit.
+    // Blocked words remain the only text-based reason to skip TTS.
+    if (ttsBlocked(text)) return;
     const segs = parseSegments(text);
     if (!segs.length) return;
-    const now = Date.now();
-    if (!mod && now - (ttsLastUser.get(user) || 0) < TTS_USER_CD) return;
-    if (!free) addCookies(user, -TTS_COST);
-    if (!mod) ttsLastUser.set(user, now);
 
     pushCmdLine(tags, user, message);
 
@@ -2331,7 +2323,8 @@
   // Level requests are announced immediately; no queue is stored.
   function doRequest(tags, user, arg) {
     if (requestsDisabled) { queueAlert("requestinfo", "Level requests are currently DISABLED", "Please wait until the streamer enables them again.", 8); return; }
-    const level = arg.replace(/https?:\/\/\S+|www\.\S+/gi, "").replace(/\s+/g, " ").trim().slice(0, 100);
+    const level = arg.replace(/\[(?:scream|spongebob)\]|<\/?(?:scream|spongebob)>/gi, "")
+            .replace(/https?:\/\/\S+|www\.\S+/gi, "").replace(/\s+/g, " ").trim().slice(0, 100);
     if (!level) { queueAlert("requestinfo", "Request level", "Use !request followed by the level name.", 8); return; }
     if (ttsBlocked(level)) { queueAlert("requestinfo", "That request can't be accepted", "Please try a different level name.", 8); return; }
     if (cdLeft("req:" + user.toLowerCase(), 30000)) { queueAlert("requestinfo", "Please wait before requesting again", "You can request another level in 30 seconds.", 8); return; }
@@ -2836,6 +2829,7 @@
     // commands and cheers (checked before the spam filter, which drops other "!" messages)
     if (!isAction) {
       activeChatters.set(user.toLowerCase(), { name: tags["display-name"] || user, seen: Date.now() });
+      if (OVERLAYMODE) {
       const c = message.match(CHEER_RE);
       if (c) { pushCmdLine(tags, user, message); tryCheer(tags, user, c[1]); return; }
       if (VIEWCHAT) {                                  // chat reader: commands are never shown; gift events can be mirrored
@@ -2848,6 +2842,7 @@
       } else if (/^!tts(\s|$)/i.test(message)) { handleTts(tags, user, message); return; }
       { const bm = message.match(/^!([a-z0-9]+)\s*$/i); if (bm && CUR_CMDS.includes(bm[1].toLowerCase())) { pushCmdLine(tags, user, message); showBalance(tags, user); return; } }
       if (handleCommand(tags, user, message)) return;
+      }
     }
 
     // bots never show; owner, lead mods, mods and VIPs always do; viewers go through the spam filter
@@ -2856,7 +2851,7 @@
 
     // Viewers earn random drops; moderators earn their guaranteed +1 above for every message.
     // (commands such as !vineboom return earlier, so they never earn anything)
-    if (!VIEWCHAT) {
+    if (OVERLAYMODE) {
       if (isMod(tags)) addCookies(user, 1);
       else if (Math.random() < DROP) addCookies(user, 1);
     }
