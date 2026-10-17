@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <title>Stream chat overlay</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&display=swap" rel="stylesheet">
@@ -57,11 +59,11 @@
   .msg.out { opacity: 0; }
   .name { font-weight: 800; }
   .name::after { content: ":"; color: #fff; font-weight: 400; margin-right: .35em; }
-  .badges { display: inline-flex; flex-wrap: wrap; gap: 3px; margin-right: 5px; vertical-align: .12em; }
+  .badges { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 3px; margin-right: 5px; vertical-align: baseline; }
   .chat-badge {
     display: inline-block; padding: 1px 5px; border-radius: 3px;
     font: 700 .62em/1.45 "Segoe UI", system-ui, sans-serif;
-    letter-spacing: .025em; text-shadow: none; vertical-align: middle;
+    letter-spacing: .025em; text-shadow: none; vertical-align: middle; transform: translateY(-.24em);
     color: #fff; background: #53535f;
   }
   .chat-badge.broadcaster { background: #9147ff; }
