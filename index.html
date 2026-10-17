@@ -29,9 +29,6 @@
      !skipsong       (streamer + lead mods) skips the current song
      &songinst=https://my.piped.api   extra Piped/Invidious hosts (only used if YouTube won't embed a video)
      (#videoplayer still works: it redirects to #songplayer)
-     #mascot: another OBS browser source (transparent). A mascot that opens its mouth when you talk (needs your microphone; allow it when asked)
-     &sens=1         mascot mic sensitivity (2 = reacts to quieter speech, 0.5 = needs louder)    &color=ff9a4d  mascot fur color (hex, no #)
-     &mic=name       pick a microphone (part of its name, e.g. "usb")
      #ambient: a third OBS browser source (full screen, transparent): soft low-opacity edge pulses on cheers, gifts, subs, raids, follows, bits
      &intensity=1    strength of the ambient pulses (0.3 = very faint, 2 = stronger)
      &alerts=0       turn alerts off        &alertsec=6  seconds per alert
@@ -49,10 +46,6 @@
      Commands:  !changetext "Something" (owner + configured lead mods; updates /#text)  !<currency> (e.g. !cookies)  !cheer <n>  !tts <text>  !resetcookies <name|all>  !loudtojump (1000 cookies, command only)  !knocking  !lotsofgunshots  !ambienceone  !ambiencetwo  !shocked  !55  !drip  !money  !bell  !rizz  or (knocking) (lotsofgunshots) (ambienceone) (55) (drip) (money) (bell) (rizz) inside !tts
                 !mutesfx / !unmutesfx  (streamer + lead mods only; lead mods are set in the setup panel or with &leadmod=)  */
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
-  body.mascot-mode > *:not(#mascot-root) { display: none !important; }
-  #mascot-root { position: fixed; inset: 0; font-family: "Nunito", "Segoe UI", Arial, sans-serif; }
-  #mascot-root img { width: 100%; height: 100%; display: block; object-fit: contain; object-position: center bottom; }
-  #mascot-hint { position: absolute; top: 8px; left: 8px; right: 8px; text-align: center; font-weight: 800; font-size: 14px; color: #fff; background: rgba(0,0,0,.65); border-radius: 8px; padding: 6px 10px; display: none; cursor: pointer; }
   body.bg { background: #0e0e10; }
   #chat {
     position: absolute; inset: 0;
@@ -533,91 +526,7 @@
   if (location.hash.toLowerCase() === "#videoplayer") location.replace(location.pathname + location.search + "#songplayer");   // old link: #videoplayer now opens #songplayer
   const SONGMODE = location.hash.toLowerCase() === "#songplayer";
   const AMBIENTMODE = location.hash.toLowerCase() === "#ambient";
-  const MASCOTMODE = location.hash.toLowerCase() === "#mascot";
 
-  /* ---------- #mascot: talking mascot driven by the microphone (standalone: no chat, no cookies, no setup panel) ---------- */
-  function startMascot() {
-    document.body.classList.add("mascot-mode");
-    if (params.get("bg") === "1") document.body.classList.add("bg");
-    document.title = "Mascot";
-    window.addEventListener("hashchange", () => location.reload());
-    const SENS = Math.max(0.1, Math.min(10, parseFloat(params.get("sens")) || 5));
-
-    const root = document.createElement("div");
-    root.id = "mascot-root";
-    root.innerHTML = `
-      <img id="mascot-sprite" src="normal.png" alt="Mascot" draggable="false">
-      <div id="mascot-hint"></div>`;
-    document.body.appendChild(root);
-    const $ = (id) => root.querySelector("#" + id);
-    const sprite = $("mascot-sprite"), hint = $("mascot-hint");
-    const showHint = (t) => { hint.textContent = t; hint.style.display = t ? "block" : "none"; };
-
-    /* microphone */
-    let analyser = null, buf = null, actx = null, stream = null;
-    async function openMic() {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { showHint("Microphone is not available here. Open this page over https:// or from localhost."); return; }
-      try {
-        if (stream) stream.getTracks().forEach(t => t.stop());
-        stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true } });
-        const want = (params.get("mic") || "").toLowerCase();
-        if (want) {                                           // pick a microphone by part of its name
-          const dev = (await navigator.mediaDevices.enumerateDevices()).find(d => d.kind === "audioinput" && d.label.toLowerCase().includes(want));
-          const cur = stream.getAudioTracks()[0] && stream.getAudioTracks()[0].getSettings().deviceId;
-          if (dev && dev.deviceId !== cur) {
-            stream.getTracks().forEach(t => t.stop());
-            stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: dev.deviceId }, echoCancellation: false, noiseSuppression: true, autoGainControl: false } });
-          }
-        }
-        if (actx) { try { actx.close(); } catch (e) {} }
-        actx = new (window.AudioContext || window.webkitAudioContext)();
-        const src = actx.createMediaStreamSource(stream);
-        analyser = actx.createAnalyser();
-        analyser.fftSize = 1024; analyser.smoothingTimeConstant = 0;
-        src.connect(analyser);                                // never connected to the speakers, so no echo
-        buf = new Float32Array(analyser.fftSize);
-        const tr = stream.getAudioTracks()[0];
-        if (tr) tr.onended = () => { analyser = null; showHint("Microphone disconnected. Retrying…"); setTimeout(openMic, 3000); };
-        if (actx.state === "suspended") await actx.resume().catch(() => {});
-        showHint(actx.state === "running" ? "" : "Click here to start the mascot");
-      } catch (e) {
-        analyser = null;
-        const denied = e && (e.name === "NotAllowedError" || e.name === "SecurityError");
-        showHint(denied ? "Microphone blocked. Allow it for this page, then click here." : "No microphone found. Plug one in, then click here.");
-      }
-    }
-    hint.addEventListener("click", openMic);
-    document.addEventListener("click", () => { if (actx && actx.state === "suspended") actx.resume().then(() => showHint("")).catch(() => {}); });
-    openMic();
-
-    /* Switch between the supplied closed-mouth and open-mouth PNGs. */
-    let floor = 0.002, isOpen = false, last = performance.now();
-    const normalSrc = new URL("normal.png", location.href).href;
-    const openSrc = new URL("open.png", location.href).href;
-    const openImage = new Image();
-    openImage.src = openSrc;
-    function frame(now) {
-      let rms = 0;
-      if (analyser) {
-        analyser.getFloatTimeDomainData(buf);
-        let sum = 0;
-        for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
-        rms = Math.sqrt(sum / buf.length);
-      }
-      floor = rms < floor ? floor * 0.92 + rms * 0.08 : Math.min(0.02, floor + (rms - floor) * 0.001);
-      const gate = floor * 1.2 + 0.0006;
-      const level = Math.max(0, Math.min(1, (rms - gate) / (0.04 / SENS)));
-      const nextOpen = level > 0.025;
-      if (nextOpen !== isOpen) {
-        isOpen = nextOpen;
-        sprite.src = isOpen ? openSrc : normalSrc;
-      }
-      last = now;
-      requestAnimationFrame(frame);
-    }
-    requestAnimationFrame(frame);
-  }
-  if (MASCOTMODE) { startMascot(); return; }
   const ICON_ALIASES = { cookie: "cookie", money: "money", box: "box", moon: "moon", fries: "fries", heart: "heart", follow: "user-plus", raid: "users", sub: "star", gift: "gift", bits: "spark", request: "box", wheel: "dice", volume: "volume", alert: "bell" };
   function makeIcon(name, className = "ui-icon") {
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -741,7 +650,7 @@
   else openSetup();
   window.addEventListener("hashchange", () => {
     if (location.hash.toLowerCase() === "#videoplayer") { location.replace(location.pathname + location.search + "#songplayer"); return; }
-    if ((location.hash.toLowerCase() === "#viewchat") !== VIEWCHAT || (location.hash.toLowerCase() === "#text") !== TEXTMODE || (location.hash.toLowerCase() === "#songplayer") !== SONGMODE || (location.hash.toLowerCase() === "#ambient") !== AMBIENTMODE || (location.hash.toLowerCase() === "#mascot") !== MASCOTMODE) { location.reload(); return; }
+    if ((location.hash.toLowerCase() === "#viewchat") !== VIEWCHAT || (location.hash.toLowerCase() === "#text") !== TEXTMODE || (location.hash.toLowerCase() === "#songplayer") !== SONGMODE || (location.hash.toLowerCase() === "#ambient") !== AMBIENTMODE) { location.reload(); return; }
     if (location.hash.toLowerCase() === "#overlay" || VIEWCHAT || TEXTMODE || SONGMODE || AMBIENTMODE) closeSetup();
     else openSetup();
   });
@@ -2686,7 +2595,29 @@
   const seenMsgIds = new Set();
   function addMessage(tags, user, message) {
     if (String(message).length > 899) return;
-    message = message.replace(/[\u{E0000}\u200B-\u200D\uFEFF]/gu, "").trim();       // Twitch adds invisible characters to repeated messages
+    const rawChars = Array.from(String(message));
+    const keep = rawChars.map(c => !/[\u{E0000}\u200B-\u200D\uFEFF]/u.test(c));
+    message = rawChars.filter((c, i) => keep[i]).join("").trim();       // Twitch adds invisible characters to repeated messages
+    {   // cleaning shifts character positions, so move the Twitch emote ranges with them
+        const lead = Array.from(String(rawChars.filter((c, i) => keep[i]).join(""))).length - Array.from(String(rawChars.filter((c, i) => keep[i]).join("").replace(/^\s+/, ""))).length;
+        const map = []; let k = 0;
+        rawChars.forEach((c, i) => { map[i] = keep[i] ? k++ - lead : -1; });
+        if (tags.emotes) {
+            tags = Object.assign({}, tags, { emotes: tags.emotes.split("/").map(e => {
+                const [id, pos] = e.split(":");
+                const r = (pos || "").split(",").map(x => {
+                    const [st, en] = x.split("-").map(Number);
+                    if (isNaN(st) || isNaN(en)) return null;
+                    let ns = st, ne = en;
+                    while (ns <= en && map[ns] < 0) ns++;
+                    while (ne >= st && map[ne] < 0) ne--;
+                    if (ns > ne || map[ns] == null || map[ne] == null || map[ns] < 0) return null;
+                    return map[ns] + "-" + map[ne];
+                }).filter(Boolean);
+                return r.length ? id + ":" + r.join(",") : "";
+            }).filter(Boolean).join("/") });
+        }
+    }
     let isAction = false;
     const m = message.match(/^\x01ACTION (.*)\x01$/);
     if (m) { isAction = true; message = m[1]; }
