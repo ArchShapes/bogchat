@@ -297,8 +297,7 @@
   .cs.open .cs-btn::after { transform: translateY(-30%) rotate(225deg); }
   .cs-btn:hover { border-color: #3a3d43; }
   .cs-btn:focus-visible, .cs.open .cs-btn { border-color: #3ec9b0; }
-  .cs-list { position: absolute; z-index: 5; left: 0; right: 0; top: calc(100% + 4px); max-height: 220px; overflow-y: auto; padding: 4px; box-sizing: border-box; background: #141517; border: 1px solid #2b2d31; border-radius: 8px; scrollbar-width: thin; scrollbar-color: #33363b transparent; }
-  .cs.up .cs-list { top: auto; bottom: calc(100% + 4px); }
+  .cs-list { position: fixed; z-index: 100002; max-height: 260px; overflow-y: auto; padding: 4px; box-sizing: border-box; background: #141517; border: 1px solid #2b2d31; border-radius: 8px; scrollbar-width: thin; scrollbar-color: #33363b transparent; }
   .cs-list[hidden] { display: none; }
   .cs-opt { padding: 7px 9px; border-radius: 5px; cursor: pointer; color: #d6d8dc; font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .cs-opt:hover, .cs-opt.hl { background: #1d1f22; color: #fff; }
@@ -3220,13 +3219,23 @@
       const cur = sel.options[sel.selectedIndex];
       btn.textContent = cur ? cur.textContent : "";
     }
-    function mark(i) { hl = i; items().forEach((d, k) => d.classList.toggle("hl", k === i)); const d = items()[i]; if (d) d.scrollIntoView({ block: "nearest" }); }
+    function mark(i) {
+      hl = i; items().forEach((d, k) => d.classList.toggle("hl", k === i));
+      const d = items()[i];
+      if (d) { const t = d.offsetTop, b = t + d.offsetHeight; if (t < list.scrollTop) list.scrollTop = Math.max(0, t - 4); else if (b > list.scrollTop + list.clientHeight) list.scrollTop = b - list.clientHeight + 4; }
+    }
+    function place() {                                       // the list floats over the page (position: fixed) so no panel edge can clip it
+      const r = btn.getBoundingClientRect(), below = innerHeight - r.bottom - 14, above = r.top - 14;
+      list.style.maxHeight = "";
+      const full = Math.min(list.scrollHeight, 260), up = below < Math.min(full, 170) && above > below;      // open downward whenever there is a reasonable amount of room
+      const room = Math.max(80, up ? above : below), h = Math.min(full, room);
+      list.style.maxHeight = room + "px";
+      list.style.left = r.left + "px"; list.style.width = r.width + "px";
+      list.style.top = (up ? r.top - 4 - h : r.bottom + 4) + "px";
+    }
     function open() {
-      wrap.classList.remove("up");
       list.hidden = false; wrap.classList.add("open"); btn.setAttribute("aria-expanded", "true");
-      const r = btn.getBoundingClientRect(), need = Math.min(list.scrollHeight, 220) + 12;
-      if (innerHeight - r.bottom < need && r.top > need) wrap.classList.add("up");
-      mark(sel.selectedIndex);
+      place(); list.scrollTop = 0; mark(sel.selectedIndex);
     }
     function close() { list.hidden = true; wrap.classList.remove("open"); btn.setAttribute("aria-expanded", "false"); }
     function pick(i) {
@@ -3248,6 +3257,8 @@
       else if (e.key === "Tab") close();
     });
     document.addEventListener("mousedown", e => { if (!wrap.contains(e.target)) close(); });
+    addEventListener("resize", () => { if (!list.hidden) close(); });
+    document.addEventListener("scroll", e => { if (!list.hidden && e.target !== list) close(); }, true);
     new MutationObserver(render).observe(sel, { childList: true, subtree: true });
     Object.defineProperty(sel, "value", { configurable: true, get() { return selValue.get.call(this); }, set(v) { selValue.set.call(this, v); render(); } });
     sel.addEventListener("change", render);
