@@ -231,6 +231,15 @@
 
   #screen-text { display:none; position:fixed; inset:0; align-items:center; justify-content:center; padding:3vw; box-sizing:border-box; color:#fff; font:800 clamp(28px,5vw,88px)/1.15 "Nunito", "Segoe UI", sans-serif; text-align:center; overflow-wrap:anywhere; white-space:pre-wrap; text-shadow:0 2px 6px rgba(0,0,0,.9),0 0 4px rgba(0,0,0,.9); }
   body.text-mode #screen-text { display:flex; }
+  #st-wrap { display:flex; align-items:center; justify-content:center; gap:.3em; max-width:100%; animation:st-float 6s ease-in-out infinite; }
+  #st-logo { flex:none; width:1.05em; height:1.05em; filter:drop-shadow(0 2px 5px rgba(0,0,0,.55)); animation:st-logo 5s ease-in-out infinite; }
+  #st-label { min-width:0; }
+  .st-word { display:inline-block; white-space:nowrap; }
+  .st-ch { display:inline-block; white-space:pre; animation:st-bob 3.4s ease-in-out infinite; }
+  @keyframes st-float { 0%,100% { transform:translate(0,0) rotate(-.5deg); } 50% { transform:translate(2px,-5px) rotate(.5deg); } }
+  @keyframes st-logo  { 0%,100% { transform:rotate(-3deg) scale(1); } 50% { transform:rotate(3deg) scale(1.04); } }
+  @keyframes st-bob   { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-.06em); } }
+  @media (prefers-reduced-motion: reduce) { #st-wrap, #st-logo, .st-ch { animation:none; } }
   body.text-mode #chat, body.text-mode #alerts, body.text-mode #status, body.text-mode #global-setup-backdrop, body.text-mode #setup-hint, body.text-mode #demo { display:none !important; }
   body.text-mode { background:transparent !important; }
 
@@ -410,7 +419,10 @@
 <div id="chat"></div>
 <div id="alerts"></div>
 <div id="status"></div>
-<div id="screen-text" aria-live="polite"></div>
+<div id="screen-text" aria-live="polite"><div id="st-wrap">
+  <svg id="st-logo" viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0z"/><path fill="#9146FF" d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/></svg>
+  <span id="st-label"></span>
+</div></div>
 <div id="ambient-stage"></div>
 <div id="global-setup-backdrop" role="dialog" aria-modal="true" aria-labelledby="global-setup-title">
   <section id="global-setup">
@@ -674,10 +686,27 @@
   const screenTextEl = document.getElementById("screen-text");
   let screenTextBus = null;
   try { screenTextBus = new BroadcastChannel(SCREEN_TEXT_CHANNEL); } catch (_) {}
+  const stLabel = document.getElementById("st-label");
+  function renderScreenText(text) {                       // every letter bobs a tiny bit out of step with its neighbours, so the text looks alive
+    if (!stLabel) return;
+    stLabel.textContent = "";
+    let i = 0;
+    String(text).split(/(\s+)/).forEach(part => {
+      if (!part) return;
+      if (/^\s+$/.test(part)) { stLabel.append(document.createTextNode(part)); return; }
+      const w = document.createElement("span"); w.className = "st-word";
+      for (const ch of Array.from(part)) {
+        const c = document.createElement("span"); c.className = "st-ch"; c.textContent = ch;
+        c.style.animationDelay = (-i++ * 0.18) + "s";
+        w.appendChild(c);
+      }
+      stLabel.appendChild(w);
+    });
+  }
   function setScreenText(value, broadcast = true) {
     const clean = String(value ?? "").slice(0, 500);
     try { localStorage.setItem(SCREEN_TEXT_KEY, clean); } catch (_) {}
-    if (screenTextEl) screenTextEl.textContent = clean;
+    renderScreenText(clean || "Bogdan");
     if (broadcast && screenTextBus) { try { screenTextBus.postMessage({ text: clean }); } catch (_) {} }
   }
   try { setScreenText(localStorage.getItem(SCREEN_TEXT_KEY) || "", false); } catch (_) {}
