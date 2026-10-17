@@ -25,7 +25,7 @@
      &block=a,b      extra words blocked from TTS
      &sfxvol=0.8     TTS sound-effect volume 0-1
      TTS voices: [scream] [natural] [spongebob] switch the voice for the rest of the message; <scream>BRO</scream> styles just that part
-     &sfx=bruh,oof   extra (sfx) names; each plays <name>.mp3 from this folder
+     &sfx=bruh,oof   extra *sfx* names; each plays <name>.mp3 from this folder
      #ambient: a third OBS browser source (full screen, transparent): soft low-opacity edge pulses on cheers, gifts, subs, raids, follows, bits
      &intensity=1    strength of the ambient pulses (0.3 = very faint, 2 = stronger)
      &alerts=0       turn alerts off        &alertsec=6  seconds per alert
@@ -1990,15 +1990,15 @@
             .slice(0, TTS_MAX_CHARS);
   }
 
-  // "hello (meow) there" -> [say hello, sfx meow, say there]
+  // "hello *meow* there" -> [say hello, sfx meow, say there]
   function parseSegments(text) {
     // voice tags: [scream] changes the voice from there on; <scream>...</scream> styles only what is inside
     const segs = [];
     let last = 0, count = 0, base = "", inner = "", m;
-    const re = /\[(scream|natural|spongebob)\]|<(scream|natural|spongebob)>|<\/(?:scream|natural|spongebob)>|\(([a-z0-9_-]+)\)/gi;
-    const flush = (end) => { if (end > last) segs.push({ say: text.slice(last, end), style: inner || base }); };
+    const re = /\[(scream|natural|spongebob)\]|<(scream|natural|spongebob)>|<\/(?:scream|natural|spongebob)>|\*([a-z0-9_-]+)\*/gi;
+    const flush = (end) => { if (end > last) segs.push({ say: text.slice(last, end).replace(/\*/g, ""), style: inner || base }); };   // stray asterisks are not read out
     while ((m = re.exec(text))) {
-      if (m[3] !== undefined) {                              // (sfx)
+      if (m[3] !== undefined) {                              // *sfx*
         const name = m[3].toLowerCase();
         if (!SFX_NAMES.has(name)) continue;
         flush(m.index); last = m.index + m[0].length;
@@ -2476,7 +2476,7 @@
       "Bits":     () => queueAlert("bits", "SampleViewer cheered 100 bits!"),
       "Cheer cookies":() => addCheer({ "display-name": "SampleViewer" }, "sampleviewer", 50),
       "BIG cheer":() => addCheer({ "display-name": "SampleViewer" }, "sampleviewer", 300),
-      "TTS+sfx":  () => handleTts(modTags, "demo", "!tts Hello there (knocking) this is a test (meow) (vineboom)"),
+      "TTS+sfx":  () => handleTts(modTags, "demo", "!tts Hello there *knocking* this is a test *meow* *vineboom*"),
       "Cookies":  () => { noteLast.clear(); addCookieCard({ "display-name": "SampleViewer" }, "sampleviewer", false); },
       "Short":    () => { noteLast.clear(); addCookieCard({ "display-name": "SampleViewer" }, "sampleviewer", true); },
       "Wheel":    () => { rewardCd.clear(); doWheel(modTags, "demo"); },
