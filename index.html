@@ -231,15 +231,18 @@
     to   { opacity: 1; transform: none; }
   }
 
-  #screen-text { display:none; position:fixed; inset:0; align-items:center; justify-content:center; padding:3vw; box-sizing:border-box; color:#fff; font:800 clamp(28px,5vw,88px)/1.15 "Nunito", "Segoe UI", sans-serif; text-align:center; overflow-wrap:anywhere; white-space:pre-wrap; text-shadow:0 2px 6px rgba(0,0,0,.9),0 0 4px rgba(0,0,0,.9); }
+  #screen-text { --st-x:38vw; display:none; position:fixed; inset:0; align-items:center; justify-content:flex-start; padding:3vw 3vw 3vw var(--st-x); box-sizing:border-box; color:#fff; font:800 clamp(28px,5vw,88px)/1.15 "Nunito", "Segoe UI", sans-serif; text-align:center; overflow-wrap:anywhere; white-space:pre-wrap; text-shadow:0 2px 6px rgba(0,0,0,.9),0 0 4px rgba(0,0,0,.9); }
   body.text-mode #screen-text { display:flex; }
-  #st-wrap { display:flex; align-items:center; justify-content:center; gap:.3em; max-width:100%; animation:st-float 6s ease-in-out infinite; }
+  #screen-text.right { justify-content:flex-end; padding:3vw var(--st-x) 3vw 3vw; }   /* icon on the right: its right edge stays put and the text grows to the left */
+  #screen-text.noicon { justify-content:center; padding:3vw; }
+  #st-wrap { display:flex; align-items:center; justify-content:flex-start; gap:.3em; max-width:100%; text-align:left; transform-origin:left center; animation:st-float 6s ease-in-out infinite; }
   #st-logo { flex:none; display:block; width:1.05em; height:1.05em; filter:drop-shadow(0 2px 5px rgba(0,0,0,.55)); animation:st-logo 5s ease-in-out infinite; }
   #st-logo svg, #st-logo img { display:block; width:100%; height:100%; object-fit:contain; }
   #st-logo.none { display:none; }
-  #st-wrap.right { flex-direction:row-reverse; }
-  #st-label { min-width:0; }
-  .st-word { display:inline-block; white-space:nowrap; }
+  #st-wrap.right { flex-direction:row-reverse; justify-content:flex-start; text-align:right; transform-origin:right center; }
+  #screen-text.noicon #st-wrap { justify-content:center; text-align:center; transform-origin:center; }
+  #st-label { min-width:0; max-width:100%; }
+  .st-word { display:inline-block; max-width:100%; white-space:normal; overflow-wrap:anywhere; }   /* long words wrap instead of running into the icon */
   .st-ch { display:inline-block; white-space:pre; animation:st-bob 3.4s ease-in-out infinite; }
   @keyframes st-float { 0%,100% { transform:translate(0,0) rotate(-.5deg); } 50% { transform:translate(2px,-5px) rotate(.5deg); } }
   @keyframes st-logo  { 0%,100% { transform:rotate(-3deg) scale(1); } 50% { transform:rotate(3deg) scale(1.04); } }
@@ -1009,7 +1012,7 @@
   const SCREEN_SIDE_KEY = "overlay-screen-side-v1";
   const stWrap = document.getElementById("st-wrap");
   const normScreenSide = v => { const t = String(v ?? "").trim().toLowerCase(); return t === "left" || t === "right" ? t : null; };
-  function renderScreenSide(value) { if (stWrap) stWrap.classList.toggle("right", normScreenSide(value) === "right"); }
+  function renderScreenSide(value) { const r = normScreenSide(value) === "right"; if (stWrap) stWrap.classList.toggle("right", r); screenTextEl.classList.toggle("right", r); }
   function setScreenSide(value, broadcast = true) {
     const v = normScreenSide(value) || "left";
     try { localStorage.setItem(SCREEN_SIDE_KEY, v); } catch (_) {}
@@ -1023,6 +1026,7 @@
     if (!stIcon) return;
     const v = normScreenIcon(value) || "twitch";
     stIcon.className = v === "none" ? "none" : "";
+    screenTextEl.classList.toggle("noicon", v === "none");
     stIcon.textContent = "";
     if (v === "none") return;
     if (SCREEN_ICON_SVG[v]) { stIcon.innerHTML = SCREEN_ICON_SVG[v]; return; }
