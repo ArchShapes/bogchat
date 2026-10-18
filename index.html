@@ -537,7 +537,7 @@
             <input id="cfg-ytvideo" autocomplete="off" placeholder="dQw4w9WgXcQ">
           </label>
           <label>API key
-            <input id="cfg-ytkey" autocomplete="off" placeholder="YouTube Data API v3 key">
+            <input id="cfg-ytkey" type="password" autocomplete="new-password" spellcheck="false" placeholder="YouTube Data API v3 key">
           </label>
           <p class="hint span-2">Uses the official YouTube API (about 5 quota units per poll). A channel ID (UC…) also works while that channel is live.</p>
         </div>
@@ -590,7 +590,7 @@
             <input id="cfg-dburl" autocomplete="off" placeholder="https://your-project-default-rtdb.firebaseio.com">
           </label>
           <label><span>Web API key</span>
-            <input id="cfg-dbkey" autocomplete="off" placeholder="AIza...">
+            <input id="cfg-dbkey" type="password" autocomplete="new-password" spellcheck="false" placeholder="AIza...">
           </label>
           <label><span>Your email <span class="opt">(the Firebase user you create)</span></span>
             <input id="cfg-dbemail" autocomplete="off" placeholder="you@example.com">
@@ -1479,7 +1479,7 @@
     const head = document.createElement("div");
     head.className = "chead";
     if (short) {
-      head.append(who, document.createTextNode(`: you cannot afford this right now. You have ${have}, ${what} needs ${cost} ${CURRENCY_NAME} `));
+      head.append(who, document.createTextNode(`: you cannot afford this right now. You have ${have}, ${what} needs ${cost} ${currencyLabel(cost).toLowerCase()} `));
       appendCurrencyIcon(head, "currency-icon inline-currency");
     } else {
       head.append(who);
