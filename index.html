@@ -1624,7 +1624,7 @@
 
   function queueAlert(kind, title, sub, fade) {
     if (!ALERTS_ON) return;
-    if (["follow", "sub", "gift", "bits"].includes(kind)) speakAlert(title);
+    if (["follow", "sub", "gift", "cgift", "bits"].includes(kind)) speakAlert(title);
     if (!ALERT_TOP) { showAlertChat(kind, title, sub, fade); return; }
     if (alertQueue.length > 8) return;
     alertQueue.push({ kind, title, sub: sub || "" });
