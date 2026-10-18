@@ -2370,10 +2370,6 @@
   // Hosted no-signup TTS proxy. No Puter, no Google Translate direct endpoint, no system-voice fallback.
   const TTS_FX = {};
   async function speakOnline(text, cfg = settings, style = "") {
-    if (style === "female") {                                  // alerts: Google Translate voice (female), normal speed
-      await playAudioUrl("https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=" + encodeURIComponent(text.slice(0, 190)), { rate: 1 });
-      return;
-    }
     const fx = TTS_FX[style];
     const url = "https://tts-api.netlify.app/?text=" + encodeURIComponent(text) + "&lang=en" + (fx ? `&pitch=${fx.pitch}&speed=${fx.speed}` : "&pitch=0.8&speed=1.5");
     await playAudioUrl(url, fx);
@@ -2460,12 +2456,12 @@
   addEventListener("pointerdown", ttsUnlock);
   addEventListener("keydown", ttsUnlock);
 
-  // spoken alert lines (raids, follows, subs, gifts, bits) in the Google Translate female voice
+  // spoken alert lines (raids, follows, subs, gifts, bits) in the normal TTS voice
   function speakAlert(text) {
     if (!OVERLAYMODE || !TTS_ON || allMuted || ttsMuted) return;
     const t = cleanTts(String(text || ""));
     if (!t || ttsBlocked(t)) return;
-    ttsQueue.push([{ say: t, style: "female" }]);
+    ttsQueue.push([{ say: t }]);
     runTts();
   }
 
