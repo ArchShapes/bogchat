@@ -2364,7 +2364,8 @@
     pay(tags, user, n);
     addCookies(to, n);
     markCd("gift:" + user);
-    queueAlert("cgift", `${nameOf(tags, user)} gifted ${n} ${currencyLabel(n)} to ${m[1]}!`, note ? "“" + note + "”" : "");
+    const toName = (activeChatters.get(to) || {}).name || m[1];
+    queueAlert("cgift", `${nameOf(tags, user)} gifted ${toName} ${n} ${currencyLabel(n)}` + (note ? ` and said: ${note}` : ""), "");
   }
 
   // mods/broadcaster only, silent: !givecookies @name 20 (negative numbers remove cookies)
@@ -2738,8 +2739,9 @@
       return true;
     }
     el.append(who, document.createTextNode(opts.gift ? " gifted " : " cheered "), amt,
-      document.createTextNode(` ${CURRENCY_NAME}. ${sharedTxt}`));
-    if (note) { const nt = document.createElement("div"); nt.className = "text"; nt.textContent = "“" + note + "”"; el.append(nt); }
+      document.createTextNode(opts.gift
+        ? ` ${CURRENCY_NAME} to ${pool.length === 1 ? "1 viewer" : pool.length + " viewers"}` + (note ? ` and said: ${note}` : "")
+        : ` ${CURRENCY_NAME}. ${sharedTxt}`));
     push(el, tags);
     playCheer(amount);
     return true;
