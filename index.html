@@ -40,7 +40,7 @@
      &cat=0          turn the cat visits off
      &catsec=600     seconds between cat visits (default 600 / 10 minutes)
      #viewchat: press P to pop the chat out into an always-on-top window (Chrome / Edge; other browsers get a normal small window). Press P again to put it back
-     Commands:  !changetext "Something" (owner + configured lead mods; updates /#text)  !changeicon --defaults star|heart|burger|mglass|twitch|none  !changeicon --imagelink <url>  !changeicon --side left|right (lead mods + streamer only; icon on /#text)  !<currency> (e.g. !cookies)  !cheer <n>  !tts <text>  !resetcookies <name|all>  !loudtojump (1000 cookies, command only)  !knocking  !lotsofgunshots  !ambienceone  !ambiencetwo  !shocked  !55  !drip  !money  !bell  !rizz  or (knocking) (lotsofgunshots) (ambienceone) (55) (drip) (money) (bell) (rizz) inside !tts
+     Commands:  !changetext "Something" (owner + configured lead mods; updates /#text)  !changeicon --defaults star|heart|burger|mglass|twitch|none  !changeicon --imagelink <url>  !changeicon --side left|right (lead mods + streamer only; icon on /#text)  !<currency> (e.g. !cookies)  !gift @name|all <n> [message]  !tts <text>  !resetcookies <name|all>  !loudtojump (1000 cookies, command only)  !knocking  !lotsofgunshots  !ambienceone  !ambiencetwo  !shocked  !55  !drip  !money  !bell  !rizz  or (knocking) (lotsofgunshots) (ambienceone) (55) (drip) (money) (bell) (rizz) inside !tts
                 !mutesfx / !unmutesfx  (streamer + lead mods only; lead mods are set in the setup panel or with &leadmod=)  */
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
   body.bg { background: #0e0e10; }
@@ -523,9 +523,6 @@
           <label><span>Overlay display name <span class="opt">(optional)</span></span>
             <input id="cfg-account" autocomplete="off" placeholder="My Stream">
           </label>
-          <label><span>Name shown on /#text <span class="opt">(optional, empty = your channel name)</span></span>
-            <input id="cfg-textname" autocomplete="off" maxlength="60" placeholder="Your channel name">
-          </label>
         </div>
       </div>
 
@@ -648,7 +645,7 @@
   const setupStatus = document.getElementById("global-setup-status");
   function setSetupStatus(msg, kind = "") { setupStatus.textContent = msg; setupStatus.className = kind; }
   const setupFields = {
-    channel: "cfg-channel", account: "cfg-account", textName: "cfg-textname", currency: "cfg-currency", symbol: "cfg-symbol", leadMods: "cfg-leadmods", ytVideo: "cfg-ytvideo", ytKey: "cfg-ytkey"
+    channel: "cfg-channel", account: "cfg-account", currency: "cfg-currency", symbol: "cfg-symbol", leadMods: "cfg-leadmods", ytVideo: "cfg-ytvideo", ytKey: "cfg-ytkey"
   };
   function updateOverlayLink() {
     const ch = normChannel(document.getElementById("cfg-channel").value);
@@ -661,12 +658,6 @@
     if (yk) q.set("ytkey", yk); else q.delete("ytkey");
   }
   const isBogdanChannel = v => normChannel(v) === "bogdanthegdplayer";
-  function autoFillTextName() {                            // the box fills itself with Bogdan only for the bogdanthegdplayer channel
-    const box = document.getElementById("cfg-textname"), ch = document.getElementById("cfg-channel").value;
-    if (isBogdanChannel(ch)) { if (!box.value.trim()) box.value = "Bogdan"; }
-    else if (box.value.trim() === "Bogdan" && !settings.textName) box.value = "";
-  }
-  document.getElementById("cfg-channel").addEventListener("input", autoFillTextName);
   function fillSetup() {
     for (const [key, id] of Object.entries(setupFields)) {
       const field = document.getElementById(id);
@@ -674,7 +665,6 @@
       if (key === "symbol" && !["cookie", "money", "box", "moon", "fries", "heart"].includes(value)) value = "cookie";
       field.value = value;
     }
-    autoFillTextName();
     document.getElementById("cfg-tts-enabled").checked = !!settings.tts;
     document.getElementById("cfg-alerts-enabled").checked = !!settings.alerts;
     document.getElementById("cfg-chat-enabled").checked = !!settings.chat;
@@ -844,8 +834,6 @@
     });
   }
   function defaultScreenName() {                         // the name typed in F2 setup, else your channel name (bogdanthegdplayer shows as Bogdan)
-    const custom = String(settings.textName || "").trim();
-    if (custom) return custom;
     const who = String(settings.account || CHANNEL || "").trim().replace(/^@/, "");
     if (who.toLowerCase() === "bogdanthegdplayer") return "Bogdan";
     if (!who) return "Stream";
@@ -1283,15 +1271,6 @@
 
   function showBalance(tags, user) { addCookieCard(tags, user, false); }
 
-  /* ---------- Cheer helper ---------- */
-  const cheerLast = new Map();
-  function tryCheer(tags, user, amountStr) {
-    const amount = parseInt(amountStr.replace(/,/g, ""), 10);
-    const now = Date.now();
-    if (!(amount > 0) || now - (cheerLast.get(user) || 0) < 1500) return;
-    cheerLast.set(user, now);
-    addCheer(tags, user, amount);
-  }
 
 
   /* ---------- Alerts ---------- */
@@ -1404,6 +1383,7 @@
   }
   function doRaidAlert(raider, n) {
     if (!ALERTS_ON) return;
+    speakAlert(`${raider} just raided with a party of ${n}!`);
     if (n >= BIG_RAID) {
       showHype({
         label: "INCOMING RAID", who: raider, color: "#ff5fd2", power: n >= 200 ? 3 : n >= 100 ? 2 : 1, fade: 16,
@@ -1417,6 +1397,7 @@
 
   function queueAlert(kind, title, sub, fade) {
     if (!ALERTS_ON) return;
+    if (["follow", "sub", "gift", "bits"].includes(kind)) speakAlert(title);
     if (!ALERT_TOP) { showAlertChat(kind, title, sub, fade); return; }
     if (alertQueue.length > 8) return;
     alertQueue.push({ kind, title, sub: sub || "" });
@@ -1955,7 +1936,7 @@
     "niggar",
     "nigar",
     "nega",
-    "niga"
+    "niga",
     "fagg",
     "retard",
     "fuckyourself"
@@ -2162,6 +2143,10 @@
   // Hosted no-signup TTS proxy. No Puter, no Google Translate direct endpoint, no system-voice fallback.
   const TTS_FX = {};
   async function speakOnline(text, cfg = settings, style = "") {
+    if (style === "female") {                                  // alerts: Google Translate voice (female), normal speed
+      await playAudioUrl("https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=" + encodeURIComponent(text.slice(0, 190)), { rate: 1 });
+      return;
+    }
     const fx = TTS_FX[style];
     const url = "https://tts-api.netlify.app/?text=" + encodeURIComponent(text) + "&lang=en" + (fx ? `&pitch=${fx.pitch}&speed=${fx.speed}` : "&pitch=0.8&speed=1.5");
     await playAudioUrl(url, fx);
@@ -2247,6 +2232,15 @@
   }
   addEventListener("pointerdown", ttsUnlock);
   addEventListener("keydown", ttsUnlock);
+
+  // spoken alert lines (raids, follows, subs, gifts, bits) in the Google Translate female voice
+  function speakAlert(text) {
+    if (!OVERLAYMODE || !TTS_ON || allMuted || ttsMuted) return;
+    const t = cleanTts(String(text || ""));
+    if (!t || ttsBlocked(t)) return;
+    ttsQueue.push([{ say: t, style: "female" }]);
+    runTts();
+  }
 
   function handleTts(tags, user, message) {
     if (!TTS_ON || allMuted || ttsMuted) return;
@@ -2341,13 +2335,24 @@
     queueAlert("request", `${nameOf(tags, user)} — Request level`, level, 45);
   }
 
-  // !gift @name 20  (max 50 per gift) plays lowcheer.mp3
+  // !gift @name 20 [message]  (max 50 per gift) plays lowcheer.mp3
+  // !gift all 100 [message]    splits the amount between everyone who chatted in the last 10 minutes
   const GIFT_MAX = 50;
+  function cleanGiftNote(t) {
+    const note = String(t || "").replace(/\[(?:scream|spongebob)\]|<\/?(?:scream|spongebob)>/gi, "")
+      .replace(/https?:\/\/\S+|www\.\S+/gi, "").replace(/\s+/g, " ").trim().slice(0, 100);
+    return note && !ttsBlocked(note) ? note : "";
+  }
   function doGift(tags, user, arg) {
-    const m = arg.match(/^@?(\w{1,25})\s+(\d{1,6})$/);
+    const m = arg.match(/^@?(\w{1,25})\s+(\d{1,6})(?:\s+([\s\S]+))?$/);
     if (!m) return;
-    const to = m[1].toLowerCase(), n = parseInt(m[2], 10);
-    if (n < 1 || to === user.toLowerCase() || cdLeft("gift:" + user, 3000)) return;
+    const to = m[1].toLowerCase(), n = parseInt(m[2], 10), note = cleanGiftNote(m[3]);
+    if (n < 1 || cdLeft("gift:" + user, 3000)) return;
+    if (to === "all") {
+      if (addCheer(tags, user, n, { gift: true, charge: true, note })) markCd("gift:" + user);
+      return;
+    }
+    if (to === user.toLowerCase()) return;
     if (n > GIFT_MAX) {
       markCd("gift:" + user);
       queueAlert("cookie", `${nameOf(tags, user)}: the gift limit is ${GIFT_MAX} ${currencyLabel(GIFT_MAX)} per gift`, "");
@@ -2357,7 +2362,7 @@
     pay(tags, user, n);
     addCookies(to, n);
     markCd("gift:" + user);
-    queueAlert("cgift", `${nameOf(tags, user)} gifted ${n} ${currencyLabel(n)} to ${m[1]}!`, "");
+    queueAlert("cgift", `${nameOf(tags, user)} gifted ${n} ${currencyLabel(n)} to ${m[1]}!`, note ? "“" + note + "”" : "");
   }
 
   // mods/broadcaster only, silent: !givecookies @name 20 (negative numbers remove cookies)
@@ -2414,6 +2419,7 @@
       const open = ["wheel", "request", "gift", "requests"].includes(cmd);
       if (open || (control && canControlSfx(tags, user)) || (cmd === "donerequest" && isMod(tags))) pushCmdLine(tags, user, message);
     }
+    if (cmd === "cheer" || CUR_CMDS.some(c => cmd === "cheer" + c)) return true;   // !cheer is disabled
     if (cmd === "changetext") {
       if (!canControlSfx(tags, user)) return true;
       const quoted = arg.match(/^(?:"([\s\S]*)"|'([\s\S]*)')$/);
@@ -2480,8 +2486,8 @@
       "Gift":     () => queueAlert("gift", "SampleViewer gifted a sub to Friend!", "Tier 1"),
       "Mass gift":() => queueAlert("gift", "SampleViewer is gifting 5 subs!", "Tier 1"),
       "Bits":     () => queueAlert("bits", "SampleViewer cheered 100 bits!"),
-      "Cheer cookies":() => addCheer({ "display-name": "SampleViewer" }, "sampleviewer", 50),
-      "BIG cheer":() => addCheer({ "display-name": "SampleViewer" }, "sampleviewer", 300),
+      "Gift all":() => addCheer({ "display-name": "SampleViewer" }, "sampleviewer", 50, { gift: true, note: "enjoy!" }),
+      "BIG gift all":() => addCheer({ "display-name": "SampleViewer" }, "sampleviewer", 300, { gift: true }),
       "TTS+sfx":  () => handleTts(modTags, "demo", "!tts Hello there *knocking* this is a test *meow* *vineboom*"),
       "Cookies":  () => { noteLast.clear(); addCookieCard({ "display-name": "SampleViewer" }, "sampleviewer", false); },
       "Short":    () => { noteLast.clear(); addCookieCard({ "display-name": "SampleViewer" }, "sampleviewer", true); },
@@ -2693,21 +2699,25 @@
     if (stick) { chat.scrollTop = chat.scrollHeight; setTimeout(() => { chat.scrollTop = chat.scrollHeight; }, 60); }   // follow new lines unless you scrolled up
   }
 
-  // !cheer 100 or !cheer<currency> 100 (e.g. !cheercookies 100)
-  const CHEER_RE = new RegExp("^\\s*(?:" + [...CUR_CMDS.map(c => "!cheer" + c), "!cheer"].join("|") + ")\\s+(\\d{1,3}(?:,\\d{3})+|\\d{1,9})\\s*$", "i");
   const activeChatters = new Map();
 
-  function addCheer(tags, user, amount) {
+  function addCheer(tags, user, amount, opts = {}) {
     const name = tags["display-name"] || user;
     const now = Date.now();
     activeChatters.set(user.toLowerCase(), { name, seen: now });
     const recipients = [...activeChatters.entries()]
-      .filter(([login, info]) => login !== user.toLowerCase() && now - info.seen < 10 * 60 * 1000)
+      .filter(([login, info]) => login !== user.toLowerCase() && !BOTS.has(login) && now - info.seen < 10 * 60 * 1000)
       .map(([login]) => login);
+    if (opts.charge) {                                        // !gift all: costs the sender, needs someone to receive it
+      if (!recipients.length) { queueAlert("cookie", `${name}: nobody else has chatted recently to gift ${currencyLabel(2)} to`, ""); return false; }
+      if (!canPay(tags, user, amount, "that gift")) return false;
+      pay(tags, user, amount);
+    }
     const pool = recipients.length ? recipients : [user.toLowerCase()];
     const each = Math.floor(amount / pool.length);
     const remainder = amount % pool.length;
     pool.forEach((login, i) => addCookies(login, each + (i < remainder ? 1 : 0)));
+    const note = opts.note || "";
 
     const el = document.createElement("div");
     el.className = "msg cheer";
@@ -2717,18 +2727,20 @@
     const sharedTxt = `Shared across ${pool.length} ${pool.length === 1 ? "viewer" : "viewers"}!`;
     if (amount >= BIG_CHEER) {
       showHype({
-        label: "BIG CHEER", who: name, whoColor: readable(tags.color, name), color: "#ffcf4a", fade: 14,
+        label: opts.gift ? "BIG GIFT" : "BIG CHEER", who: name, whoColor: readable(tags.color, name), color: "#ffcf4a", fade: 14,
         power: amount >= 1000 ? 3 : amount >= 500 ? 2 : 1,
         big: (b) => { appendCurrencyIcon(b, "currency-icon big-currency"); b.append(document.createTextNode(" +" + amount.toLocaleString("en-US"))); },
-        sub: `${CURRENCY_NAME.toUpperCase()}! ${sharedTxt.toUpperCase()}`
+        sub: `${CURRENCY_NAME.toUpperCase()}! ${sharedTxt.toUpperCase()}` + (note ? ` · “${note}”` : "")
       });
       playCheer(amount);
-      return;
+      return true;
     }
-    el.append(who, document.createTextNode(" cheered "), amt,
+    el.append(who, document.createTextNode(opts.gift ? " gifted " : " cheered "), amt,
       document.createTextNode(` ${CURRENCY_NAME}. ${sharedTxt}`));
+    if (note) { const nt = document.createElement("div"); nt.className = "text"; nt.textContent = "“" + note + "”"; el.append(nt); }
     push(el, tags);
     playCheer(amount);
+    return true;
   }
 
   // First message ever in this channel (Twitch flags it with first-msg=1): welcome bonus.
@@ -2832,6 +2844,7 @@
         showHype({ label: "BIG CHEER", who: bitsWho, color: "#9b6bff", fade: 14, power: bitsN >= 5000 ? 3 : bitsN >= 1000 ? 2 : 1,
                    big: `${bitsN.toLocaleString("en-US")} BITS!`, sub: "THANK YOU!" });
         alertSound("bits", bitsN >= 1000 ? 3 : 2);
+        speakAlert(`${bitsWho} just cheered ${bitsN} bits!`);
       } else queueAlert("bits", `${bitsWho} cheered ${bitsN.toLocaleString("en-US")} bits!`);
     }
 
@@ -2839,8 +2852,7 @@
     if (!isAction) {
       activeChatters.set(user.toLowerCase(), { name: tags["display-name"] || user, seen: Date.now() });
       if (OVERLAYMODE) {
-      const c = message.match(CHEER_RE);
-      if (c) { pushCmdLine(tags, user, message); tryCheer(tags, user, c[1]); return; }
+      if (/^\s*!cheer/i.test(message)) return;           // !cheer is disabled; use !gift all <number>
       if (VIEWCHAT) {                                  // chat reader: commands are never shown; gift events can be mirrored
         const vm = message.match(/^!([a-z0-9]+)(?:\s+(.*))?$/i);
         if (vm) {
