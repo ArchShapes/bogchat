@@ -892,7 +892,7 @@
   const TING_ON = params.get("ting") !== "0";
   const TING_MS = (params.has("tingsec") ? Math.max(5, parseFloat(params.get("tingsec")) || 60) : 60) * 1000;
   const WHEEL_BIAS = params.has("wheelbias") ? Math.max(0.5, parseFloat(params.get("wheelbias")) || 1.2) : 1.2;
-  const WHEEL_COST = 5, REQUEST_COST = 0;
+  const WHEEL_COST = 5, REQUEST_COST = 0, TTS_COST = 0;   // TTS is free; the balance card needs this constant
   if (params.get("size")) document.getElementById("chat").style.setProperty("--size", params.get("size") + "px");
   if (params.get("bg"))   document.body.classList.add("bg");
 
@@ -1082,13 +1082,13 @@
   /* ---------- Twitch badges: the real images, no API key ---------- */
   // Badge art comes from Twitch's public badge feeds; the channel id comes from the chat messages themselves.
   const BADGE_TITLES = {
-    broadcaster: "Broadcaster", moderator: "Moderator", vip: "VIP", founder: "Founder", subscriber: "Subscriber",
+    broadcaster: "Broadcaster", moderator: "Moderator", lead_moderator: "Lead Moderator", vip: "VIP", founder: "Founder", subscriber: "Subscriber",
     premium: "Prime Gaming", staff: "Twitch Staff", admin: "Twitch Admin", global_mod: "Global Moderator",
     turbo: "Turbo", partner: "Verified", "sub-gifter": "Sub Gifter", "sub-gift-leader": "Gift Leader",
     bits: "Cheer", "bits-leader": "Bits Leader", "hype-train": "Hype Train", predictions: "Predictions"
   };
-  const BADGE_CSS = { moderator: "mod", subscriber: "sub", premium: "prime" };
-  const CORE_BADGES = new Set(["broadcaster", "moderator", "vip", "founder", "subscriber", "premium", "staff", "admin", "global_mod", "turbo", "partner"]);
+  const BADGE_CSS = { moderator: "mod", lead_moderator: "leadmod", subscriber: "sub", premium: "prime" };
+  const CORE_BADGES = new Set(["broadcaster", "moderator", "lead_moderator", "vip", "founder", "subscriber", "premium", "staff", "admin", "global_mod", "turbo", "partner"]);
   // Last-resort art for the common global badges (used only if the badge feeds can't be reached)
   const BADGE_BUILTIN = {
     broadcaster: "5527c58c-fb7d-422d-b71b-f309dcb85cc1", moderator: "3267646d-33f0-4b17-b3df-f923a41db1d0",
@@ -1178,7 +1178,9 @@
     // mod badge, it already comes through in tags.badges above.
     const isLead = seen.has("lead_moderator") || LEADMOD_USERS.has(login);
     if (tags.mod === "1" && !seen.has("moderator") && !isLead) result.unshift({ key: "mod", set: "moderator", version: "1", title: "Moderator" });
-    if (SILENT_USERS.has(login)) result.push({ custom: true, key: "silent", label: "S", title: "Silent user" });
+    // configured lead mods always get a LeadMod label (unless Twitch already sent its own lead moderator badge)
+    if (LEADMOD_USERS.has(login) && !seen.has("lead_moderator")) result.unshift({ custom: true, key: "leadmod", label: "LeadMod", title: "Lead moderator" });
+    if (SILENT_USERS.has(login)) result.push({ custom: true, key: "silent", label: "Silent", title: "Silent user" });
     return result;
   };
 
