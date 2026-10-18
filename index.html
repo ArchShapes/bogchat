@@ -337,13 +337,17 @@
   #global-setup label .opt { color: #7e7e88; font-weight: 400; }
   #global-setup .hint:empty { display: none; }
   #global-setup .hint { margin: 0; color: #84848e; font-size: 11.5px; font-weight: 400; line-height: 1.4; }
-  #global-setup input:not([type=checkbox]), #global-setup select {
+  #global-setup input:not([type=checkbox]), #global-setup select, #global-setup textarea {
     box-sizing: border-box; width: 100%; min-width: 0; padding: 9px 11px;
     border: 1px solid #2b2d31; border-radius: 6px; background: #0e0f10;
     color: #f2f2f4; font: inherit; outline: none; transition: border-color .12s ease, box-shadow .12s ease;
   }
   #global-setup input::placeholder { color: #5f5f68; }
-  #global-setup input:focus, #global-setup select:focus { border-color: #3ec9b0;  }
+  #global-setup input:focus, #global-setup select:focus, #global-setup textarea:focus { border-color: #3ec9b0;  }
+  #global-setup textarea { resize: vertical; min-height: 120px; font: 12px/1.45 ui-monospace, Menlo, Consolas, monospace; color: #cfd2d8; }
+  #global-setup .db-steps { margin: 0; padding: 12px 14px 4px 30px; color: #b4b7bd; font-size: 12px; line-height: 1.55; }
+  #global-setup .db-steps li { margin-bottom: 6px; }
+  #global-setup .db-rules { padding: 0 12px 12px; display: flex; flex-direction: column; gap: 8px; }
   #global-setup input[readonly] { color: #b9b9c2; background: #101112; cursor: text; }
   #global-setup .setup-check { flex-direction: row; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: #e2e2e7; cursor: pointer; }
   #global-setup .setup-check input { width: 16px; height: 16px; margin: 0; accent-color: #3ec9b0; }
@@ -357,14 +361,14 @@
   #global-setup button:disabled { opacity: .55; cursor: default; }
   #global-setup-save { background: #3ec9b0; color: #06211c; }
   #global-setup-save:hover { background: #5fdcc6; }
-  #global-setup-cancel, #global-tts-test { background: transparent; border-color: #40444a; color: #e8e8ec; }
-  #global-setup-cancel:hover, #global-tts-test:hover:not(:disabled) { background: #1d1f22; }
+  #global-setup-cancel, #global-tts-test, #global-db-test, #global-db-copy { background: transparent; border-color: #40444a; color: #e8e8ec; }
+  #global-setup-cancel:hover, #global-tts-test:hover:not(:disabled), #global-db-test:hover:not(:disabled), #global-db-copy:hover:not(:disabled) { background: #1d1f22; }
   .setup-tts-test { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
-  .setup-tts-test #global-setup-tts-status { flex: 1; min-height: 1.3em; font-size: 12px; color: #8a8e96; }
+  .setup-tts-test #global-setup-tts-status, .setup-tts-test #global-db-status { flex: 1; min-height: 1.3em; font-size: 12px; color: #8a8e96; }
   .setup-footer { display: flex; align-items: center; gap: 10px; padding: 14px 24px; border-top: 1px solid #232528; background: #141517; }
   #global-setup-status { flex: 1; min-height: 1.3em; margin: 0; font-size: 12px; color: #8a8e96; }
-  #global-setup-status.ok, #global-setup-tts-status.ok { color: #5fdcc6; }
-  #global-setup-status.error, #global-setup-tts-status.error { color: #ff9a9a; }
+  #global-setup-status.ok, #global-setup-tts-status.ok, #global-db-status.ok { color: #5fdcc6; }
+  #global-setup-status.error, #global-setup-tts-status.error, #global-db-status.error { color: #ff9a9a; }
 
   #setup-hint { position: fixed; z-index: 9999; top: 14px; left: 50%; transform: translate(-50%, -10px); padding: 9px 13px; border: 1px solid #393940; border-radius: 8px; background: #1a1a1d; color: #ededf0; font: 600 12px/1.4 "Nunito", "Segoe UI", sans-serif; opacity: 0; pointer-events: none; transition: opacity .22s ease, transform .22s ease; box-shadow: 0 8px 24px rgba(0,0,0,.2); }
   #setup-hint.show { opacity: 1; transform: translate(-50%, 0); }
@@ -577,6 +581,47 @@
       </div>
 
       <div class="setup-section">
+        <h3>Database <span class="opt">(optional, free)</span></h3>
+        <div class="setup-checks" style="margin-bottom:12px">
+          <label class="setup-check"><input id="cfg-db-enabled" type="checkbox"> Save cookies and the /#text name, icon and side in my Firebase database</label>
+        </div>
+        <div class="setup-grid">
+          <label><span>Database URL</span>
+            <input id="cfg-dburl" autocomplete="off" placeholder="https://your-project-default-rtdb.firebaseio.com">
+          </label>
+          <label><span>Web API key</span>
+            <input id="cfg-dbkey" autocomplete="off" placeholder="AIza...">
+          </label>
+          <label><span>Your email <span class="opt">(the Firebase user you create)</span></span>
+            <input id="cfg-dbemail" autocomplete="off" placeholder="you@example.com">
+          </label>
+          <label><span>Password</span>
+            <input id="cfg-dbpass" type="password" autocomplete="new-password" placeholder="password of that user">
+          </label>
+        </div>
+        <div class="setup-tts-test">
+          <button id="global-db-test" type="button">Test database</button>
+          <span id="global-db-status" aria-live="polite"></span>
+        </div>
+        <details>
+          <summary>How to set it up (free, about 5 minutes)</summary>
+          <ol class="db-steps">
+            <li>Go to <b>console.firebase.google.com</b>, create a project (the free Spark plan is enough).</li>
+            <li><b>Build &rarr; Realtime Database &rarr; Create database</b>. Copy the URL shown at the top into <i>Database URL</i>.</li>
+            <li><b>Build &rarr; Authentication &rarr; Get started &rarr; Email/Password</b>: turn it on. Then open the <b>Users</b> tab and <b>Add user</b> with an email and password only you know.</li>
+            <li><b>Project settings (gear) &rarr; General &rarr; Web API key</b>: paste it into <i>Web API key</i>.</li>
+            <li><b>Realtime Database &rarr; Rules</b>: paste the rules below and press <b>Publish</b>. They let only your email read or write.</li>
+            <li>Tick the box, press <b>Test database</b>, then <b>Save &amp; start</b>.</li>
+          </ol>
+          <div class="db-rules">
+            <textarea id="cfg-db-rules" readonly spellcheck="false"></textarea>
+            <div><button id="global-db-copy" type="button">Copy rules</button></div>
+            <p class="hint">Nothing secret is inside this .html file. The URL, key, email and password are kept only in this browser, and only the signed-in email can read or write the data. With the database on, cookies are no longer reset at every launch.</p>
+          </div>
+        </details>
+      </div>
+
+      <div class="setup-section">
         <h3>Overlay</h3>
         <div class="setup-checks">
           <label class="setup-check"><input id="cfg-alerts-enabled" type="checkbox" checked> Alerts</label>
@@ -623,7 +668,7 @@
 
   const SETTINGS_KEY = "global-overlay-settings-v1";
   const defaultSettings = {
-    channel: "", ytVideo: "", ytKey: "", twitchClientId: "", twitchToken: "", account: "", textName: "", currency: "Cookies", symbol: "cookie", ttsUrl: "", voice: "", apiKey: "", browserVoice: "", ttsEngine: "online", onlineVoice: "Brian", leadMods: "",
+    channel: "", ytVideo: "", ytKey: "", twitchClientId: "", twitchToken: "", account: "", textName: "", currency: "Cookies", symbol: "cookie", ttsUrl: "", dbOn: false, dbUrl: "", dbKey: "", dbEmail: "", dbPass: "", voice: "", apiKey: "", browserVoice: "", ttsEngine: "online", onlineVoice: "Brian", leadMods: "",
     language: "en-US", tts: true, alerts: true, chat: true, configured: false
   };
   let settings = { ...defaultSettings };
@@ -645,7 +690,8 @@
   const setupStatus = document.getElementById("global-setup-status");
   function setSetupStatus(msg, kind = "") { setupStatus.textContent = msg; setupStatus.className = kind; }
   const setupFields = {
-    channel: "cfg-channel", account: "cfg-account", currency: "cfg-currency", symbol: "cfg-symbol", leadMods: "cfg-leadmods", ytVideo: "cfg-ytvideo", ytKey: "cfg-ytkey"
+    channel: "cfg-channel", account: "cfg-account", currency: "cfg-currency", symbol: "cfg-symbol", leadMods: "cfg-leadmods", ytVideo: "cfg-ytvideo", ytKey: "cfg-ytkey",
+    dbUrl: "cfg-dburl", dbKey: "cfg-dbkey", dbEmail: "cfg-dbemail", dbPass: "cfg-dbpass"
   };
   function updateOverlayLink() {
     const ch = normChannel(document.getElementById("cfg-channel").value);
@@ -668,6 +714,8 @@
     document.getElementById("cfg-tts-enabled").checked = !!settings.tts;
     document.getElementById("cfg-alerts-enabled").checked = !!settings.alerts;
     document.getElementById("cfg-chat-enabled").checked = !!settings.chat;
+    document.getElementById("cfg-db-enabled").checked = !!settings.dbOn;
+    updateDbRules();
     updateOverlayLink();
     const adv = document.getElementById("cfg-tts-advanced"); if (adv && settings.ttsUrl) adv.open = true;
     updateCurrencyHint();
@@ -693,6 +741,41 @@
   document.getElementById("cfg-currency").addEventListener("input", updateCurrencyHint);
   ["cfg-channel", "cfg-leadmods", "cfg-ytvideo", "cfg-ytkey"].forEach(id => document.getElementById(id).addEventListener("input", updateOverlayLink));
 
+
+  /* ---------- F2: database rules text + test button ---------- */
+  function dbRulesText(email) {
+    const e = String(email || "").trim().toLowerCase().replace(/[^a-z0-9@._+\-]/g, "") || "YOUR_EMAIL";
+    const who = `auth != null && auth.token.email == '${e}'`;
+    return JSON.stringify({ rules: { ".read": false, ".write": false, overlays: { "$channel": {
+      ".read": who, ".write": who,
+      cookies: { "$user": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000000" } }
+    } } } }, null, 2);
+  }
+  function updateDbRules() { document.getElementById("cfg-db-rules").value = dbRulesText(document.getElementById("cfg-dbemail").value); }
+  document.getElementById("cfg-dbemail").addEventListener("input", updateDbRules);
+  document.getElementById("global-db-copy").addEventListener("click", async () => {
+    const box = document.getElementById("cfg-db-rules");
+    try { await navigator.clipboard.writeText(box.value); } catch (_) { box.select(); try { document.execCommand("copy"); } catch (__) {} }
+    const b = document.getElementById("global-db-copy"); b.textContent = "Copied!"; setTimeout(() => { b.textContent = "Copy rules"; }, 1500);
+  });
+  document.getElementById("global-db-test").addEventListener("click", async () => {
+    const out = document.getElementById("global-db-status"), btn = document.getElementById("global-db-test");
+    const v = id => document.getElementById(id).value.trim();
+    const c = { url: v("cfg-dburl").replace(/\/+$/, ""), key: v("cfg-dbkey"), email: v("cfg-dbemail"), pass: document.getElementById("cfg-dbpass").value };
+    const say = (m, k = "") => { out.textContent = m; out.className = k; };
+    const bad = dbCfgProblem(c);
+    if (bad) { say(bad, "error"); return; }
+    btn.disabled = true; say("Testing…");
+    try {
+      dbAuth.token = ""; dbAuth.refresh = "";                  // always sign in fresh with what is typed in the boxes
+      const ch = normChannel(v("cfg-channel")) || "test", stamp = Date.now();
+      await dbReq("PUT", "ping", { t: stamp }, c, ch);
+      const back = await dbReq("GET", "ping", undefined, c, ch);
+      if (back && back.t === stamp) say("Connected. Reading and writing both work.", "ok");
+      else say("Connected, but the data did not read back. Check the rules.", "error");
+    } catch (e) { say(dbErrText(e), "error"); }
+    finally { dbAuth.token = ""; dbAuth.refresh = ""; btn.disabled = false; }
+  });
 
   const ttsStatus = document.getElementById("global-setup-tts-status");
   let ttsTestRun = 0;
@@ -747,6 +830,8 @@
     settings.tts = document.getElementById("cfg-tts-enabled").checked;
     settings.alerts = document.getElementById("cfg-alerts-enabled").checked;
     settings.chat = document.getElementById("cfg-chat-enabled").checked;
+    settings.dbOn = document.getElementById("cfg-db-enabled").checked;
+    settings.dbUrl = settings.dbUrl.replace(/\/+$/, "");
     settings.language = settings.language || "en-US";
     settings.configured = true;
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
@@ -761,6 +846,143 @@
     else setSetupStatus("Enter your channel and save to start the overlay.");
   });
   const CHANNEL = settings.channel;
+
+  /* ---------- Cloud database: Firebase Realtime Database over plain fetch (free Spark plan, no extra files) ----------
+     Sign-in is your own Firebase email + password; the database rules only allow that email, so it is private.
+     Stored under overlays/<channel>/: cookies (balances) and screen (the /#text name, icon and side). */
+  const DB_CFG = () => ({ url: String(settings.dbUrl || "").trim().replace(/\/+$/, ""), key: String(settings.dbKey || "").trim(), email: String(settings.dbEmail || "").trim(), pass: String(settings.dbPass || "") });
+  function dbCfgProblem(c) {
+    if (!/^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)*\.(firebaseio\.com|firebasedatabase\.app)$/i.test(c.url)) return "Database URL should look like https://name-default-rtdb.firebaseio.com";
+    if (!c.key) return "Enter the Web API key.";
+    if (!c.email || !c.pass) return "Enter the email and password of your Firebase user.";
+    return "";
+  }
+  const DB_SCREEN = !!(settings.dbOn && (OVERLAYMODE || TEXTMODE) && CHANNEL && !dbCfgProblem(DB_CFG()));   // #overlay and #text sync the screen text
+  const DB_COOKIES = DB_SCREEN && OVERLAYMODE;                                                              // only #overlay manages balances
+  const dbAuth = { token: "", exp: 0, refresh: "", pending: null };
+  async function dbJson(url, opts) {
+    const r = await fetch(url, opts);
+    let d = null; try { d = await r.json(); } catch (_) {}
+    if (!r.ok) {
+      const m = d && d.error && (d.error.message || d.error);
+      throw Object.assign(new Error(typeof m === "string" ? m : "HTTP " + r.status), { status: r.status });
+    }
+    return d;
+  }
+  function dbToken(c = DB_CFG()) {
+    if (dbAuth.token && Date.now() < dbAuth.exp - 60000) return Promise.resolve(dbAuth.token);
+    if (dbAuth.pending) return dbAuth.pending;
+    dbAuth.pending = (async () => {
+      try {
+        let d;
+        if (dbAuth.refresh) {
+          try {
+            d = await dbJson("https://securetoken.googleapis.com/v1/token?key=" + encodeURIComponent(c.key), { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "grant_type=refresh_token&refresh_token=" + encodeURIComponent(dbAuth.refresh) });
+            dbAuth.token = d.id_token; dbAuth.refresh = d.refresh_token || dbAuth.refresh; dbAuth.exp = Date.now() + (parseInt(d.expires_in, 10) || 3600) * 1000;
+            return dbAuth.token;
+          } catch (_) { dbAuth.refresh = ""; }
+        }
+        d = await dbJson("https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=" + encodeURIComponent(c.key), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: c.email, password: c.pass, returnSecureToken: true }) });
+        dbAuth.token = d.idToken; dbAuth.refresh = d.refreshToken; dbAuth.exp = Date.now() + (parseInt(d.expiresIn, 10) || 3600) * 1000;
+        return dbAuth.token;
+      } finally { dbAuth.pending = null; }
+    })();
+    return dbAuth.pending;
+  }
+  async function dbReq(method, path, body, c = DB_CFG(), ch = CHANNEL || "test", keepalive = false) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const tok = await dbToken(c);
+      const url = `${c.url}/overlays/${encodeURIComponent(ch)}/${path}.json?auth=${encodeURIComponent(tok)}`;
+      try {
+        return await dbJson(url, { method, keepalive, headers: body === undefined ? {} : { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
+      } catch (e) {
+        if (attempt === 0 && e.status === 401) { dbAuth.token = ""; continue; }          // token expired or revoked: sign in again once
+        throw e;
+      }
+    }
+  }
+  function dbErrText(e) {
+    const m = String((e && e.message) || e || "");
+    if (/EMAIL_NOT_FOUND|INVALID_PASSWORD|INVALID_LOGIN_CREDENTIALS/.test(m)) return "Wrong email or password. Add that user under Authentication > Users in Firebase.";
+    if (/OPERATION_NOT_ALLOWED|PASSWORD_LOGIN_DISABLED/.test(m)) return "Turn on Email/Password sign-in in Firebase Authentication.";
+    if (/API key not valid|INVALID_API_KEY|API_KEY/i.test(m)) return "The Web API key is not valid.";
+    if (/TOO_MANY_ATTEMPTS/.test(m)) return "Too many sign-in attempts. Wait a few minutes and try again.";
+    if (e && (e.status === 401 || e.status === 403) || /permission/i.test(m)) return "Access denied. Publish the rules from the setup panel and use the same email.";
+    if (e && e.status === 404) return "Database not found. Check the Database URL.";
+    if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return "Could not reach Firebase. Check your internet connection and the Database URL.";
+    return m || "Unknown error.";
+  }
+  let dbFailing = false;
+  function cloudOk() { if (dbFailing) { dbFailing = false; if (statusEl.textContent.startsWith("Database")) setStatus(""); } }
+  function cloudFail(e) {
+    console.warn("Database error:", e);
+    dbFailing = true; setStatus("Database: " + dbErrText(e));
+    setTimeout(() => { if (statusEl.textContent.startsWith("Database")) setStatus(""); }, 9000);
+  }
+
+  // balances: only the changes are sent (a few seconds after the last one); the first load merges with what is in the database
+  const dbSnap = {};                                   // what the database is known to hold right now
+  let dbReady = false, dbTimer = null, dbFlushing = false;
+  const dbKeyOk = k => /^[a-z0-9_]{1,40}$/.test(k);   // Twitch logins; other names stay local only
+  function cloudCookiesDirty() { if (!DB_COOKIES || !dbReady) return; clearTimeout(dbTimer); dbTimer = setTimeout(() => cloudFlush(), 2500); }
+  async function cloudFlush(unloading) {
+    if (!DB_COOKIES || !dbReady) return;
+    clearTimeout(dbTimer); dbTimer = null;
+    if (dbFlushing) { if (!unloading) dbTimer = setTimeout(() => cloudFlush(), 1000); return; }
+    const patch = {}; let n = 0;
+    for (const k of Object.keys(cookies)) if (dbKeyOk(k) && cookies[k] > 0 && cookies[k] !== dbSnap[k]) { patch[k] = cookies[k]; n++; }
+    for (const k of Object.keys(dbSnap)) if (!(cookies[k] > 0)) { patch[k] = null; n++; }
+    if (!n) return;
+    dbFlushing = true;
+    try {
+      await dbReq("PATCH", "cookies", patch, DB_CFG(), CHANNEL, !!unloading);
+      for (const k of Object.keys(patch)) { if (patch[k] === null) delete dbSnap[k]; else dbSnap[k] = patch[k]; }
+      cloudOk();
+    } catch (e) { cloudFail(e); if (!unloading) dbTimer = setTimeout(() => cloudFlush(), 15000); }
+    finally { dbFlushing = false; }
+  }
+  addEventListener("pagehide", () => { cloudFlush(true); });
+
+  // screen text: saved a moment after any change; on start the database wins (or fills itself from this browser the first time)
+  let dbScreenReady = false, dbScreenTimer = null, dbApplying = false;
+  function cloudScreenSave() {
+    if (!DB_SCREEN || dbApplying || !dbScreenReady) return;
+    clearTimeout(dbScreenTimer);
+    dbScreenTimer = setTimeout(async () => {
+      try {
+        await dbReq("PUT", "screen", { text: localStorage.getItem(SCREEN_TEXT_KEY) || "", icon: localStorage.getItem(SCREEN_ICON_KEY) || "twitch", side: localStorage.getItem(SCREEN_SIDE_KEY) || "left" });
+        cloudOk();
+      } catch (e) { cloudFail(e); }
+    }, 800);
+  }
+  async function cloudStart() {
+    if (!DB_SCREEN) return;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const [ck, sc] = await Promise.all([DB_COOKIES ? dbReq("GET", "cookies") : null, dbReq("GET", "screen")]);
+        if (DB_COOKIES) {
+          for (const [k, v] of Object.entries(ck || {})) if (typeof v === "number" && v > 0) { dbSnap[k] = v; cookies[k] = v + (cookies[k] || 0); }   // anything earned while loading is added on top
+          dbReady = true;
+          cloudFlush();
+        }
+        if (sc && typeof sc === "object") {
+          dbApplying = true;
+          try {
+            if (typeof sc.text === "string") setScreenText(sc.text);
+            if (typeof sc.icon === "string") setScreenIcon(sc.icon);
+            if (typeof sc.side === "string") setScreenSide(sc.side);
+          } finally { dbApplying = false; }
+          dbScreenReady = true;
+        } else { dbScreenReady = true; cloudScreenSave(); }
+        cloudOk();
+        return;
+      } catch (e) {
+        cloudFail(e);
+        await new Promise(r => setTimeout(r, Math.min(60000, 5000 * Math.pow(2, attempt))));
+      }
+    }
+  }
+  setTimeout(cloudStart, 0);                           // after the rest of the page has been set up
   const YT_VIDEO = ytId(params.get("yt")) || ytId(settings.ytVideo);
   const YT_KEY = params.get("ytkey") || settings.ytKey || "";
   const SCREEN_TEXT_KEY = "overlay-screen-text-v1";
@@ -792,6 +1014,7 @@
     const v = normScreenSide(value) || "left";
     try { localStorage.setItem(SCREEN_SIDE_KEY, v); } catch (_) {}
     renderScreenSide(v);
+    cloudScreenSave();
     if (broadcast && screenTextBus) { try { screenTextBus.postMessage({ side: v }); } catch (_) {} }
   }
   try { renderScreenSide(localStorage.getItem(SCREEN_SIDE_KEY) || "left"); } catch (_) {}
@@ -813,6 +1036,7 @@
     const v = normScreenIcon(value) || "twitch";
     try { localStorage.setItem(SCREEN_ICON_KEY, v); } catch (_) {}
     renderScreenIcon(v);
+    cloudScreenSave();
     if (broadcast && screenTextBus) { try { screenTextBus.postMessage({ icon: v }); } catch (_) {} }
   }
   try { renderScreenIcon(localStorage.getItem(SCREEN_ICON_KEY) || "twitch"); } catch (_) { renderScreenIcon("twitch"); }
@@ -843,6 +1067,7 @@
     const clean = String(value ?? "").slice(0, 500);
     try { localStorage.setItem(SCREEN_TEXT_KEY, clean); } catch (_) {}
     renderScreenText(clean || defaultScreenName());
+    cloudScreenSave();
     if (broadcast && screenTextBus) { try { screenTextBus.postMessage({ text: clean }); } catch (_) {} }
   }
   try { setScreenText(localStorage.getItem(SCREEN_TEXT_KEY) || "", false); } catch (_) {}
@@ -1065,13 +1290,13 @@
   const STORE_KEY = "cookies:" + CHANNEL;
   let cookies = {};
   // Every fresh launch starts a new cookie season, except after !refreshchat (balances are kept).
-  if (OVERLAYMODE) try {                                  // only the overlay manages cookie balances
+  if (OVERLAYMODE && !DB_COOKIES) try {                   // only the overlay manages cookie balances (with the database on, it holds them instead)
     if (sessionStorage.getItem("keep-cookies") === "1") {
       sessionStorage.removeItem("keep-cookies");
       cookies = JSON.parse(localStorage.getItem(STORE_KEY) || "{}") || {};
     } else localStorage.setItem(STORE_KEY, "{}");
   } catch (e) {}
-  const saveCookies = () => { if (!OVERLAYMODE) return; try { localStorage.setItem(STORE_KEY, JSON.stringify(cookies)); } catch (e) {} };
+  const saveCookies = () => { if (!OVERLAYMODE) return; try { localStorage.setItem(STORE_KEY, JSON.stringify(cookies)); } catch (e) {} cloudCookiesDirty(); };
   const bal = (u) => cookies[u.toLowerCase()] || 0;
   const addCookies = (u, n) => {
     if (!OVERLAYMODE) return;
@@ -2410,7 +2635,7 @@
     saveCookies();
     try { sessionStorage.setItem("keep-cookies", "1"); } catch (e) {}
     plainNotice("Refreshing the overlay…");
-    setTimeout(() => location.reload(), 400);
+    Promise.race([cloudFlush(), new Promise(r => setTimeout(r, 4000))]).then(() => setTimeout(() => location.reload(), 400));
   }
 
   function handleCommand(tags, user, message) {
