@@ -47,7 +47,7 @@
   #chat {
     position: absolute; inset: 0;
     display: flex; flex-direction: column; justify-content: flex-end;
-    padding: 12px 16px; box-sizing: border-box;
+    padding: 12px 16px 2px; box-sizing: border-box;
     font-family: "Nunito", "Segoe UI", "Helvetica Neue", Arial, sans-serif; font-weight: 600; letter-spacing: .01em; -webkit-font-smoothing: antialiased;
     font-size: var(--size, 20px); line-height: 1.35; color: #fff;
     text-shadow: 0 2px 6px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.95), 0 0 12px rgba(0,0,0,.8), 0 0 24px rgba(0,0,0,.6);
@@ -144,7 +144,7 @@
   }
   body.viewchat #chat::-webkit-scrollbar { width: 10px; }
   body.viewchat #chat::-webkit-scrollbar-thumb { background: #3a3a3d; border-radius: 6px; }
-  body.viewchat #chat > * { flex: 0 0 auto; }
+  #chat > * { flex: 0 0 auto; }                   /* lines keep their own height instead of squeezing together when the chat fills up */
   body.popout #chat { --size: 17px; padding: 8px 10px; }
   body.popout .vc-time { display: none; }
   body.popout #vc-head { font-size: .72em; padding: 4px 6px 8px; }
@@ -399,6 +399,9 @@
   body.viewchat .msg.cheer, body.viewchat .msg.cookie, body.viewchat .msg.hype, body.viewchat .msg.alertc, body.viewchat .msg.tts, body.viewchat .msg.welcome { text-shadow: none; }
   .msg.cheer { border-left-color: #fff; }
   .msg.cookie { border-color: rgba(255,209,138,.4); border-left-color: #ffd18a; }
+  /* labels that belong to a user (TTS/sfx notices, gifts, first-chat welcomes) take that user's name colour */
+  .msg.tts[style*="--uc"], .msg.cheer[style*="--uc"], .msg.welcome[style*="--uc"] { border-color: color-mix(in srgb, var(--uc) 45%, transparent); border-left-color: var(--uc); }
+  .msg.tts[style*="--uc"] .spk { color: var(--uc); }
   .cookie .cbar > div { background: #ffd18a; }
   .msg.alertc { border-left-color: var(--ac); }
   /* big raids / big cheers / big bits: a rounded label behind the text */
@@ -1140,7 +1143,7 @@
   const TING_ON = params.get("ting") !== "0";
   const TING_MS = (params.has("tingsec") ? Math.max(5, parseFloat(params.get("tingsec")) || 60) : 60) * 1000;
   const WHEEL_BIAS = params.has("wheelbias") ? Math.max(0.5, parseFloat(params.get("wheelbias")) || 1.2) : 1.2;
-  const WHEEL_COST = 5, REQUEST_COST = 0, TTS_COST = 0;   // TTS is free; the balance card needs this constant
+  const WHEEL_COST = 5, REQUEST_COST = 0, TTS_COST = 20;
   if (params.get("size")) document.getElementById("chat").style.setProperty("--size", params.get("size") + "px");
   if (params.get("bg"))   document.body.classList.add("bg");
 
@@ -1685,7 +1688,7 @@
     const msg = text ? " · " + text.slice(0, 100) : "";
     if (id === "raid") {
       const n = parseInt(tags["msg-param-viewerCount"] || "0", 10) || 0;
-      doRaidAlert(tags["msg-param-displayName"] || name, n);
+      doRaidAlert(tags["msg-param-displayName"] || name, n, login || name);
     } else if (id === "sub") {
       queueAlert("sub", `${name} just subscribed!`, plan(tags["msg-param-sub-plan"]) + msg);
     } else if (id === "resub") {
@@ -1815,7 +1818,7 @@
   /* ---------- SFX (used inside TTS) ---------- */
   const SFX_NAMES = new Set(["meow", "lotsofmeows", "gunshot", "lotsofgunshots", "vineboom", "airhorns", "knocking", "ambienceone", "ambiencetwo", "bwomp", "fireinthehole", "geometrydash", "loudtojump", "metalpipe", "spongebobfail", "shocked", "55", "drip", "money", "bell", "rizz", ...EXTRA_SFX]);
   const SFX_MAX = 3;
-  const SFX_VARIANTS = { meow: ["meow-1", "meow-2", "meow-3", "meow-4"] };   // each play picks one of these files at random
+  const SFX_VARIANTS = { meow: ["meow-1", "meow-2", "meow-4"], lotsofmeows: ["meow-3"] };   // !meow picks a regular meow; !lotsofmeows plays meow-3.mp3
   [...SFX_NAMES, "cheer", "lowcheer", "follow", "raid", "gift", "request", "lowraid"].forEach(preloadSfx);
   Object.values(SFX_VARIANTS).flat().forEach(preloadSfx);
   const SFX_COSTS = { loudtojump: 1000 };          // price per sound (anything not listed uses SFX_CMD_COST)
@@ -2144,6 +2147,7 @@
     const spk = document.createElement("span"); spk.className = "spk"; spk.appendChild(makeIcon("volume", "ui-icon"));
     el.append(spk);
     if (user) {
+      el.style.setProperty("--uc", readable(tags.color, tags["display-name"] || user));
       const n = document.createElement("span"); n.className = "name"; n.textContent = tags["display-name"] || user;
       n.style.color = readable(tags.color, tags["display-name"] || user);
       el.append(n);
@@ -2494,11 +2498,13 @@
     const text = cleanTts(messageWithEmoteNames.replace(/^!tts\s*/i, ""));
     if (!text) return;
 
-    // No message-length, language, cooldown, cookie-cost, or queue-size limit.
+    // No message-length, language, cooldown, or queue-size limit. TTS costs TTS_COST cookies.
     // Blocked words remain the only text-based reason to skip TTS.
     if (ttsBlocked(text)) return;
     const segs = parseSegments(text);
     if (!segs.length) return;
+    if (!canPay(tags, user, TTS_COST, "TTS")) return;
+    pay(tags, user, TTS_COST);
 
     pushCmdLine(tags, user, message);
 
@@ -2945,9 +2951,13 @@
     }
     return h;
   }
-  function fitChat() {                                       // drop the oldest lines until everything fits in the chat box, so one huge message can't shove the rest up
+  const CHAT_FRAC = params.has("chatheight") ? Math.min(100, Math.max(10, parseFloat(params.get("chatheight")) || 45)) / 100 : 0.45;   // the chat only fills this much of its box (from the bottom); &chatheight=60 for 60%
+  function chatRoom() {
     const cs = getComputedStyle(chat);
-    const room = chat.clientHeight - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0);
+    return Math.min(chat.clientHeight - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0), chat.clientHeight * CHAT_FRAC);
+  }
+  function fitChat() {                                       // drop the oldest lines until everything fits in the chat box, so one huge message can't shove the rest up
+    const room = chatRoom();
     for (let guard = 0; guard < 300 && chatUsed() > room; guard++) {
       const live = [...chat.children].filter(e => !e._gone && e.id !== "vc-head");
       if (live.length < 2) break;                            // the newest line always stays
@@ -2959,7 +2969,7 @@
   function push(el, tags, fade = FADE_S) {
     if (VIEWCHAT && !viewchatAllows(el)) return;
     wrapForLine(el);
-    if (!VIEWCHAT && el.querySelector(".text")) { el.style.maxHeight = Math.max(40, Math.floor(chat.clientHeight * 0.4)) + "px"; el.style.overflow = "hidden"; }   // one message can only use part of the chat
+    if (!VIEWCHAT && el.querySelector(".text")) { el.style.maxHeight = Math.max(40, Math.floor(chatRoom() * 0.4)) + "px"; el.style.overflow = "hidden"; }   // one message can only use part of the chat
     if (tags.id) el.dataset.id = tags.id;
     const stick = VIEWCHAT && chat.scrollHeight - chat.scrollTop - chat.clientHeight < 120;
     const wait = VIEWCHAT && document.getElementById("vc-wait"); if (wait) wait.remove();
@@ -2997,6 +3007,7 @@
 
     const el = document.createElement("div");
     el.className = "msg cheer";
+    el.style.setProperty("--uc", readable(tags.color, name));
     const who = document.createElement("span"); who.className = "who"; who.textContent = name;
     who.style.color = readable(tags.color, name);
     const amt = document.createElement("span"); amt.className = "amt"; appendCurrencyIcon(amt, "currency-icon"); amt.append(document.createTextNode(" " + amount.toLocaleString("en-US")));
@@ -3029,6 +3040,7 @@
     if (!isMod(tags)) addCookies(user, FIRST_BONUS);
     const el = document.createElement("div");
     el.className = "msg welcome";
+    el.style.setProperty("--uc", readable(tags.color, tags["display-name"] || user));
     const n = document.createElement("span"); n.className = "name"; n.textContent = tags["display-name"] || user;
     n.style.color = readable(tags.color, tags["display-name"] || user);
     const t = document.createElement("span"); t.className = "text";
