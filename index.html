@@ -25,7 +25,7 @@
      &block=a,b      extra words blocked from TTS
      &sfxvol=0.8     TTS sound-effect volume 0-1
      TTS uses the normal voice
-     &sfx=bruh,oof   extra *sfx* names; each plays <name>.mp3 from this folder
+     &sfx=bruh,oof   extra (sfx) names; each plays <name>.mp3 from this folder
      #ambient: a third OBS browser source (full screen, transparent): soft low-opacity edge pulses on cheers, gifts, subs, raids, follows, bits
      &intensity=1    strength of the ambient pulses (0.3 = very faint, 2 = stronger)
      &alerts=0       turn alerts off        &alertsec=6  seconds per alert
@@ -2229,14 +2229,14 @@
             .replace(/\s+/g, " ").trim();
   }
 
-  // "hello *meow* there" -> [say hello, sfx meow, say there]
+  // "hello (meow) there" -> [say hello, sfx meow, say there]
   function parseSegments(text) {
     // Legacy voice tags are stripped; speech always uses the normal voice.
     const segs = [];
     let last = 0, count = 0, m;
-    const re = /\\*([a-z0-9_-]+)\\*/gi;
+    const re = /\(([a-z0-9_-]+)\)/gi;
     const flush = (end) => {
-      if (end > last) segs.push({ say: text.slice(last, end).replace(/\\*/g, "") });
+      if (end > last) segs.push({ say: text.slice(last, end) });
     };
     while ((m = re.exec(text))) {
       const name = m[1].toLowerCase();
@@ -2716,7 +2716,7 @@
       "Bits":     () => queueAlert("bits", "SampleViewer cheered 100 bits!"),
       "Gift all":() => addCheer({ "display-name": "SampleViewer" }, "sampleviewer", 50, { gift: true, note: "enjoy!" }),
       "BIG gift all":() => addCheer({ "display-name": "SampleViewer" }, "sampleviewer", 300, { gift: true }),
-      "TTS+sfx":  () => handleTts(modTags, "demo", "!tts Hello there *knocking* this is a test *meow* *vineboom*"),
+      "TTS+sfx":  () => handleTts(modTags, "demo", "!tts Hello there (knocking) this is a test (meow) (vineboom)"),
       "Cookies":  () => { noteLast.clear(); addCookieCard({ "display-name": "SampleViewer" }, "sampleviewer", false); },
       "Short":    () => { noteLast.clear(); addCookieCard({ "display-name": "SampleViewer" }, "sampleviewer", true); },
       "Wheel":    () => { rewardCd.clear(); doWheel(modTags, "demo"); },
