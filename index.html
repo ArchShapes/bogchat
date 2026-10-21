@@ -2584,7 +2584,7 @@
     if (ttsBlocked(level)) { queueAlert("requestinfo", "That request can't be accepted", "Please try a different level name.", 8); return; }
     if (cdLeft("req:" + user.toLowerCase(), 30000)) { queueAlert("requestinfo", "Please wait before requesting again", "You can request another level in 30 seconds.", 8); return; }
     markCd("req:" + user.toLowerCase());
-    queueAlert("request", `${nameOf(tags, user)} — Request level`, level, 45);
+    queueAlert("request", `${nameOf(tags, user)} just requested a level!`, level, 45);
   }
 
   // !gift @name 20 [message]  (max 50 per gift) plays lowcheer.mp3
