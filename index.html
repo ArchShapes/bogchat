@@ -39,6 +39,7 @@
      &demo=1         show test buttons
      &cat=0          turn the cat visits off
      &catsec=600     seconds between cat visits (default 600 / 10 minutes)
+     #viewchat: shows Twitch's own chat (iframe) so browser-extension emotes (7TV / BTTV / FFZ) show up. Add &custom=1 for the old built-in chat. YouTube (&yt=) also uses the built-in chat.
      #viewchat: press P to pop the chat out into an always-on-top window (Chrome / Edge; other browsers get a normal small window). Press P again to put it back
      Commands:  !changetext "Something" (owner + configured lead mods; updates /#text)  !changesize 0.1-1  !changeicon --defaults star|heart|burger|mglass|twitch|none  !changeicon --imagelink <url>  !changeicon --side left|right (lead mods + streamer only; icon on /#text)  !<currency> (e.g. !cookies)  !gift @name|all <n> [message]  !tts <text>  !resetcookies <name|all>  !loudtojump (1000 cookies, command only)  !knocking  !lotsofgunshots  !ambienceone  !ambiencetwo  !shocked  !55  !drip  !money  !bell  !rizz  or (knocking) (lotsofgunshots) (ambienceone) (55) (drip) (money) (bell) (rizz) inside !tts
                 !mutesfx / !unmutesfx  (streamer + lead mods only; lead mods are set in the setup panel or with &leadmod=)  */
@@ -154,6 +155,12 @@
     background: #18181b; border-bottom: 1px solid #2f2f35; color: #efeff1; font-size: .8em; font-weight: 800; letter-spacing: .02em;
   }
   .vc-info { padding: 18px 16px; color: #adadb8; font-size: .9em; text-align: center; }
+  /* #viewchat with Twitch's own chat embedded: the iframe fills the page under a slim header */
+  body.tw-embed #chat { overflow: hidden; padding: 0; }
+  body.tw-embed #vc-head { position: static; display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left; }
+  body.tw-embed #vc-twitch { flex: 1 1 auto; width: 100%; min-height: 0; border: 0; background: #18181b; display: block; }
+  #vc-pop { font: 800 .85em "Nunito", "Segoe UI", sans-serif; color: #efeff1; background: #2f2f35; border: 0; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  #vc-pop:hover { background: #3a3a3d; }
   .msg.vc { padding: 4px 14px; border-radius: 6px; }
   .msg.vc:hover { background: rgba(255,255,255,.05); }
   .vc-time { color: #7d7d86; font-size: .7em; margin-right: 8px; font-weight: 700; }
@@ -3412,11 +3419,32 @@
     document.title = `${DISPLAY_ACCOUNT}'s chat`;
     const head = document.createElement("div"); head.id = "vc-head"; head.textContent = `${DISPLAY_ACCOUNT}'s chat`;
     chat.appendChild(head);
-    const info = document.createElement("div"); info.className = "vc-info"; info.id = "vc-wait"; info.textContent = (CHANNEL || YT_VIDEO) ? `Connecting to ${DISPLAY_ACCOUNT}'s chat…` : "No channel set. Add ?channel=yourname to the link.";
-    chat.appendChild(info);
-    connect();
-    startFollows();
-    startYouTube();
+    const TW_EMBED = !!CHANNEL && !YT_VIDEO && params.get("custom") !== "1";     // Twitch's real chat in an iframe (so 7TV / BTTV / FFZ extensions can add their emotes)
+    if (TW_EMBED) {
+      document.body.classList.add("tw-embed");
+      const label = document.createElement("span"); label.textContent = head.textContent; head.textContent = "";
+      const btn = document.createElement("button"); btn.id = "vc-pop"; btn.type = "button"; btn.textContent = "Pop out (P)";
+      btn.title = "Open the chat in its own always-on-top window";
+      btn.addEventListener("click", togglePopout);                               // a click on the iframe takes the keyboard away from this page, so P needs a button too
+      head.append(label, btn);
+      const host = location.hostname;
+      if (!host) {                                                               // Twitch only allows its embed on a real domain (or localhost), not on a file:// page
+        const info = document.createElement("div"); info.className = "vc-info";
+        info.textContent = "Twitch chat can't load from a local file. Host this page (or open it through localhost) and try again, or add &custom=1 for the built-in chat.";
+        chat.appendChild(info);
+      } else {
+        const f = document.createElement("iframe"); f.id = "vc-twitch";
+        f.src = `https://www.twitch.tv/embed/${encodeURIComponent(CHANNEL)}/chat?parent=${encodeURIComponent(host)}&darkpopout`;
+        f.setAttribute("allow", "clipboard-write"); f.title = `${DISPLAY_ACCOUNT}'s Twitch chat`;
+        chat.appendChild(f);
+      }
+    } else {
+      const info = document.createElement("div"); info.className = "vc-info"; info.id = "vc-wait"; info.textContent = (CHANNEL || YT_VIDEO) ? `Connecting to ${DISPLAY_ACCOUNT}'s chat…` : "No channel set. Add ?channel=yourname to the link.";
+      chat.appendChild(info);
+      connect();
+      startFollows();
+      startYouTube();
+    }
   } else if (settings.configured || CHANNEL || YT_VIDEO) {
     connect();
     startFollows();
