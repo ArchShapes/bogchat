@@ -383,7 +383,7 @@
   .alert { background: #18181b; border-color: rgba(255,255,255,.16); box-shadow: none; }
   .alert::before { background: var(--ac); box-shadow: none; }
   .alert::after { display: none; }
-  .msg.alertc[data-kind="cgift"] { --ac: #ffffff !important; border-color: rgba(255,255,255,.14) !important; }
+  
 
   /* ---------- Minimal chat-line look + smooth in/out ---------- */
   .msg { animation: msgIn .35s ease-out backwards; transition: opacity .6s ease, transform .6s ease, max-height .5s ease .35s, padding .5s ease .35s, margin .5s ease .35s; }
@@ -400,10 +400,11 @@
   .msg.cheer { border-left-color: #fff; }
   .msg.cookie { border-color: rgba(255,209,138,.4); border-left-color: #ffd18a; }
   /* labels that belong to a user (TTS/sfx notices, gifts, first-chat welcomes) take that user's name colour */
-  .msg.tts[style*="--uc"], .msg.cheer[style*="--uc"], .msg.welcome[style*="--uc"] { border-color: color-mix(in srgb, var(--uc) 45%, transparent); border-left-color: var(--uc); }
+  .msg.tts[style*="--uc"], .msg.cheer[style*="--uc"], .msg.welcome[style*="--uc"], .msg.cookie[style*="--uc"] { border-color: color-mix(in srgb, var(--uc) 45%, transparent); border-left-color: var(--uc); }
   .msg.tts[style*="--uc"] .spk { color: var(--uc); }
   .cookie .cbar > div { background: #ffd18a; }
   .msg.alertc { border-left-color: var(--ac); }
+  .msg.alertc[style*="--uc"] { border-color: color-mix(in srgb, var(--uc) 45%, transparent); border-left-color: var(--uc); }
   /* big raids / big cheers / big bits: a rounded label behind the text */
   .msg.hype {
     display: block; margin: 6px 0; padding: 9px 16px;
@@ -639,7 +640,7 @@
         </div>
         <label style="margin-top:14px"><span>Lead moderators <span class="opt">(logins, comma separated)</span></span>
           <input id="cfg-leadmods" autocomplete="off" placeholder="mod1, mod2">
-          <span class="hint">Lead mods and the streamer can use !mutesfx / !unmutesfx, !mutetts / !unmutetts, and !disablerequests / !enablerequests. Muted TTS and disabled requests do not charge cookies.</span>
+          <span class="hint">Lead mods and the streamer can use !mutesfx / !unmutesfx, !mutetts / !unmutetts, and !disablerequests / !enablerequests, and !disablemeows / !enablemeows (turns off only the periodic cat-visit meow). Muted TTS and disabled requests do not charge cookies.</span>
         </label>
       </div>
     </div>
@@ -1217,6 +1218,7 @@
   let sfxMuted = false, sfxBus = null;
   let ttsMuted = false;
   let requestsDisabled = false;
+  let catMeowOff = false;          // !disablemeows turns off only the periodic cat-visit meow (TTS and !meow still work)
   const sfxStops = new Set();
   function sfxOut(c) {
     if (!sfxBus || sfxBus.context !== c) {
@@ -1499,6 +1501,7 @@
 
     const el = document.createElement("div");
     el.className = "msg cookie";
+    el.style.setProperty("--uc", readable(tags.color, name));     // outline follows the user's name colour
     const who = document.createElement("span");
     who.textContent = name;
     who.style.color = readable(tags.color, name);
@@ -1527,6 +1530,21 @@
 
 
   /* ---------- Alerts ---------- */
+  // remembers each chatter's name colour so follows/subs/etc. can use it too
+  const nameColors = new Map();
+  function whoFor(name, tags) {
+    if (!name) return null;
+    const raw = (tags && tags.color) || nameColors.get(String(name).toLowerCase()) || "";
+    return { name, color: readable(raw, name) };
+  }
+  // fills an alert title; the user's name (at the start of the title) gets the user's colour
+  function fillTitle(at, title, who) {
+    at.textContent = "";
+    if (who && who.name && title.startsWith(who.name)) {
+      const n = document.createElement("span"); n.textContent = who.name; n.style.color = who.color;
+      at.append(n, document.createTextNode(title.slice(who.name.length)));
+    } else at.textContent = title;
+  }
   const alertsEl = document.getElementById("alerts");
   const alertQueue = [];
   let alertBusy = false;
@@ -1581,15 +1599,16 @@
   }
 
   // alert as a highlighted line in chat (not counted in the message limit)
-  function showAlertChat(kind, title, sub, fade, quiet) {
+  function showAlertChat(kind, title, sub, fade, quiet, who) {
     const [icon, color] = ALERT_STYLE[kind] || ALERT_STYLE.sub;
     const el = document.createElement("div");
     el.className = "msg alertc keep";
     el.dataset.kind = kind;
-    el.style.setProperty("--ac", color);
+    el.style.setProperty("--ac", who ? who.color : color);
+    if (who) el.style.setProperty("--uc", who.color);
     const ic = document.createElement("div"); ic.className = "ai"; ic.appendChild(makeIcon(icon, "ui-icon alert-icon"));
     const body = document.createElement("div");
-    const at = document.createElement("div"); at.className = "at"; at.textContent = title;
+    const at = document.createElement("div"); at.className = "at"; fillTitle(at, title, who);
     const as = document.createElement("div"); as.className = "as"; as.textContent = sub || "";
     body.append(at, as);
     el.append(ic, body);
@@ -1619,7 +1638,7 @@
   function showHype(o) {
     const el = document.createElement("div");
     el.className = "msg hype" + (ALERT_TOP ? "" : " keep");
-    el.style.setProperty("--hc", "#ffffff");
+    el.style.setProperty("--hc", o.whoColor || "#ffffff");
     const label = document.createElement("div"); label.className = "hlabel"; label.textContent = o.label;
     const who = document.createElement("div"); who.className = "hwho"; who.textContent = o.who;
     if (o.whoColor) who.style.color = o.whoColor;
@@ -1634,26 +1653,27 @@
     } else push(el, {}, fade);
     return el;
   }
-  function doRaidAlert(raider, n) {
+  function doRaidAlert(raider, n, login, tags) {
+    const who = whoFor(raider, tags);
     if (!ALERTS_ON) return;
     speakAlert(`${raider} just raided with a party of ${n}!`);
     if (n >= BIG_RAID) {
       showHype({
-        label: "INCOMING RAID", who: raider, color: "#ff5fd2", power: n >= 200 ? 3 : n >= 100 ? 2 : 1, fade: 16,
+        label: "INCOMING RAID", who: raider, whoColor: who.color, color: "#ff5fd2", power: n >= 200 ? 3 : n >= 100 ? 2 : 1, fade: 16,
         big: `${n.toLocaleString("en-US")} ${n === 1 ? "VIEWER" : "VIEWERS"}!`, sub: "WELCOME RAIDERS!"
       });
       alertSound("raid", n >= 150 ? 3 : 2);
     } else {
-      queueAlert(n < LOW_RAID ? "lowraid" : "raid", `${raider} is raiding with ${n.toLocaleString("en-US")} ${n === 1 ? "viewer" : "viewers"}!`);
+      queueAlert(n < LOW_RAID ? "lowraid" : "raid", `${raider} is raiding with ${n.toLocaleString("en-US")} ${n === 1 ? "viewer" : "viewers"}!`, "", undefined, who);
     }
   }
 
-  function queueAlert(kind, title, sub, fade) {
+  function queueAlert(kind, title, sub, fade, who) {
     if (!ALERTS_ON) return;
-    if (["follow", "sub", "gift", "cgift", "bits"].includes(kind)) speakAlert(title);
-    if (!ALERT_TOP) { showAlertChat(kind, title, sub, fade); return; }
+    if (["follow", "sub", "gift", "bits"].includes(kind)) speakAlert(title);
+    if (!ALERT_TOP) { showAlertChat(kind, title, sub, fade, false, who); return; }
     if (alertQueue.length > 8) return;
-    alertQueue.push({ kind, title, sub: sub || "" });
+    alertQueue.push({ kind, title, sub: sub || "", who });
     nextAlert();
   }
 
@@ -1663,10 +1683,11 @@
     const [icon, color] = ALERT_STYLE[a.kind] || ALERT_STYLE.sub;
     const el = document.createElement("div");
     el.className = "alert";
-    el.style.setProperty("--ac", color);
+    el.style.setProperty("--ac", a.who ? a.who.color : color);
+    if (a.who) el.style.setProperty("--uc", a.who.color);
     const ic = document.createElement("div"); ic.className = "ai"; ic.appendChild(makeIcon(icon, "ui-icon alert-icon"));
     const body = document.createElement("div");
-    const at = document.createElement("div"); at.className = "at"; at.textContent = a.title;
+    const at = document.createElement("div"); at.className = "at"; fillTitle(at, a.title, a.who);
     body.append(at);
     if (a.sub) { const as = document.createElement("div"); as.className = "as"; as.textContent = a.sub; body.append(as); }
     el.append(ic, body);
@@ -1688,19 +1709,19 @@
     const msg = text ? " · " + text.slice(0, 100) : "";
     if (id === "raid") {
       const n = parseInt(tags["msg-param-viewerCount"] || "0", 10) || 0;
-      doRaidAlert(tags["msg-param-displayName"] || name, n, login || name);
+      doRaidAlert(tags["msg-param-displayName"] || name, n, login || name, tags);
     } else if (id === "sub") {
-      queueAlert("sub", `${name} just subscribed!`, plan(tags["msg-param-sub-plan"]) + msg);
+      queueAlert("sub", `${name} just subscribed!`, plan(tags["msg-param-sub-plan"]) + msg, undefined, whoFor(name, tags));
     } else if (id === "resub") {
       const m = parseInt(tags["msg-param-cumulative-months"] || "0", 10) || 0;
-      queueAlert("sub", `${name} resubscribed${m > 1 ? " for " + m + " months" : ""}!`, plan(tags["msg-param-sub-plan"]) + msg);
+      queueAlert("sub", `${name} resubscribed${m > 1 ? " for " + m + " months" : ""}!`, plan(tags["msg-param-sub-plan"]) + msg, undefined, whoFor(name, tags));
     } else if (id === "submysterygift") {
       const n = parseInt(tags["msg-param-mass-gift-count"] || "1", 10) || 1;
       giftSeen.set(login, Date.now());
-      queueAlert("gift", `${name} is gifting ${n} ${n === 1 ? "sub" : "subs"}!`, plan(tags["msg-param-sub-plan"]));
+      queueAlert("gift", `${name} is gifting ${n} ${n === 1 ? "sub" : "subs"}!`, plan(tags["msg-param-sub-plan"]), undefined, whoFor(name, tags));
     } else if (id === "subgift") {
       if (Date.now() - (giftSeen.get(login) || 0) < 15000) return;   // part of a mass gift, already announced
-      queueAlert("gift", `${name} gifted a sub to ${tags["msg-param-recipient-display-name"] || "someone"}!`, plan(tags["msg-param-sub-plan"]));
+      queueAlert("gift", `${name} gifted a sub to ${tags["msg-param-recipient-display-name"] || "someone"}!`, plan(tags["msg-param-sub-plan"]), undefined, whoFor(name, tags));
     }
   }
 
@@ -1747,7 +1768,7 @@
         if (before === undefined || c.n <= before) return;            // first reading is only the starting point
         const gained = Math.min(c.n - before, 5);
         const names = c.src === "twitch" ? await newestNames(gained) : [];
-        for (let i = 0; i < gained; i++) queueAlert("follow", names[i] ? `${names[i]} just followed!` : "New follower!", names[i] ? "" : "Thanks for the follow!");
+        for (let i = 0; i < gained; i++) queueAlert("follow", names[i] ? `${names[i]} just followed!` : "New follower!", names[i] ? "" : "Thanks for the follow!", undefined, names[i] ? whoFor(names[i]) : null);
       } finally { busy = false; }
     }
     tick();
@@ -1803,7 +1824,7 @@
         } else if (type === "session_reconnect") {
           open(msg.payload.session.reconnect_url, true);
         } else if (type === "notification" && msg.metadata.subscription_type === "channel.follow") {
-          queueAlert("follow", `${msg.payload.event.user_name} just followed!`);
+          queueAlert("follow", `${msg.payload.event.user_name} just followed!`, "", undefined, whoFor(msg.payload.event.user_name));
         }
       };
       ws.onclose = () => {
@@ -2562,13 +2583,14 @@
     markCd("wheel:" + user);
     const net = result - WHEEL_COST;
     const amount = Math.abs(result);
-    const card = showAlertChat("wheel", `${name} spins the wheel...`, "Rolling...", 20, true);
+    const wwho = whoFor(name, tags);
+    const card = showAlertChat("wheel", `${name} spins the wheel...`, "Rolling...", 20, true, wwho);
     const tick = setInterval(() => { card.as.textContent = `${Math.random() < 0.5 ? "−" : "+"}${1 + Math.floor(Math.random() * 20)}`; }, 90);
     setTimeout(() => {
       clearInterval(tick);
-      card.at.textContent = result >= 0
+      fillTitle(card.at, result >= 0
         ? `${name} won ${amount} ${currencyLabel(amount)}!`
-        : `${name} lost ${amount} ${currencyLabel(amount)}!`;
+        : `${name} lost ${amount} ${currencyLabel(amount)}!`, wwho);
       card.as.textContent = `${net >= 0 ? "+" : ""}${net} ${currencyLabel(Math.abs(net))} after the ${WHEEL_COST} ${currencyLabel(WHEEL_COST)} spin`;
       if (result > 0) ambientPulse("wheel", result >= 15 ? 3 : result >= 8 ? 2 : 1);
       if (!MUTE) chime(result >= 15 ? [880, 1108.7, 1318.5, 1760, 2217] : result >= 8 ? [783.99, 987.77, 1174.66] : [659.25, 783.99]);
@@ -2584,7 +2606,7 @@
     if (ttsBlocked(level)) { queueAlert("requestinfo", "That request can't be accepted", "Please try a different level name.", 8); return; }
     if (cdLeft("req:" + user.toLowerCase(), 30000)) { queueAlert("requestinfo", "Please wait before requesting again", "You can request another level in 30 seconds.", 8); return; }
     markCd("req:" + user.toLowerCase());
-    queueAlert("request", `${nameOf(tags, user)} just requested a level!`, level, 45);
+    queueAlert("request", `${nameOf(tags, user)} just requested a level!`, level, 45, whoFor(nameOf(tags, user), tags));
   }
 
   // !gift @name 20 [message]  (max 50 per gift) plays lowcheer.mp3
@@ -2607,7 +2629,7 @@
     if (to === user.toLowerCase()) return;
     if (n > GIFT_MAX) {
       markCd("gift:" + user);
-      queueAlert("cookie", `${nameOf(tags, user)}: the gift limit is ${GIFT_MAX} ${currencyLabel(GIFT_MAX)} per gift`, "");
+      queueAlert("cookie", `${nameOf(tags, user)}: the gift limit is ${GIFT_MAX} ${currencyLabel(GIFT_MAX)} per gift`, "", undefined, whoFor(nameOf(tags, user), tags));
       return;
     }
     if (!canPay(tags, user, n, "that gift")) return;
@@ -2615,7 +2637,9 @@
     addCookies(to, n);
     markCd("gift:" + user);
     const toName = (activeChatters.get(to) || {}).name || m[1];
-    queueAlert("cgift", `${nameOf(tags, user)} gifted ${toName} ${n} ${currencyLabel(n)}` + (note ? ` and said: ${note}` : ""), "");
+    const gName = nameOf(tags, user), cur = currencyLabel(n).toLowerCase();
+    queueAlert("cgift", `${gName} just gifted ${n} ${cur} to ${toName}` + (note ? ` and said: ${note}` : ""), "", undefined, whoFor(gName, tags));
+    if (n > 30) speakAlert(`${gName} just gifted ${n} ${cur} to ${toName}`);       // TTS only for bigger gifts
   }
 
   // mods/broadcaster only, silent: !givecookies @name 20 (negative numbers remove cookies)
@@ -2668,7 +2692,7 @@
     if (!cm) return false;
     const cmd = cm[1].toLowerCase(), arg = (cm[2] || "").trim();
     {                                                                   // show the command as typed (not the silent !give<currency>, not mod-only ones from viewers)
-      const control = ["mutesfx", "unmutesfx", "mutetts", "unmutetts", "disablerequests", "enablerequests", "requestsoff", "requestson", "refreshchat", "resetcookies", "changetext", "changeicon", "changesize"].includes(cmd) || CUR_CMDS.some(c => cmd === "reset" + c);
+      const control = ["mutesfx", "unmutesfx", "mutetts", "unmutetts", "disablerequests", "enablerequests", "disablemeows", "enablemeows", "requestsoff", "requestson", "refreshchat", "resetcookies", "changetext", "changeicon", "changesize"].includes(cmd) || CUR_CMDS.some(c => cmd === "reset" + c);
       const open = ["wheel", "request", "gift", "requests"].includes(cmd);
       if (open || (control && canControlSfx(tags, user)) || (cmd === "donerequest" && isMod(tags))) pushCmdLine(tags, user, message);
     }
@@ -2714,6 +2738,12 @@
         return true;
       case "unmutetts":
         if (canControlSfx(tags, user)) { ttsMuted = false; sfxNotice("TTS unmuted.", tags, user); }
+        return true;
+      case "disablemeows":
+        if (canControlSfx(tags, user)) { catMeowOff = true; sfxNotice("Cat visit meows disabled. TTS and !meow still work.", tags, user); }
+        return true;
+      case "enablemeows":
+        if (canControlSfx(tags, user)) { catMeowOff = false; sfxNotice("Cat visit meows enabled.", tags, user); }
         return true;
       case "disablerequests": case "requestsoff":
         if (canControlSfx(tags, user)) { requestsDisabled = true; sfxNotice("Level requests disabled. Attempts won't cost cookies.", tags, user); }
@@ -2995,7 +3025,7 @@
       .filter(([login, info]) => login !== user.toLowerCase() && !BOTS.has(login) && now - info.seen < 10 * 60 * 1000)
       .map(([login]) => login);
     if (opts.charge) {                                        // !gift all: costs the sender, needs someone to receive it
-      if (!recipients.length) { queueAlert("cookie", `${name}: nobody else has chatted recently to gift ${currencyLabel(2)} to`, ""); return false; }
+      if (!recipients.length) { queueAlert("cookie", `${name}: nobody else has chatted recently to gift ${currencyLabel(2)} to`, "", undefined, whoFor(name, tags)); return false; }
       if (!canPay(tags, user, amount, "that gift")) return false;
       pay(tags, user, amount);
     }
@@ -3011,6 +3041,7 @@
     const who = document.createElement("span"); who.className = "who"; who.textContent = name;
     who.style.color = readable(tags.color, name);
     const amt = document.createElement("span"); amt.className = "amt"; appendCurrencyIcon(amt, "currency-icon"); amt.append(document.createTextNode(" " + amount.toLocaleString("en-US")));
+    if (opts.gift && amount > 40) speakAlert(`${name} just gifted ${amount} ${currencyLabel(amount).toLowerCase()}!`);     // TTS only for bigger gifts
     const sharedTxt = `Shared across ${pool.length} ${pool.length === 1 ? "viewer" : "viewers"}!`;
     if (amount >= BIG_CHEER) {
       showHype({
@@ -3022,9 +3053,9 @@
       playCheer(amount);
       return true;
     }
-    el.append(who, document.createTextNode(opts.gift ? " gifted " : " cheered "), amt,
+    el.append(who, document.createTextNode(opts.gift ? " just gifted " : " cheered "), amt,
       document.createTextNode(opts.gift
-        ? ` ${CURRENCY_NAME} to ${pool.length === 1 ? "1 viewer" : pool.length + " viewers"}` + (note ? ` and said: ${note}` : "")
+        ? ` ${currencyLabel(amount).toLowerCase()}!` + (note ? ` and said: ${note}` : "")
         : ` ${CURRENCY_NAME}. ${sharedTxt}`));
     push(el, tags);
     playCheer(amount);
@@ -3121,6 +3152,7 @@
       if (seenMsgIds.size > 500) seenMsgIds.delete(seenMsgIds.values().next().value);
     }
     if (isMod(tags)) knownMods.add(user.toLowerCase());
+    if (tags.color) nameColors.set(user.toLowerCase(), tags.color);
     welcomeFirstChatter(tags, user);          // before commands/spam filter so a first "!tts" still counts
 
     const nowMs = Date.now();
@@ -3130,11 +3162,11 @@
     if (tags.bits && /^\d+$/.test(tags.bits)) {
       const bitsN = Number(tags.bits), bitsWho = tags["display-name"] || user;
       if (ALERTS_ON && bitsN >= BIG_BITS) {
-        showHype({ label: "BIG CHEER", who: bitsWho, color: "#9b6bff", fade: 14, power: bitsN >= 5000 ? 3 : bitsN >= 1000 ? 2 : 1,
+        showHype({ label: "BIG CHEER", who: bitsWho, whoColor: whoFor(bitsWho, tags).color, color: "#9b6bff", fade: 14, power: bitsN >= 5000 ? 3 : bitsN >= 1000 ? 2 : 1,
                    big: `${bitsN.toLocaleString("en-US")} BITS!`, sub: "THANK YOU!" });
         alertSound("bits", bitsN >= 1000 ? 3 : 2);
         speakAlert(`${bitsWho} just cheered ${bitsN} bits!`);
-      } else queueAlert("bits", `${bitsWho} cheered ${bitsN.toLocaleString("en-US")} bits!`);
+      } else queueAlert("bits", `${bitsWho} cheered ${bitsN.toLocaleString("en-US")} bits!`, "", undefined, whoFor(bitsWho, tags));
     }
 
     // commands and cheers (checked before the spam filter, which drops other "!" messages)
@@ -3263,7 +3295,7 @@
     };
     if (s.type === "superChatEvent" || s.type === "superStickerEvent") {
       const d = s.superChatDetails || s.superStickerDetails || {};
-      queueAlert("bits", `${name} sent a Super Chat ${d.amountDisplayString || ""}!`.replace(" !", "!"), (d.userComment || "").slice(0, 100));
+      queueAlert("bits", `${name} sent a Super Chat ${d.amountDisplayString || ""}!`.replace(" !", "!"), (d.userComment || "").slice(0, 100), undefined, whoFor(name));
       return;
     }
     if (s.type !== "textMessageEvent") return;
@@ -3397,7 +3429,7 @@
     if (sub) { const s = document.createElement("div"); s.className = "csub"; s.textContent = sub; body.append(s); }
     el.append(ic, body);
     push(el, {}, 12);
-    if (!MUTE && !allMuted && !sfxMuted) playSfx("meow");     // uses meow.mp3 if you have it, else the built-in meow
+    if (!MUTE && !allMuted && !sfxMuted && !catMeowOff) playSfx("meow");     // uses meow.mp3 if you have it, else the built-in meow
   }
   if (CAT_ON && !VIEWCHAT && !TEXTMODE && !AMBIENTMODE && settings.chat && (settings.configured || CHANNEL)) setInterval(showCat, CAT_MS);
 
