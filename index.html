@@ -1839,7 +1839,7 @@
   /* ---------- SFX (used inside TTS) ---------- */
   const SFX_NAMES = new Set(["meow", "lotsofmeows", "gunshot", "lotsofgunshots", "vineboom", "airhorns", "knocking", "ambienceone", "ambiencetwo", "bwomp", "fireinthehole", "geometrydash", "loudtojump", "metalpipe", "spongebobfail", "shocked", "55", "drip", "money", "bell", "rizz", ...EXTRA_SFX]);
   const SFX_MAX = 3;
-  const SFX_VARIANTS = { meow: ["meow-1", "meow-2", "meow-3", "meow-4"] };   // each play picks one of these files at random
+  const SFX_VARIANTS = { meow: ["meow-1", "meow-2", "meow-4"], lotsofmeows: ["meow-3"] };   // each play picks one of these files at random
   [...SFX_NAMES, "cheer", "lowcheer", "follow", "raid", "gift", "request", "lowraid"].forEach(preloadSfx);
   Object.values(SFX_VARIANTS).flat().forEach(preloadSfx);
   const SFX_COSTS = { loudtojump: 1000 };          // price per sound (anything not listed uses SFX_CMD_COST)
