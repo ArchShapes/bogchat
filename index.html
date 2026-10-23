@@ -1752,8 +1752,8 @@
   /* ---------- SFX (used inside TTS) ---------- */
   const SFX_NAMES = new Set(["gunshot", "lotsofgunshots", "vineboom", "airhorns", "knocking", "ambienceone", "ambiencetwo", "bwomp", "fireinthehole", "geometrydash", "loudtojump", "metalpipe", "spongebobfail", "shocked", "55", "drip", "money", "bell", "rizz", ...EXTRA_SFX]);
   const SFX_MAX = 3;
+  const SFX_VARIANTS = {}; // No removed meow variants; keep the SFX engine safe for other commands.
   [...SFX_NAMES, "cheer", "lowcheer", "raid", "gift", "lowraid"].forEach(preloadSfx);
-  Object.values(SFX_VARIANTS).flat().forEach(preloadSfx);
   const SFX_COSTS = { loudtojump: 1000 };          // price per sound (anything not listed uses SFX_CMD_COST)
   const CMD_ONLY_SFX = new Set(["loudtojump"]);    // can't be used inside !tts
 
