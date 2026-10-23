@@ -2894,7 +2894,6 @@
     const stick = VIEWCHAT && chat.scrollHeight - chat.scrollTop - chat.clientHeight < 120;
     const wait = VIEWCHAT && document.getElementById("vc-wait"); if (wait) wait.remove();
     chat.appendChild(el);
-    if (!VIEWCHAT) truncateMsg(el, Math.max(40, Math.floor(chatRoom() * 0.4)));       // one message can only use part of the chat
     const all = [...chat.children].filter(e => e.id !== "vc-head" && !e._gone);
     const norm = all.filter(e => !e.classList.contains("keep"));
     const keep = all.filter(e => e.classList.contains("keep"));
