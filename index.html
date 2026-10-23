@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
   /* URL options:
      ?channel=name   any Twitch username
@@ -29,7 +29,6 @@
      #ambient: a third OBS browser source (full screen, transparent): soft low-opacity edge pulses on cheers, gifts, subs, raids, bits
      &intensity=1    strength of the ambient pulses (0.3 = very faint, 2 = stronger)
      &alerts=0       turn alerts off        &alertsec=6  seconds per alert
-     #alerts-and-more: a transparent OBS browser source that shows alerts + cookie cards with Twitch-style animations (needs #overlay open too)
      !disablealertsounds / !enablealertsounds, !disablealerts / !enablealerts (streamer + lead mods)
      &wheelbias=1.2  wheel odds (higher = rarer big wins; 1.0 pays more than it costs)
      &ting=0         turn the "first message after a quiet minute" ting off
@@ -38,7 +37,7 @@
      &silent=name1,name2   show a Silent badge for these logins
      &demo=1         show test buttons
      #viewchat: press P to pop the chat out into an always-on-top window (Chrome / Edge; other browsers get a normal small window). Press P again to put it back
-     Commands:  !changetext "Something" (owner + configured lead mods; updates /#text)  !changesize 0.1-1  !changeicon --defaults star|heart|burger|mglass|twitch|none  !changeicon --imagelink <url>  !changeicon --side left|right (lead mods + streamer only; icon on /#text)  !<currency> (e.g. !cookies)  !gift @name|all <n> [message]  !tts <text>  !resetcookies <name|all>  !loudtojump (1000 cookies, command only)  !knocking  !lotsofgunshots  !ambienceone  !ambiencetwo  !shocked  !55  !drip  !money  !bell  !rizz  or (knocking) (lotsofgunshots) (ambienceone) (55) (drip) (money) (bell) (rizz) inside !tts
+     Commands:  !changetext "Something" (owner + configured lead mods; updates /#text)  !changesize 0.1-1  !changeicon --defaults star|heart|burger|mglass|twitch|none  !changeicon --imagelink <url>  !changeicon --side left|right (lead mods + streamer only; icon on /#text)  !<currency> (e.g. !cookies)  !gift @name|all <n> [message]  !tts <text>  !resetcookies <name|all>  !knocking  !lotsofgunshots  !ambienceone  !ambiencetwo  !shocked  !55  !drip  !money  !bell  !rizz  or (knocking) (lotsofgunshots) (ambienceone) (55) (drip) (money) (bell) (rizz) inside !tts
                 !mutesfx / !unmutesfx  (streamer + lead mods only; lead mods are set in the setup panel or with &leadmod=)  */
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
   body.no-message-in .msg, body.no-message-in .msg.cheer, body.no-message-in .msg.cookie, body.no-message-in .msg.hype, body.no-message-in .msg.alertc, body.no-message-in .msg.tts, body.no-message-in .msg.welcome { animation: none !important; }
@@ -191,8 +190,8 @@
     position: relative; isolation: isolate; overflow: hidden;
     display: flex; align-items: center; gap: 13px; width: max-content; max-width: min(520px, 92%); box-sizing: border-box;
     padding: 13px 18px; border-radius: 12px;
-    background: rgba(20,20,24,.97);
-    color: #fff; border: 1px solid rgba(255,255,255,.16);
+    background: rgba(20,20,24,.82);
+    color: #fff; border: 1px solid rgba(255,255,255,.72);
     box-shadow: none;
     animation: alertIn .28s cubic-bezier(.2,.8,.2,1) both;
     transition: opacity .35s ease, transform .35s ease;
@@ -429,7 +428,8 @@
   .hype .hbit { display: none; }
 
   /* top-banner alerts (&alertpos=top): quieter */
-  .alert { padding: 9px 14px; border-radius: 8px; box-shadow: none; transition: opacity .6s ease, transform .6s ease; }
+  .alert { padding: 9px 14px; border: 1px solid rgba(255,255,255,.72); border-left: 3px solid #fff; border-radius: 12px; box-shadow: 0 4px 18px rgba(0,0,0,.22); animation: alertEnter .28s cubic-bezier(.2,.8,.2,1) both; transition: opacity .45s ease, transform .45s ease; }
+  @keyframes alertEnter { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
   .alert.out { opacity: 0; transform: translateY(-6px); }
   @keyframes setupPanelIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
   @media (prefers-reduced-motion: reduce) { #global-setup, #setup-hint { animation: none !important; transition: none !important; } }
@@ -439,6 +439,19 @@
     .setup-body { padding: 2px 16px; }
     .setup-footer { flex-wrap: wrap; } #global-setup-status { flex-basis: 100%; }
   }
+
+
+  /* Clean chat: no role-label chips or event-category labels. */
+  #chat .badges, #chat .hlabel { display: none !important; }
+  #chat .msg.alertc .ai { display: none; }
+  #chat .msg.alertc, #chat .msg.cookie, #chat .msg.cheer, #chat .msg.welcome, #chat .msg.tts {
+    border-color: rgba(255,255,255,.22) !important; border-left-color: #fff !important;
+  }
+  #chat .msg.alertc[style*="--uc"] .at, #chat .msg.tts[style*="--uc"] .spk { color: #fff !important; }
+  #chat .msg.cookie .cbig, #chat .msg.cookie .cbig .big-currency, #chat .msg.cookie .inline-currency { color: #fff !important; }
+  #chat .msg.cookie .cbar > div { background: #fff !important; }
+  #chat .msg.hype { --hc: #fff !important; border-color: rgba(255,255,255,.22) !important; border-left-color: #fff !important; }
+  #chat .msg.hype .hwho, #chat .msg.hype .hbig { color: #fff !important; -webkit-text-fill-color: #fff !important; }
 
   /* ---------- #alerts-and-more: Twitch-style alert stage ---------- */
   #ap-stage {
@@ -469,59 +482,6 @@
   @keyframes apShine { to { left: 130%; } }
   @keyframes apPulse { 0% { box-shadow: 0 0 0 0 var(--glow); opacity: .9; } 100% { box-shadow: 0 0 0 26px transparent; opacity: 0; } }
   @media (prefers-reduced-motion: reduce) { .ap-card, .ap-card * , .ap-card::before { animation-duration: .01s !important; animation-delay: 0s !important; } }
-
-  /* Alerts source: transparent canvas, no card/background panel. */
-  html:has(body.alerts-mode), body.alerts-mode { background: transparent !important; background-color: transparent !important; }
-  body.alerts-mode #ap-stage {
-    align-items: center; justify-content: center; padding: 5vh 4vw;
-    font-family: "Outfit", "Segoe UI", sans-serif;
-    text-shadow: 0 2px 5px rgba(0,0,0,.95), 0 0 12px rgba(0,0,0,.65);
-  }
-  body.alerts-mode .ap-card {
-    width: max-content; max-width: 94vw; background: transparent !important;
-    filter: drop-shadow(0 3px 10px rgba(0,0,0,.45));
-  }
-  body.alerts-mode .ap-card::before,
-  body.alerts-mode .ap-shine { display: none !important; }
-  body.alerts-mode .ap-card .msg,
-  body.alerts-mode .ap-card .msg.alertc,
-  body.alerts-mode .ap-card .msg.cookie,
-  body.alerts-mode .ap-card .msg.cheer,
-  body.alerts-mode .ap-card .msg.hype {
-    display: flex; align-items: center; gap: 13px; width: max-content;
-    max-width: 94vw; margin: 0; padding: 0; overflow: visible;
-    color: #fff; background: transparent !important; border: 0 !important;
-    border-radius: 0; box-shadow: none !important; text-shadow: inherit !important;
-  }
-  body.alerts-mode .ap-card .ai {
-    flex: 0 0 1.8em; width: 1.8em; height: 1.8em; color: #b78aff;
-    background: transparent; border: 0; border-radius: 0;
-    filter: drop-shadow(0 0 7px rgba(149,52,235,.7));
-  }
-  body.alerts-mode .ap-card .alert-icon,
-  body.alerts-mode .ap-card .ui-icon { width: 100%; height: 100%; stroke-width: 1.7; }
-  body.alerts-mode .ap-card .at,
-  body.alerts-mode .ap-card .chead,
-  body.alerts-mode .ap-card .hwho {
-    color: #fff; font-family: "Outfit", "Segoe UI", sans-serif;
-    font-size: 1em; font-weight: 700; line-height: 1.15; letter-spacing: -.015em;
-  }
-  body.alerts-mode .ap-card .as,
-  body.alerts-mode .ap-card .chint,
-  body.alerts-mode .ap-card .hsub {
-    color: #e7dcff; font-size: .72em; font-weight: 500; margin-top: 3px;
-  }
-  body.alerts-mode .ap-card .cbig,
-  body.alerts-mode .ap-card .hbig {
-    color: #c9a8ff !important; font-size: 1.15em; font-weight: 800;
-    background: none; filter: none; animation: none; -webkit-text-fill-color: currentColor;
-  }
-  body.alerts-mode .ap-card .msg.hype { display: block; }
-  body.alerts-mode .ap-card .hlabel { color: #c9a8ff; font-size: .65em; letter-spacing: .12em; }
-  body.alerts-mode .ap-card .cbar { display: none; }
-  body.alerts-mode .ap-card .msg.alertc[style*="--uc"] .ai { color: var(--uc); }
-  body.alerts-mode .ap-card .at span { color: var(--uc, #c9a8ff); }
-
 </style>
 </head>
 <body>
@@ -1348,6 +1308,7 @@
 
   // 0-144 cookies plays lowcheer.mp3, 145 and up plays cheer.mp3 (built-in jingle if a file is missing)
   function playCheer(amount) {
+    if (alertsOff || alertSoundsOff) return;
     ambientPulse("cheer", amount >= 500 ? 3 : amount >= BIG_CHEER ? 2 : 1); playFileOr(amount < 145 ? "lowcheer" : "cheer", () => playCheerSynth(amount)); }
   function playCheerSynth(amount) {
     if (MUTE || sfxMuted) return;
@@ -1669,7 +1630,6 @@
     el.className = "msg alertc keep";
     el.dataset.kind = kind;
     el.style.setProperty("--ac", who ? who.color : color);
-    if (who) el.style.setProperty("--uc", who.color);
     const ic = document.createElement("div"); ic.className = "ai"; ic.appendChild(makeIcon(icon, "ui-icon alert-icon"));
     const body = document.createElement("div");
     const at = document.createElement("div"); at.className = "at"; fillTitle(at, title, who);
@@ -1700,6 +1660,7 @@
   }
   // o: { label, who, big (string or node builder), sub, color, fade, power (1-3) }
   function showHype(o) {
+    if (alertsOff) return null;
     const el = document.createElement("div");
     el.className = "msg hype" + (ALERT_TOP ? "" : " keep");
     el.style.setProperty("--hc", o.whoColor || "#ffffff");
@@ -1734,7 +1695,7 @@
 
   function queueAlert(kind, title, sub, fade, who) {
     if (!ALERTS_ON || alertsOff) return;
-    if (["follow", "sub", "gift", "bits"].includes(kind)) speakAlert(title);
+    if (["sub", "gift", "bits"].includes(kind)) speakAlert(title);
     if (!ALERT_TOP) { showAlertChat(kind, title, sub, fade, false, who); return; }
     if (alertQueue.length > 8) return;
     alertQueue.push({ kind, title, sub: sub || "", who });
@@ -1748,7 +1709,6 @@
     const el = document.createElement("div");
     el.className = "alert";
     el.style.setProperty("--ac", a.who ? a.who.color : color);
-    if (a.who) el.style.setProperty("--uc", a.who.color);
     const ic = document.createElement("div"); ic.className = "ai"; ic.appendChild(makeIcon(icon, "ui-icon alert-icon"));
     const body = document.createElement("div");
     const at = document.createElement("div"); at.className = "at"; fillTitle(at, a.title, a.who);
@@ -1790,9 +1750,8 @@
   }
 
   /* ---------- SFX (used inside TTS) ---------- */
-  const SFX_NAMES = new Set(["meow", "lotsofmeows", "gunshot", "lotsofgunshots", "vineboom", "airhorns", "knocking", "ambienceone", "ambiencetwo", "bwomp", "fireinthehole", "geometrydash", "loudtojump", "metalpipe", "spongebobfail", "shocked", "55", "drip", "money", "bell", "rizz", ...EXTRA_SFX]);
+  const SFX_NAMES = new Set(["gunshot", "lotsofgunshots", "vineboom", "airhorns", "knocking", "ambienceone", "ambiencetwo", "bwomp", "fireinthehole", "geometrydash", "loudtojump", "metalpipe", "spongebobfail", "shocked", "55", "drip", "money", "bell", "rizz", ...EXTRA_SFX]);
   const SFX_MAX = 3;
-  const SFX_VARIANTS = { meow: ["meow-1", "meow-2", "meow-4"], lotsofmeows: ["meow-3"] };   // each play picks one of these files at random
   [...SFX_NAMES, "cheer", "lowcheer", "raid", "gift", "lowraid"].forEach(preloadSfx);
   Object.values(SFX_VARIANTS).flat().forEach(preloadSfx);
   const SFX_COSTS = { loudtojump: 1000 };          // price per sound (anything not listed uses SFX_CMD_COST)
@@ -2560,15 +2519,15 @@
     return note && !ttsBlocked(note) ? note : "";
   }
   function doGift(tags, user, arg) {
-    const m = arg.match(/^@?([a-zA-Z0-9_]{1,25})\s+(\d{1,6})(?:\s+([\s\S]+))?$/);
-    if (!m) { sfxNotice("Use !gift @username <amount> [message] or !gift all <amount>", tags, user); return; }
+    const m = arg.match(/^@?(\w{1,25})\s+(\d{1,6})(?:\s+([\s\S]+))?$/);
+    if (!m) return;
     const to = m[1].toLowerCase(), n = parseInt(m[2], 10), note = cleanGiftNote(m[3]);
     if (n < 1 || cdLeft("gift:" + user, 3000)) return;
     if (to === "all") {
       if (addCheer(tags, user, n, { gift: true, charge: true, note })) markCd("gift:" + user);
       return;
     }
-    if (to === user.toLowerCase()) { sfxNotice("You can't gift cookies to yourself.", tags, user); return; }
+    if (to === user.toLowerCase()) return;
     if (n > GIFT_MAX) {
       markCd("gift:" + user);
       queueAlert("cookie", `${nameOf(tags, user)}: the gift limit is ${GIFT_MAX} ${currencyLabel(GIFT_MAX)} per gift`, "", undefined, whoFor(nameOf(tags, user), tags));
@@ -2672,7 +2631,6 @@
     switch (cmd) {
       case "wheel":       doWheel(tags, user); return true;
       case "gift":        doGift(tags, user, arg); return true;
-      case "givecookies": doGive(tags, arg); return true;
       case "mutesfx":     doMuteSfx(tags, user, true); return true;
       case "unmutesfx":   doMuteSfx(tags, user, false); return true;
       case "mutetts":
@@ -2698,7 +2656,7 @@
     }
     if (CUR_CMDS.some(c => cmd === "reset" + c)) { doResetCookies(tags, user, arg); return true; }
     if (CUR_CMDS.some(c => cmd === "give" + c)) { doGive(tags, arg); return true; }    // !give<currency> @name 20
-    if (SFX_NAMES.has(cmd)) { doSfxCmd(tags, user, cmd, message); return true; }              // !meow, !gunshot, ...
+    if (SFX_NAMES.has(cmd)) { doSfxCmd(tags, user, cmd, message); return true; }              // supported sound commands
     return false;
   }
 
@@ -2718,13 +2676,11 @@
       "Bits":     () => queueAlert("bits", "SampleViewer cheered 100 bits!"),
       "Gift all":() => addCheer({ "display-name": "SampleViewer" }, "sampleviewer", 50, { gift: true, note: "enjoy!" }),
       "BIG gift all":() => addCheer({ "display-name": "SampleViewer" }, "sampleviewer", 300, { gift: true }),
-      "TTS+sfx":  () => handleTts(modTags, "demo", "!tts Hello there (knocking) this is a test (meow) (vineboom)"),
+      "TTS+sfx":  () => handleTts(modTags, "demo", "!tts Hello there (knocking) this is a test (vineboom)"),
       "Cookies":  () => { noteLast.clear(); addCookieCard({ "display-name": "SampleViewer" }, "sampleviewer", false); },
       "Short":    () => { noteLast.clear(); addCookieCard({ "display-name": "SampleViewer" }, "sampleviewer", true); },
       "Wheel":    () => { rewardCd.clear(); doWheel(modTags, "demo"); },
       "Gift":     () => { rewardCd.clear(); doGift(modTags, "demo", "@SampleViewer 5"); },
-      "!meow":    () => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "meow"); },
-      "!lotsofmeows":() => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "lotsofmeows"); },
       "!loudtojump":() => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "loudtojump"); },
       "!bwomp":   () => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "bwomp"); },
       "!knocking":() => { sfxGlobalLast = 0; doSfxCmd(modTags, "demo", "knocking"); },
@@ -2954,7 +2910,7 @@
     if (el.offsetHeight > limit + 1) { el.style.maxHeight = limit + "px"; el.style.overflow = "hidden"; }      // last resort (a single very tall line)
   }
   function push(el, tags, fade = FADE_S) {
-    if (/(^|\s)(alertc|hype|cookie|cheer)(\s|$)/.test(el.className)) { if (OVERLAYMODE) apForward(el, fade); return; }   // alerts + cookie cards live on #alerts-and-more, not in chat
+    if (alertsOff && ["alertc", "hype", "cookie", "cheer", "welcome"].some(c => el.classList.contains(c))) return;
     if (VIEWCHAT && !viewchatAllows(el)) return;
     wrapForLine(el);
     if (tags.id) el.dataset.id = tags.id;
