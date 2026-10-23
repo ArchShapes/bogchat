@@ -37,9 +37,11 @@
      &leadmod=name1,name2  show a LeadMod badge for these logins
      &silent=name1,name2   show a Silent badge for these logins
      &demo=1         show test buttons
+     &cat=0          turn the cat visits off
+     &catsec=600     seconds between cat visits (default 600 / 10 minutes)
      #viewchat: press P to pop the chat out into an always-on-top window (Chrome / Edge; other browsers get a normal small window). Press P again to put it back
      Commands:  !changetext "Something" (owner + configured lead mods; updates /#text)  !changesize 0.1-1  !changeicon --defaults star|heart|burger|mglass|twitch|none  !changeicon --imagelink <url>  !changeicon --side left|right (lead mods + streamer only; icon on /#text)  !<currency> (e.g. !cookies)  !gift @name|all <n> [message]  !tts <text>  !resetcookies <name|all>  !loudtojump (1000 cookies, command only)  !knocking  !lotsofgunshots  !ambienceone  !ambiencetwo  !shocked  !55  !drip  !money  !bell  !rizz  or (knocking) (lotsofgunshots) (ambienceone) (55) (drip) (money) (bell) (rizz) inside !tts
-                !mutesfx / !unmutesfx  (streamer + lead mods only; lead mods are set in the setup panel or with &leadmod=)  */
+                !disablealertsounds / !enablealertsounds, !disablealerts / !enablealerts, !mutesfx / !unmutesfx  (streamer + lead mods only; lead mods are set in the setup panel or with &leadmod=)  */
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
   body.no-message-in .msg, body.no-message-in .msg.cheer, body.no-message-in .msg.cookie, body.no-message-in .msg.hype, body.no-message-in .msg.alertc, body.no-message-in .msg.tts, body.no-message-in .msg.welcome, body.no-message-in .msg.cat { animation: none !important; }
   #chat {
@@ -398,11 +400,11 @@
   .msg.cheer { border-left-color: #fff; }
   .msg.cookie { border-color: rgba(255,209,138,.4); border-left-color: #ffd18a; }
   /* labels that belong to a user (TTS/sfx notices, gifts, first-chat welcomes) take that user's name colour */
-  .msg.tts[style*="--uc"], .msg.cheer[style*="--uc"], .msg.welcome[style*="--uc"], .msg.cookie[style*="--uc"] { border-color: color-mix(in srgb, var(--uc) 45%, transparent); border-left-color: var(--uc); }
-  .msg.tts[style*="--uc"] .spk { color: var(--uc); }
+  .msg.tts[style*="--uc"], .msg.cheer[style*="--uc"], .msg.welcome[style*="--uc"], .msg.cookie[style*="--uc"] { border-color: rgba(255,255,255,.14); border-left-color: #fff; }
+  .msg.tts[style*="--uc"] .spk { color: #fff; }
   .cookie .cbar > div { background: #ffd18a; }
   .msg.alertc { border-left-color: var(--ac); }
-  .msg.alertc[style*="--uc"] { border-color: color-mix(in srgb, var(--uc) 45%, transparent); border-left-color: var(--uc); }
+  .msg.alertc[style*="--uc"] { border-color: rgba(255,255,255,.14); border-left-color: #fff; }
   /* big raids / big cheers / big bits: a rounded label behind the text */
   .msg.hype {
     display: block; margin: 6px 0; padding: 9px 16px;
@@ -416,8 +418,8 @@
 
   .cookie .chead { font-weight: 600; }
   .cookie .cbig { font-size: 1.05em; font-weight: 700; color: #ffd18a; margin-top: 0; }
-  .msg.cookie[style*="--uc"] .cbig, .msg.cookie[style*="--uc"] .cbig .big-currency, .msg.cookie[style*="--uc"] .inline-currency { color: var(--uc); }   /* balance number + cookie icon in the user's colour */
-  .msg.cookie[style*="--uc"] .cbar > div { background: var(--uc); }
+  .msg.cookie[style*="--uc"] .cbig, .msg.cookie[style*="--uc"] .cbig .big-currency, .msg.cookie[style*="--uc"] .inline-currency { color: #fff; }   /* balance number + cookie icon in the user's colour */
+  .msg.cookie[style*="--uc"] .cbar > div { background: #fff; }
   .cookie .chint { font-size: .75em; opacity: .7; }
 
   /* hype cards: same size as a normal line, just accented */
@@ -540,13 +542,7 @@
           <p class="hint span-2">Uses the official YouTube API (about 5 quota units per poll). A channel ID (UC…) also works while that channel is live.</p>
         </div>
       </div>
-
-      <div class="setup-section">
-        <h3>Follow alerts</h3>
-        <p class="hint">Follower count and recent follower names are checked automatically without API keys. Twitch may limit public access, so names are not guaranteed.</p>
-      </div>
-
-      <div class="setup-section" style="display:none">
+<div class="setup-section" style="display:none">
         <h3>Currency</h3>
         <div class="setup-grid">
           <label>Name
@@ -627,7 +623,7 @@
         </div>
         <label style="margin-top:14px"><span>Lead moderators <span class="opt">(logins, comma separated)</span></span>
           <input id="cfg-leadmods" autocomplete="off" placeholder="mod1, mod2">
-          <span class="hint">Lead mods and the streamer can use !mutesfx / !unmutesfx, !mutetts / !unmutetts, and !disablerequests / !enablerequests. Muted TTS and disabled requests do not charge cookies.</span>
+          <span class="hint">Lead mods and the streamer can use !disablealertsounds / !enablealertsounds, !disablealerts / !enablealerts, !mutesfx / !unmutesfx, !mutetts / !unmutetts, and !disablerequests / !enablerequests, and !disablemeows / !enablemeows (turns off only the periodic cat-visit meow). Muted TTS and disabled requests do not charge cookies.</span>
         </label>
       </div>
     </div>
@@ -1122,6 +1118,7 @@
   const EXTRA_BLOCK = (params.get("block") || "").toLowerCase().split(",").map(s => s.trim()).filter(Boolean);
   const SFX_QUEUE_MAX = 10;
   const ALERTS_ON = settings.alerts && params.get("alerts") !== "0";
+  let alertsDisabled = false, alertSoundsDisabled = false;
   const ALERT_SEC = Math.max(2, parseFloat(params.get("alertsec")) || 6);
   const SFX_VOL = params.has("sfxvol") ? Math.min(1, Math.max(0, parseFloat(params.get("sfxvol")) || 0)) : 0.8;
   const EXTRA_SFX = (params.get("sfx") || "").toLowerCase().split(",").map(s => s.trim().replace(/[^a-z0-9_-]/g, "")).filter(Boolean);
@@ -1205,6 +1202,7 @@
   let sfxMuted = false, sfxBus = null;
   let ttsMuted = false;
   let requestsDisabled = false;
+  let catMeowOff = false;          // !disablemeows turns off only the periodic cat-visit meow (TTS and !meow still work)
   const sfxStops = new Set();
   function sfxOut(c) {
     if (!sfxBus || sfxBus.context !== c) {
@@ -1540,7 +1538,7 @@
   };
   ALERT_STYLE.lowraid = ALERT_STYLE.raid;
   ALERT_STYLE.cgift = ["gift", "#ffffff"];          // currency gift (!gift @name 20)
-  ALERT_STYLE.requestinfo = ALERT_STYLE.request;     // !requests list: same look, but no request.mp3
+  ALERT_STYLE.requestinfo = ALERT_STYLE.request;
   const ALERT_NOTES = {
     follow: [783.99, 1046.5, 1318.5],
     sub:    [659.25, 830.61, 987.77, 1318.51],
@@ -1576,6 +1574,7 @@
 
   let lastAlertSnd = 0;
   function alertSound(kind, power = 1) {
+    if (alertSoundsDisabled || alertsDisabled) return;
     ambientPulse(kind, power);
     const now = Date.now();
     if (now - lastAlertSnd < 120) return;                    // bursts share one sound
@@ -1586,12 +1585,12 @@
 
   // alert as a highlighted line in chat (not counted in the message limit)
   function showAlertChat(kind, title, sub, fade, quiet, who) {
+    if (alertsDisabled) return { el: document.createElement("div"), at: document.createElement("div"), as: document.createElement("div") };
     const [icon, color] = ALERT_STYLE[kind] || ALERT_STYLE.sub;
     const el = document.createElement("div");
     el.className = "msg alertc keep";
     el.dataset.kind = kind;
-    el.style.setProperty("--ac", who ? who.color : color);
-    if (who) el.style.setProperty("--uc", who.color);
+    el.style.setProperty("--ac", "#fff");
     const ic = document.createElement("div"); ic.className = "ai"; ic.appendChild(makeIcon(icon, "ui-icon alert-icon"));
     const body = document.createElement("div");
     const at = document.createElement("div"); at.className = "at"; fillTitle(at, title, who);
@@ -1622,6 +1621,7 @@
   }
   // o: { label, who, big (string or node builder), sub, color, fade, power (1-3) }
   function showHype(o) {
+    if (alertsDisabled) return null;
     const el = document.createElement("div");
     el.className = "msg hype" + (ALERT_TOP ? "" : " keep");
     el.style.setProperty("--hc", o.whoColor || "#ffffff");
@@ -1641,8 +1641,8 @@
   }
   function doRaidAlert(raider, n, login, tags) {
     const who = whoFor(raider, tags);
-    if (!ALERTS_ON) return;
-    speakAlert(`${raider} just raided with a party of ${n}!`);
+    if (!ALERTS_ON || alertsDisabled) return;
+    if (!alertSoundsDisabled) speakAlert(`${raider} just raided with a party of ${n}!`);
     if (n >= BIG_RAID) {
       showHype({
         label: "INCOMING RAID", who: raider, whoColor: who.color, color: "#ff5fd2", power: n >= 200 ? 3 : n >= 100 ? 2 : 1, fade: 16,
@@ -1655,8 +1655,8 @@
   }
 
   function queueAlert(kind, title, sub, fade, who) {
-    if (!ALERTS_ON) return;
-    if (["follow", "sub", "gift", "bits"].includes(kind)) speakAlert(title);
+    if (!ALERTS_ON || alertsDisabled) return;
+    if (!alertSoundsDisabled && ["follow", "sub", "gift", "bits"].includes(kind)) speakAlert(title);
     if (!ALERT_TOP) { showAlertChat(kind, title, sub, fade, false, who); return; }
     if (alertQueue.length > 8) return;
     alertQueue.push({ kind, title, sub: sub || "", who });
@@ -1709,117 +1709,6 @@
       if (Date.now() - (giftSeen.get(login) || 0) < 15000) return;   // part of a mass gift, already announced
       queueAlert("gift", `${name} gifted a sub to ${tags["msg-param-recipient-display-name"] || "someone"}!`, plan(tags["msg-param-sub-plan"]), undefined, whoFor(name, tags));
     }
-  }
-
-  /* Follow alerts without any token: Twitch sends no follow events through chat, so this watches the channel's public
-     follower count (no sign-in, no Client ID) and shows an alert whenever it goes up. A name is shown when Twitch
-     hands it out; otherwise the alert says "New follower!". Subs, resubs, gifts, raids and bits already come through chat. */
-  function startFollowsKeyless() {
-    const GQL = "https://gql.twitch.tv/gql", GQL_ID = "kimne78kx3ncx6brgo4mv6wki5h1ko", POLL_MS = 15000;
-    const last = {};                                    // follower count per source (sources are never compared with each other)
-    let busy = false;
-    const gql = async (query) => {
-      const r = await fetch(GQL, { method: "POST", headers: { "Client-Id": GQL_ID }, body: JSON.stringify({ query }) });
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      return r.json();
-    };
-    async function readCount() {
-      try {
-        const j = await gql(`query{user(login:"${CHANNEL}"){followers{totalCount}}}`);
-        const n = j && j.data && j.data.user && j.data.user.followers && j.data.user.followers.totalCount;
-        if (Number.isInteger(n)) return { src: "twitch", n };
-      } catch (e) {}
-      try {
-        const r = await fetch("https://api.ivr.fi/v2/twitch/user?login=" + encodeURIComponent(CHANNEL));
-        const j = await r.json(), u = Array.isArray(j) ? j[0] : j;
-        if (u && Number.isInteger(u.followers)) return { src: "ivr", n: u.followers };
-      } catch (e) {}
-      return null;
-    }
-    async function newestNames(k) {
-      try {
-        const j = await gql(`query{user(login:"${CHANNEL}"){followers(first:${k}){edges{node{displayName login}}}}}`);
-        const edges = (((j.data || {}).user || {}).followers || {}).edges || [];
-        return edges.map(e => e && e.node && (e.node.displayName || e.node.login)).filter(Boolean);
-      } catch (e) { return []; }
-    }
-    async function tick() {
-      if (busy) return;
-      busy = true;
-      try {
-        const c = await readCount();
-        if (!c) return;
-        const before = last[c.src];
-        last[c.src] = c.n;
-        if (before === undefined || c.n <= before) return;            // first reading is only the starting point
-        const gained = Math.min(c.n - before, 5);
-        const names = c.src === "twitch" ? await newestNames(gained) : [];
-        for (let i = 0; i < gained; i++) queueAlert("follow", names[i] ? `${names[i]} just followed!` : "New follower!", names[i] ? "" : "Thanks for the follow!", undefined, names[i] ? whoFor(names[i]) : null);
-      } finally { busy = false; }
-    }
-    tick();
-    setInterval(tick, POLL_MS);
-  }
-
-  /* Follow alerts with a token: names are exact. Uses EventSub.
-     It only runs if &token=...&clientid=... are in the URL. */
-  function startFollows() {
-    if (!ALERTS_ON || !CHANNEL) return;
-    // Use Twitch EventSub when credentials are configured: it provides the exact new follower name.
-    // Without credentials, fall back to public follower-count polling (names depend on Twitch public access).
-    if (!TOKEN || !CLIENT_ID) {
-      startFollowsKeyless();
-      return;
-    }
-    const H = { "Authorization": "Bearer " + TOKEN, "Client-Id": CLIENT_ID };
-    let ids = null, current = null, retry = 0;
-    async function getIds() {
-      if (ids) return ids;
-      const [a, b] = await Promise.all([
-        fetch("https://api.twitch.tv/helix/users?login=" + encodeURIComponent(CHANNEL), { headers: H }).then(r => r.json()),
-        fetch("https://api.twitch.tv/helix/users", { headers: H }).then(r => r.json())
-      ]);
-      ids = { broadcaster: a.data[0].id, mod: b.data[0].id };
-      return ids;
-    }
-    function open(url, isReconnect) {
-      const ws = new WebSocket(url || "wss://eventsub.wss.twitch.tv/ws");
-      current = ws;
-      ws.onmessage = async (ev) => {
-        let msg; try { msg = JSON.parse(ev.data); } catch (e) { return; }
-        const type = msg.metadata && msg.metadata.message_type;
-        if (type === "session_welcome") {
-          retry = 0;
-          if (isReconnect) return;                           // subscriptions carry over on a reconnect
-          try {
-            const i = await getIds();
-            const r = await fetch("https://api.twitch.tv/helix/eventsub/subscriptions", {
-              method: "POST",
-              headers: { ...H, "Content-Type": "application/json" },
-              body: JSON.stringify({
-                type: "channel.follow", version: "2",
-                condition: { broadcaster_user_id: i.broadcaster, moderator_user_id: i.mod },
-                transport: { method: "websocket", session_id: msg.payload.session.id }
-              })
-            });
-            if (!r.ok) {
-              console.warn("follow alerts: subscribe failed", r.status, await r.text());
-              plainNotice(r.status === 401 ? "Follow alerts: the token or Client ID is not valid." : r.status === 403 ? "Follow alerts: the token's account must be the streamer or a mod, with the moderator:read:followers scope." : "Follow alerts could not start (error " + r.status + ").");
-            } else plainNotice("Follow alerts connected.");
-          } catch (e) { console.warn("follow alerts failed", e); plainNotice("Follow alerts could not start. Check the Client ID and token in setup (F2)."); }
-        } else if (type === "session_reconnect") {
-          open(msg.payload.session.reconnect_url, true);
-        } else if (type === "notification" && msg.metadata.subscription_type === "channel.follow") {
-          queueAlert("follow", `${msg.payload.event.user_name} just followed!`, "", undefined, whoFor(msg.payload.event.user_name));
-        }
-      };
-      ws.onclose = () => {
-        if (ws !== current) return;
-        setTimeout(() => open(), Math.min(1000 * 2 ** retry++, 30000));
-      };
-      ws.onerror = () => ws.close();
-    }
-    open();
   }
 
   /* ---------- SFX (used inside TTS) ---------- */
@@ -2140,7 +2029,7 @@
     });
   }
 
-  // !<sfxname> plays that sound; !mutesfx / !unmutesfx are for the streamer and lead mods only
+  // !<sfxname> plays that sound; !disablealertsounds / !enablealertsounds, !disablealerts / !enablealerts, !mutesfx / !unmutesfx are for the streamer and lead mods only
   const SFX_CMD_COST = 5, SFX_CMD_CD = 2500;      // currency charged per !sound (streamer + lead mods play free); 0 = free for everyone
   const sfxCmdLast = new Map();
   let sfxGlobalLast = 0;
@@ -2197,12 +2086,6 @@
     "niggar",
     "nigar",
     "nega",
-    "nagger",
-    "niggggga"
-    "ngah",
-    "nga",
-    "niggar",
-    "nigge",
     "niga",
     "fagg",
     "retard",
@@ -2543,7 +2426,7 @@
     });
   }
 
-  /* ---------- Rewards: !wheel !request !gift, mod: !givecookies !requests !donerequest ---------- */
+  /* ---------- Rewards: !wheel !gift, mod: !givecookies !requests !donerequest ---------- */
   const rewardCd = new Map();
   const cdLeft = (key, ms) => Date.now() - (rewardCd.get(key) || 0) < ms;
   const markCd = (key) => rewardCd.set(key, Date.now());
@@ -2587,18 +2470,6 @@
       if (result > 0) ambientPulse("wheel", result >= 15 ? 3 : result >= 8 ? 2 : 1);
       if (!MUTE) chime(result >= 15 ? [880, 1108.7, 1318.5, 1760, 2217] : result >= 8 ? [783.99, 987.77, 1174.66] : [659.25, 783.99]);
     }, 2200);
-  }
-
-  // Level requests are announced immediately; no queue is stored.
-  function doRequest(tags, user, arg) {
-    if (requestsDisabled) { queueAlert("requestinfo", "Level requests are currently DISABLED", "Please wait until the streamer enables them again.", 8); return; }
-    const level = arg.replace(/\[(?:scream|spongebob)\]|<\/?(?:scream|spongebob)>/gi, "")
-            .replace(/https?:\/\/\S+|www\.\S+/gi, "").replace(/\s+/g, " ").trim().slice(0, 100);
-    if (!level) { queueAlert("requestinfo", "Request level", "Use !request followed by the level name.", 8); return; }
-    if (ttsBlocked(level)) { queueAlert("requestinfo", "That request can't be accepted", "Please try a different level name.", 8); return; }
-    if (cdLeft("req:" + user.toLowerCase(), 30000)) { queueAlert("requestinfo", "Please wait before requesting again", "You can request another level in 30 seconds.", 8); return; }
-    markCd("req:" + user.toLowerCase());
-    queueAlert("request", `${nameOf(tags, user)} just requested a level!`, level, 45, whoFor(nameOf(tags, user), tags));
   }
 
   // !gift @name 20 [message]  (max 50 per gift) plays lowcheer.mp3
@@ -2684,7 +2555,7 @@
     if (!cm) return false;
     const cmd = cm[1].toLowerCase(), arg = (cm[2] || "").trim();
     {                                                                   // show the command as typed (not the silent !give<currency>, not mod-only ones from viewers)
-      const control = ["mutesfx", "unmutesfx", "mutetts", "unmutetts", "disablerequests", "enablerequests", "requestsoff", "requestson", "refreshchat", "resetcookies", "changetext", "changeicon", "changesize"].includes(cmd) || CUR_CMDS.some(c => cmd === "reset" + c);
+      const control = ["mutesfx", "unmutesfx", "mutetts", "unmutetts", "disablerequests", "enablerequests", "disablemeows", "enablemeows", "requestsoff", "requestson", "refreshchat", "resetcookies", "changetext", "changeicon", "changesize"].includes(cmd) || CUR_CMDS.some(c => cmd === "reset" + c);
       const open = ["wheel", "request", "gift", "requests"].includes(cmd);
       if (open || (control && canControlSfx(tags, user)) || (cmd === "donerequest" && isMod(tags))) pushCmdLine(tags, user, message);
     }
@@ -2721,8 +2592,19 @@
     }
     switch (cmd) {
       case "wheel":       doWheel(tags, user); return true;
-      case "request":     doRequest(tags, user, arg); return true;
       case "gift":        doGift(tags, user, arg); return true;
+      case "disablealertsounds":
+        if (canControlSfx(tags, user)) { alertSoundsDisabled = true; sfxNotice("Alert sounds disabled.", tags, user); }
+        return true;
+      case "enablealertsounds":
+        if (canControlSfx(tags, user)) { alertSoundsDisabled = false; sfxNotice("Alert sounds enabled.", tags, user); }
+        return true;
+      case "disablealerts":
+        if (canControlSfx(tags, user)) { alertsDisabled = true; alertQueue.length = 0; alertsEl.replaceChildren(); document.querySelectorAll(".msg.alertc, .msg.hype").forEach(el => el.remove()); sfxNotice("Alerts disabled: sound and visuals are off.", tags, user); }
+        return true;
+      case "enablealerts":
+        if (canControlSfx(tags, user)) { alertsDisabled = false; sfxNotice("Alerts enabled.", tags, user); }
+        return true;
       case "mutesfx":     doMuteSfx(tags, user, true); return true;
       case "unmutesfx":   doMuteSfx(tags, user, false); return true;
       case "mutetts":
@@ -2730,6 +2612,12 @@
         return true;
       case "unmutetts":
         if (canControlSfx(tags, user)) { ttsMuted = false; sfxNotice("TTS unmuted.", tags, user); }
+        return true;
+      case "disablemeows":
+        if (canControlSfx(tags, user)) { catMeowOff = true; sfxNotice("Cat visit meows disabled. TTS and !meow still work.", tags, user); }
+        return true;
+      case "enablemeows":
+        if (canControlSfx(tags, user)) { catMeowOff = false; sfxNotice("Cat visit meows enabled.", tags, user); }
         return true;
       case "disablerequests": case "requestsoff":
         if (canControlSfx(tags, user)) { requestsDisabled = true; sfxNotice("Level requests disabled. Attempts won't cost cookies.", tags, user); }
@@ -3181,7 +3069,7 @@
         const vm = message.match(/^!([a-z0-9]+)(?:\s+(.*))?$/i);
         if (vm) {
           const vc = vm[1].toLowerCase();
-          if (vc === "gift") doGift(tags, user, (vm[2] || "").trim()); else if (vc === "request") doRequest(tags, user, (vm[2] || "").trim());
+          if (vc === "gift") doGift(tags, user, (vm[2] || "").trim());
           return;
         }
       } else if (/^!tts(\s|$)/i.test(message)) { handleTts(tags, user, message); return; }
@@ -3404,7 +3292,7 @@
     document.body.classList.add("ambient-mode");
     document.title = `${DISPLAY_ACCOUNT} ambient`;
     startAmbient();
-    if (settings.configured || CHANNEL) { connect(); startFollows(); }     // silent read-only chat connection of its own, so pulses do not depend on the other page
+    if (settings.configured || CHANNEL) { connect();  }     // silent read-only chat connection of its own, so pulses do not depend on the other page
   } else if (VIEWCHAT) {
     document.body.classList.add("viewchat");
     document.title = `${DISPLAY_ACCOUNT}'s chat`;
@@ -3413,11 +3301,11 @@
     const info = document.createElement("div"); info.className = "vc-info"; info.id = "vc-wait"; info.textContent = (CHANNEL || YT_VIDEO) ? `Connecting to ${DISPLAY_ACCOUNT}'s chat…` : "No channel set. Add ?channel=yourname to the link.";
     chat.appendChild(info);
     connect();
-    startFollows();
+    
     startYouTube();
   } else if (settings.configured || CHANNEL || YT_VIDEO) {
     connect();
-    startFollows();
+    
     startYouTube();
   }
 
