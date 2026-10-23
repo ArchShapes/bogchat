@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
   /* URL options:
      ?channel=name   any Twitch username
@@ -26,29 +26,27 @@
      &sfxvol=0.8     TTS sound-effect volume 0-1
      TTS uses the normal voice
      &sfx=bruh,oof   extra (sfx) names; each plays <name>.mp3 from this folder
-     #ambient: a third OBS browser source (full screen, transparent): soft low-opacity edge pulses on cheers, gifts, subs, raids, follows, bits
+     #ambient: a third OBS browser source (full screen, transparent): soft low-opacity edge pulses on cheers, gifts, subs, raids, bits
      &intensity=1    strength of the ambient pulses (0.3 = very faint, 2 = stronger)
      &alerts=0       turn alerts off        &alertsec=6  seconds per alert
-     &token=...&clientid=...   enables FOLLOW alerts (see notes)
-     &alertpos=top   alerts as a top banner instead of in chat
+     #alerts-and-more: a transparent OBS browser source that shows alerts + cookie cards with Twitch-style animations (needs #overlay open too)
+     !disablealertsounds / !enablealertsounds, !disablealerts / !enablealerts (streamer + lead mods)
      &wheelbias=1.2  wheel odds (higher = rarer big wins; 1.0 pays more than it costs)
      &ting=0         turn the "first message after a quiet minute" ting off
      &tingsec=60     how many quiet seconds before the ting
      &leadmod=name1,name2  show a LeadMod badge for these logins
      &silent=name1,name2   show a Silent badge for these logins
      &demo=1         show test buttons
-     &cat=0          turn the cat visits off
-     &catsec=600     seconds between cat visits (default 600 / 10 minutes)
      #viewchat: press P to pop the chat out into an always-on-top window (Chrome / Edge; other browsers get a normal small window). Press P again to put it back
      Commands:  !changetext "Something" (owner + configured lead mods; updates /#text)  !changesize 0.1-1  !changeicon --defaults star|heart|burger|mglass|twitch|none  !changeicon --imagelink <url>  !changeicon --side left|right (lead mods + streamer only; icon on /#text)  !<currency> (e.g. !cookies)  !gift @name|all <n> [message]  !tts <text>  !resetcookies <name|all>  !loudtojump (1000 cookies, command only)  !knocking  !lotsofgunshots  !ambienceone  !ambiencetwo  !shocked  !55  !drip  !money  !bell  !rizz  or (knocking) (lotsofgunshots) (ambienceone) (55) (drip) (money) (bell) (rizz) inside !tts
                 !mutesfx / !unmutesfx  (streamer + lead mods only; lead mods are set in the setup panel or with &leadmod=)  */
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
-  body.no-message-in .msg, body.no-message-in .msg.cheer, body.no-message-in .msg.cookie, body.no-message-in .msg.hype, body.no-message-in .msg.alertc, body.no-message-in .msg.tts, body.no-message-in .msg.welcome, body.no-message-in .msg.cat { animation: none !important; }
+  body.no-message-in .msg, body.no-message-in .msg.cheer, body.no-message-in .msg.cookie, body.no-message-in .msg.hype, body.no-message-in .msg.alertc, body.no-message-in .msg.tts, body.no-message-in .msg.welcome { animation: none !important; }
   #chat {
     position: absolute; inset: 0;
     display: flex; flex-direction: column; justify-content: flex-end;
     padding: 12px 16px; box-sizing: border-box;
-    font-family: "Nunito", "Segoe UI", "Helvetica Neue", Arial, sans-serif; font-weight: 600; letter-spacing: .01em; -webkit-font-smoothing: antialiased;
+    font-family: "Rubik", "Segoe UI", "Helvetica Neue", Arial, sans-serif; font-weight: 600; letter-spacing: .01em; -webkit-font-smoothing: antialiased;
     font-size: var(--size, 20px); line-height: 1.3; color: #fff;
     text-shadow: 0 2px 6px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.95), 0 0 12px rgba(0,0,0,.8), 0 0 24px rgba(0,0,0,.6);
   }
@@ -148,7 +146,7 @@
   body.popout #chat { --size: 17px; padding: 8px 10px; }
   body.popout .vc-time { display: none; }
   body.popout #vc-head { font-size: .72em; padding: 4px 6px 8px; }
-  #vc-away { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; color: #7d7d86; font: 700 15px "Nunito", "Segoe UI", sans-serif; }
+  #vc-away { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; color: #7d7d86; font: 700 15px "Rubik", "Segoe UI", sans-serif; }
   #vc-head {
     position: sticky; top: 0; z-index: 4; padding: 11px 14px; text-align: center;
     background: #18181b; border-bottom: 1px solid #2f2f35; color: #efeff1; font-size: .8em; font-weight: 800; letter-spacing: .02em;
@@ -184,7 +182,7 @@
     position: absolute; inset: 0; z-index: 5;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: 8px; pointer-events: none; padding: 18px; box-sizing: border-box;
-    font-family: "Nunito", "Segoe UI", "Helvetica Neue", Arial, sans-serif; font-weight: 600; letter-spacing: .01em; -webkit-font-smoothing: antialiased;
+    font-family: "Rubik", "Segoe UI", "Helvetica Neue", Arial, sans-serif; font-weight: 600; letter-spacing: .01em; -webkit-font-smoothing: antialiased;
     font-size: var(--size, 20px); color: #fff;
     text-shadow: 0 2px 6px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.95), 0 0 12px rgba(0,0,0,.8), 0 0 24px rgba(0,0,0,.6);
   }
@@ -231,7 +229,7 @@
     to   { opacity: 1; transform: none; }
   }
 
-  #screen-text { --st-x:38vw; --st-fs:clamp(28px,5vw,88px); --st-size:1; display:none; position:fixed; inset:0; box-sizing:border-box; color:#fff; font:800 calc(var(--st-fs) * var(--st-size))/1.15 "Nunito", "Segoe UI", sans-serif; text-align:center; overflow-wrap:anywhere; white-space:pre-wrap; text-shadow:0 2px 6px rgba(0,0,0,.9),0 0 4px rgba(0,0,0,.9); }
+  #screen-text { --st-x:38vw; --st-fs:clamp(28px,5vw,88px); --st-size:1; display:none; position:fixed; inset:0; box-sizing:border-box; color:#fff; font:800 calc(var(--st-fs) * var(--st-size))/1.15 "Rubik", "Segoe UI", sans-serif; text-align:center; overflow-wrap:anywhere; white-space:pre-wrap; text-shadow:0 2px 6px rgba(0,0,0,.9),0 0 4px rgba(0,0,0,.9); }
   body.text-mode #screen-text { display:flex; }
   /* The icon's top-left corner is a fixed point (top-right on the right side). !changesize grows or shrinks everything from that corner. */
   #st-wrap { position:absolute; left:var(--st-x); top:calc(50% - var(--st-fs) * .525); width:calc(100vw - var(--st-x) - 3vw); height:0; text-align:left; transform-origin:0 0; animation:st-float 6s ease-in-out infinite; }
@@ -250,7 +248,7 @@
   @keyframes st-logo  { 0%,100% { transform:rotate(-3deg) scale(1); } 50% { transform:rotate(3deg) scale(1.04); } }
   @keyframes st-bob   { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-.06em); } }
   @media (prefers-reduced-motion: reduce) { #st-wrap, #st-logo, .st-ch { animation:none; } }
-  body.text-mode #chat, body.text-mode #alerts, body.text-mode #status, body.text-mode #setup-hint, body.text-mode #demo { display:none !important; }
+  body.text-mode #chat, body.alerts-mode #chat, body.alerts-mode #screen-text, body.alerts-mode #song-stage, body.alerts-mode #ambient-stage, body.alerts-mode #status, body.alerts-mode #setup-hint, body.alerts-mode #demo, body.text-mode #alerts, body.text-mode #status, body.text-mode #setup-hint, body.text-mode #demo { display:none !important; }
   body.text-mode { background:transparent !important; }
 
   /* ---------- #ambient ---------- */
@@ -270,7 +268,7 @@
   #st-edit-backdrop {
     position: fixed; inset: 0; z-index: 100001; display: flex; align-items: center; justify-content: center;
     padding: 18px; box-sizing: border-box; background: rgba(0,0,0,.62);
-    font: 600 14px/1.45 "Nunito", "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: #e7e8ea; text-shadow: none;
+    font: 600 14px/1.45 "Rubik", "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: #e7e8ea; text-shadow: none;
   }
   #st-edit-backdrop.closed { display: none; }
   #st-edit-backdrop [hidden] { display: none !important; }
@@ -278,7 +276,7 @@
   .ste-head { padding: 18px 22px 12px; border-bottom: 1px solid #232528; }
   #st-edit h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 4px; font-size: 16px; font-weight: 600; letter-spacing: 0; }
   .ste-note { margin: 0; color: #8a8e96; font-size: 13px; }
-  #st-edit kbd { padding: 1px 5px; border: 1px solid #33363b; border-bottom-width: 2px; border-radius: 4px; background: #1b1d1f; font: 700 11px "Nunito", "Segoe UI", sans-serif; color: #d6d6dc; }
+  #st-edit kbd { padding: 1px 5px; border: 1px solid #33363b; border-bottom-width: 2px; border-radius: 4px; background: #1b1d1f; font: 700 11px "Rubik", "Segoe UI", sans-serif; color: #d6d6dc; }
   .ste-body { display: flex; flex-direction: column; gap: 14px; padding: 18px 22px; }
   .ste-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   #st-edit label { display: flex; flex-direction: column; gap: 5px; min-width: 0; color: #b4b7bd; font-size: 12px; font-weight: 550; }
@@ -313,7 +311,7 @@
     position: fixed; inset: 0; z-index: 100000; display: flex;
     align-items: center; justify-content: center; padding: 18px; box-sizing: border-box;
     background: rgba(0,0,0,.62);
-    font: 600 14px/1.45 "Nunito", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    font: 600 14px/1.45 "Rubik", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     color: #e7e8ea; text-shadow: none;
   }
   #global-setup-backdrop.open { display: flex; }
@@ -328,7 +326,7 @@
   #global-setup h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 4px; font-size: 16px; font-weight: 600; letter-spacing: 0; }
   .setup-live-dot { display: none; }
   #global-setup .setup-note { margin: 0; color: #8a8e96; font-size: 13px; line-height: 1.5; }
-  #global-setup kbd { padding: 1px 5px; border: 1px solid #33363b; border-bottom-width: 2px; border-radius: 4px; background: #1b1d1f; font: 700 11px "Nunito", "Segoe UI", sans-serif; color: #d6d6dc; }
+  #global-setup kbd { padding: 1px 5px; border: 1px solid #33363b; border-bottom-width: 2px; border-radius: 4px; background: #1b1d1f; font: 700 11px "Rubik", "Segoe UI", sans-serif; color: #d6d6dc; }
 
   .setup-body { padding: 4px 24px; overflow-y: auto; flex: 1 1 auto; }
   .setup-body, body.viewchat #chat { scrollbar-width: none; -ms-overflow-style: none; }
@@ -375,7 +373,7 @@
   #global-setup-status.ok, #global-setup-tts-status.ok, #global-db-status.ok { color: #5fdcc6; }
   #global-setup-status.error, #global-setup-tts-status.error, #global-db-status.error { color: #ff9a9a; }
 
-  #setup-hint { position: fixed; z-index: 9999; top: 14px; left: 50%; transform: translate(-50%, -10px); padding: 9px 13px; border: 1px solid #393940; border-radius: 8px; background: #1a1a1d; color: #ededf0; font: 600 12px/1.4 "Nunito", "Segoe UI", sans-serif; opacity: 0; pointer-events: none; transition: opacity .22s ease, transform .22s ease; box-shadow: 0 8px 24px rgba(0,0,0,.2); }
+  #setup-hint { position: fixed; z-index: 9999; top: 14px; left: 50%; transform: translate(-50%, -10px); padding: 9px 13px; border: 1px solid #393940; border-radius: 8px; background: #1a1a1d; color: #ededf0; font: 600 12px/1.4 "Rubik", "Segoe UI", sans-serif; opacity: 0; pointer-events: none; transition: opacity .22s ease, transform .22s ease; box-shadow: 0 8px 24px rgba(0,0,0,.2); }
   #setup-hint.show { opacity: 1; transform: translate(-50%, 0); }
   .msg.alertc { box-shadow: none; background: rgba(18,18,22,.94); border-color: rgba(255,255,255,.14); }
   .alertc .ai, .alert .ai { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.2); }
@@ -433,19 +431,6 @@
   /* top-banner alerts (&alertpos=top): quieter */
   .alert { padding: 9px 14px; border-radius: 8px; box-shadow: none; transition: opacity .6s ease, transform .6s ease; }
   .alert.out { opacity: 0; transform: translateY(-6px); }
-  /* Cat visits */
-  .msg.cat {
-    animation: msgIn .35s ease-out backwards;
-    display: flex; align-items: center; gap: 10px;
-    margin: 3px 0; padding: 6px 13px; width: fit-content; max-width: 100%; box-sizing: border-box;
-    background: rgba(14,12,20,.82); border: 1px solid rgba(255,255,255,.10); border-left: 3px solid #ffb86b; border-radius: 12px;
-    box-shadow: 0 3px 12px rgba(0,0,0,.3);
-    text-shadow: 0 2px 6px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.95), 0 0 12px rgba(0,0,0,.8), 0 0 24px rgba(0,0,0,.6);
-  }
-  .msg.cat .cat-ico { width: 1.7em; height: 1.7em; color: #ffc98a; stroke-width: 1.6; flex: 0 0 auto; transform-origin: 50% 90%; animation: catWiggle 1.1s ease-in-out .35s 3; }
-  .msg.cat .ctext { font-weight: 700; }
-  .msg.cat .csub { font-size: .8em; opacity: .7; font-weight: 600; }
-  @keyframes catWiggle { 0%,100% { transform: rotate(0); } 20% { transform: rotate(-14deg) scale(1.08); } 45% { transform: rotate(12deg) scale(1.08); } 70% { transform: rotate(-6deg); } }
   @keyframes setupPanelIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
   @media (prefers-reduced-motion: reduce) { #global-setup, #setup-hint { animation: none !important; transition: none !important; } }
   @media (max-width: 520px) {
@@ -455,6 +440,35 @@
     .setup-footer { flex-wrap: wrap; } #global-setup-status { flex-basis: 100%; }
   }
 
+  /* ---------- #alerts-and-more: Twitch-style alert stage ---------- */
+  #ap-stage {
+    position: absolute; inset: 0; display: none; align-items: flex-start; justify-content: center; padding: 6vh 16px 0; box-sizing: border-box;
+    pointer-events: none; font-family: "Rubik", "Segoe UI", "Helvetica Neue", Arial, sans-serif; font-weight: 600; -webkit-font-smoothing: antialiased;
+    font-size: var(--size, 28px); color: #fff;
+  }
+  body.alerts-mode #ap-stage { display: flex; }
+  .ap-card { --glow: #fff; position: relative; max-width: min(94vw, 760px); animation: apIn .75s cubic-bezier(.34,1.56,.64,1) both; }
+  .ap-card.leaving { animation: apOut .55s cubic-bezier(.5,0,.75,0) both; }
+  .ap-card, .ap-card * { text-shadow: none !important; }
+  .ap-card .msg { animation: none !important; margin: 0; transition: none; max-width: none; box-shadow: 0 10px 34px rgba(0,0,0,.45); }
+  .ap-card .msg.hype { padding: 14px 30px; }
+  .ap-card .hbig { font-size: 2.1em; }
+  .ap-card::before { content: ""; position: absolute; inset: -4px; border-radius: 18px; pointer-events: none; animation: apPulse 1.5s .45s ease-out 2 both; }
+  .ap-shine { position: absolute; inset: 0; border-radius: 14px; overflow: hidden; pointer-events: none; }
+  .ap-shine::after { content: ""; position: absolute; top: 0; bottom: 0; width: 40%; left: -60%; transform: skewX(-20deg);
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent); animation: apShine 1.1s .5s ease-out both; }
+  .ap-card .ai { animation: apIcon .9s .3s cubic-bezier(.34,1.56,.64,1) both; }
+  .ap-card .at, .ap-card .chead, .ap-card .hlabel, .ap-card .hwho { animation: apText .5s .4s ease-out both; }
+  .ap-card .as, .ap-card .cbig, .ap-card .hbig, .ap-card .hsub { animation: apText .5s .6s ease-out both; }
+  .ap-card .cbig .big-currency, .ap-card .inline-currency { animation: apBounce .7s .8s ease-in-out 2; }
+  @keyframes apIn { 0% { opacity: 0; transform: translateY(-70px) scale(.45) rotate(-3deg); } 55% { opacity: 1; transform: translateY(10px) scale(1.07) rotate(1deg); } 100% { opacity: 1; transform: none; } }
+  @keyframes apOut { to { opacity: 0; transform: translateY(-46px) scale(.82); filter: blur(5px); } }
+  @keyframes apIcon { 0% { opacity: 0; transform: scale(0) rotate(-200deg); } 100% { opacity: 1; transform: none; } }
+  @keyframes apText { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+  @keyframes apBounce { 0%,100% { transform: translateY(0); } 40% { transform: translateY(-.28em) scale(1.15); } }
+  @keyframes apShine { to { left: 130%; } }
+  @keyframes apPulse { 0% { box-shadow: 0 0 0 0 var(--glow); opacity: .9; } 100% { box-shadow: 0 0 0 26px transparent; opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .ap-card, .ap-card * , .ap-card::before { animation-duration: .01s !important; animation-delay: 0s !important; } }
 </style>
 </head>
 <body>
@@ -473,13 +487,13 @@
   <symbol id="ico-water" viewBox="0 0 24 24"><path d="M12 3s7 7.4 7 12a7 7 0 0 1-14 0c0-4.6 7-12 7-12Z"/><path d="M9 16a3 3 0 0 0 3 3"/></symbol>
   <symbol id="ico-dice" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 8h.01M16 8h.01M12 12h.01M8 16h.01M16 16h.01"/></symbol>
   <symbol id="ico-spark" viewBox="0 0 24 24"><path d="m12 2 1.7 6.3L20 10l-6.3 1.7L12 18l-1.7-6.3L4 10l6.3-1.7L12 2ZM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8L19 16Z"/></symbol>
-  <symbol id="ico-cat" viewBox="0 0 24 24"><path d="M5 9 4 3l5 3h6l5-3-1 6c1 1 1.5 2.5 1.5 4 0 4-3.5 7-8.5 7s-8.5-3-8.5-7c0-1.5.5-3 1.5-4Z"/><path d="M9 13h.01M15 13h.01M11 16l1 1 1-1M3 15l4 .5M3 18l4-1M21 15l-4 .5M21 18l-4-1"/></symbol>
   <symbol id="ico-volume" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4Z M17 9a5 5 0 0 1 0 6M19 5a9 9 0 0 1 0 14"/></symbol>
 </svg>
 
 <div id="setup-hint" role="status">Saved. Press F2 to reopen setup.</div>
 <div id="chat"></div>
 <div id="alerts"></div>
+<div id="ap-stage"></div>
 <div id="status"></div>
 <div id="screen-text" aria-live="polite"><div id="st-wrap">
   <span id="st-logo" aria-hidden="true"></span>
@@ -556,10 +570,6 @@
         </div>
       </div>
 
-      <div class="setup-section">
-        <h3>Follow alerts</h3>
-        <p class="hint">Follower count and recent follower names are checked automatically without API keys. Twitch may limit public access, so names are not guaranteed.</p>
-      </div>
 
       <div class="setup-section" style="display:none">
         <h3>Currency</h3>
@@ -642,7 +652,7 @@
         </div>
         <label style="margin-top:14px"><span>Lead moderators <span class="opt">(logins, comma separated)</span></span>
           <input id="cfg-leadmods" autocomplete="off" placeholder="mod1, mod2">
-          <span class="hint">Lead mods and the streamer can use !mutesfx / !unmutesfx, !mutetts / !unmutetts, and !disablerequests / !enablerequests, and !disablemeows / !enablemeows (turns off only the periodic cat-visit meow). Muted TTS and disabled requests do not charge cookies.</span>
+          <span class="hint">Lead mods and the streamer can use !mutesfx / !unmutesfx, !mutetts / !unmutetts, and !disablerequests / !enablerequests, and !disablealertsounds / !enablealertsounds (alerts stay, sounds go) and !disablealerts / !enablealerts (no alerts at all). Muted TTS and disabled requests do not charge cookies.</span>
         </label>
       </div>
     </div>
@@ -662,6 +672,7 @@
   const VIEWCHAT = location.hash.toLowerCase() === "#viewchat";     // read-only chat page for the streamer: black background, no sounds, no setup panel
   const TEXTMODE = location.hash.toLowerCase() === "#text";
   const AMBIENTMODE = location.hash.toLowerCase() === "#ambient";
+  const ALERTSMODE = location.hash.toLowerCase() === "#alerts-and-more";   // alerts + cookie cards, Twitch-style
 
   const ICON_ALIASES = { cookie: "cookie", money: "money", box: "box", moon: "moon", fries: "fries", heart: "heart", follow: "user-plus", raid: "users", sub: "star", gift: "gift", bits: "spark", request: "box", wheel: "dice", volume: "volume", alert: "bell" };
   function makeIcon(name, className = "ui-icon") {
@@ -821,17 +832,17 @@
   });
   // Show setup by default. The overlay itself is only shown after saving to #overlay.
   // This prevents a previously saved browser setting from making the page look blank.
-  if (location.hash.toLowerCase() === "#overlay" || VIEWCHAT || TEXTMODE || AMBIENTMODE) closeSetup();
+  if (location.hash.toLowerCase() === "#overlay" || VIEWCHAT || TEXTMODE || AMBIENTMODE || ALERTSMODE) closeSetup();
   else openSetup();
   window.addEventListener("hashchange", () => {
-    if ((location.hash.toLowerCase() === "#viewchat") !== VIEWCHAT || (location.hash.toLowerCase() === "#text") !== TEXTMODE || (location.hash.toLowerCase() === "#ambient") !== AMBIENTMODE) { location.reload(); return; }
-    if (location.hash.toLowerCase() === "#overlay" || VIEWCHAT || TEXTMODE || AMBIENTMODE) closeSetup();
+    if ((location.hash.toLowerCase() === "#viewchat") !== VIEWCHAT || (location.hash.toLowerCase() === "#text") !== TEXTMODE || (location.hash.toLowerCase() === "#ambient") !== AMBIENTMODE || (location.hash.toLowerCase() === "#alerts-and-more") !== ALERTSMODE) { location.reload(); return; }
+    if (location.hash.toLowerCase() === "#overlay" || VIEWCHAT || TEXTMODE || AMBIENTMODE || ALERTSMODE) closeSetup();
     else openSetup();
   });
   function leaveSetupRoute() {
     const q = new URLSearchParams(location.search);
     if (settings.channel) q.set("channel", settings.channel);
-    const keep = VIEWCHAT ? "#viewchat" : TEXTMODE ? "#text" : AMBIENTMODE ? "#ambient" : "#overlay";   // stay on the page you opened F2 on
+    const keep = VIEWCHAT ? "#viewchat" : TEXTMODE ? "#text" : AMBIENTMODE ? "#ambient" : ALERTSMODE ? "#alerts-and-more" : "#overlay";   // stay on the page you opened F2 on
     history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q.toString() : "") + keep);
   }
   document.getElementById("global-setup-save").addEventListener("click", () => {
@@ -1142,7 +1153,7 @@
   const EXTRA_SFX = (params.get("sfx") || "").toLowerCase().split(",").map(s => s.trim().replace(/[^a-z0-9_-]/g, "")).filter(Boolean);
   const TOKEN = settings.twitchToken || params.get("token") || "", CLIENT_ID = settings.twitchClientId || params.get("clientid") || "";
   const DEMO = params.get("demo") === "1";
-  const ALERT_TOP = params.get("alertpos") === "top";
+  const ALERT_TOP = false;
   const TING_ON = params.get("ting") !== "0";
   const TING_MS = (params.has("tingsec") ? Math.max(5, parseFloat(params.get("tingsec")) || 60) : 60) * 1000;
   const WHEEL_BIAS = params.has("wheelbias") ? Math.max(0.5, parseFloat(params.get("wheelbias")) || 1.2) : 1.2;
@@ -1220,7 +1231,8 @@
   let sfxMuted = false, sfxBus = null;
   let ttsMuted = false;
   let requestsDisabled = false;
-  let catMeowOff = false;          // !disablemeows turns off only the periodic cat-visit meow (TTS and !meow still work)
+  let alertsOff = false;           // !disablealerts: no alert visuals, sounds or speech at all
+  let alertSoundsOff = false;      // !disablealertsounds: alerts still show, but silently
   const sfxStops = new Set();
   function sfxOut(c) {
     if (!sfxBus || sfxBus.context !== c) {
@@ -1280,7 +1292,7 @@
     a.play().catch(fb);
     setTimeout(stop, 60000);                 // sound limit: 60 seconds
   }
-  const ALERT_FILES = { follow: "follow", raid: "raid", gift: "gift", cgift: "lowcheer", bits: "cheer", request: "request", lowraid: "lowraid" };
+  const ALERT_FILES = { raid: "raid", gift: "gift", cgift: "lowcheer", bits: "cheer", request: "request", lowraid: "lowraid" };
 
   // 0-144 cookies plays lowcheer.mp3, 145 and up plays cheer.mp3 (built-in jingle if a file is missing)
   function playCheer(amount) {
@@ -1466,7 +1478,8 @@
     for (let i = pendingBadges.length - 1; i >= 0; i--) if (fillBadge(pendingBadges[i].span, pendingBadges[i].info)) pendingBadges.splice(i, 1);
   }
 
-  const appendBadges = (parent, tags, user) => {
+  const appendBadges = (parent, tags, user) => { return;   // user badges/labels removed from chat
+    
     const wrap = document.createElement("span");
     wrap.className = "badges";
     badgeInfo(tags, user).forEach(info => {
@@ -1551,14 +1564,13 @@
   const alertQueue = [];
   let alertBusy = false;
   const ALERT_STYLE = {
-    follow: ["user-plus", "#ffffff"], raid: ["users", "#ffffff"], sub: ["star", "#ffffff"], gift: ["gift", "#ffffff"], bits: ["spark", "#ffffff"],
+    raid: ["users", "#ffffff"], sub: ["star", "#ffffff"], gift: ["gift", "#ffffff"], bits: ["spark", "#ffffff"],
     request: ["box", "#ffffff"], cookie: ["cookie", "#ffffff"], wheel: ["dice", "#ffffff"]
   };
   ALERT_STYLE.lowraid = ALERT_STYLE.raid;
   ALERT_STYLE.cgift = ["gift", "#ffffff"];          // currency gift (!gift @name 20)
   ALERT_STYLE.requestinfo = ALERT_STYLE.request;     // !requests list: same look, but no request.mp3
   const ALERT_NOTES = {
-    follow: [783.99, 1046.5, 1318.5],
     sub:    [659.25, 830.61, 987.77, 1318.51],
     raid:   [523.25, 659.25, 783.99, 1046.5, 1318.5, 1568],
     gift:   [880, 1108.7, 1318.5, 1760],
@@ -1592,7 +1604,9 @@
 
   let lastAlertSnd = 0;
   function alertSound(kind, power = 1) {
+    if (alertsOff) return;
     ambientPulse(kind, power);
+    if (alertSoundsOff) return;
     const now = Date.now();
     if (now - lastAlertSnd < 120) return;                    // bursts share one sound
     lastAlertSnd = now;
@@ -1657,7 +1671,7 @@
   }
   function doRaidAlert(raider, n, login, tags) {
     const who = whoFor(raider, tags);
-    if (!ALERTS_ON) return;
+    if (!ALERTS_ON || alertsOff) return;
     speakAlert(`${raider} just raided with a party of ${n}!`);
     if (n >= BIG_RAID) {
       showHype({
@@ -1671,7 +1685,7 @@
   }
 
   function queueAlert(kind, title, sub, fade, who) {
-    if (!ALERTS_ON) return;
+    if (!ALERTS_ON || alertsOff) return;
     if (["follow", "sub", "gift", "bits"].includes(kind)) speakAlert(title);
     if (!ALERT_TOP) { showAlertChat(kind, title, sub, fade, false, who); return; }
     if (alertQueue.length > 8) return;
@@ -1727,122 +1741,11 @@
     }
   }
 
-  /* Follow alerts without any token: Twitch sends no follow events through chat, so this watches the channel's public
-     follower count (no sign-in, no Client ID) and shows an alert whenever it goes up. A name is shown when Twitch
-     hands it out; otherwise the alert says "New follower!". Subs, resubs, gifts, raids and bits already come through chat. */
-  function startFollowsKeyless() {
-    const GQL = "https://gql.twitch.tv/gql", GQL_ID = "kimne78kx3ncx6brgo4mv6wki5h1ko", POLL_MS = 15000;
-    const last = {};                                    // follower count per source (sources are never compared with each other)
-    let busy = false;
-    const gql = async (query) => {
-      const r = await fetch(GQL, { method: "POST", headers: { "Client-Id": GQL_ID }, body: JSON.stringify({ query }) });
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      return r.json();
-    };
-    async function readCount() {
-      try {
-        const j = await gql(`query{user(login:"${CHANNEL}"){followers{totalCount}}}`);
-        const n = j && j.data && j.data.user && j.data.user.followers && j.data.user.followers.totalCount;
-        if (Number.isInteger(n)) return { src: "twitch", n };
-      } catch (e) {}
-      try {
-        const r = await fetch("https://api.ivr.fi/v2/twitch/user?login=" + encodeURIComponent(CHANNEL));
-        const j = await r.json(), u = Array.isArray(j) ? j[0] : j;
-        if (u && Number.isInteger(u.followers)) return { src: "ivr", n: u.followers };
-      } catch (e) {}
-      return null;
-    }
-    async function newestNames(k) {
-      try {
-        const j = await gql(`query{user(login:"${CHANNEL}"){followers(first:${k}){edges{node{displayName login}}}}}`);
-        const edges = (((j.data || {}).user || {}).followers || {}).edges || [];
-        return edges.map(e => e && e.node && (e.node.displayName || e.node.login)).filter(Boolean);
-      } catch (e) { return []; }
-    }
-    async function tick() {
-      if (busy) return;
-      busy = true;
-      try {
-        const c = await readCount();
-        if (!c) return;
-        const before = last[c.src];
-        last[c.src] = c.n;
-        if (before === undefined || c.n <= before) return;            // first reading is only the starting point
-        const gained = Math.min(c.n - before, 5);
-        const names = c.src === "twitch" ? await newestNames(gained) : [];
-        for (let i = 0; i < gained; i++) queueAlert("follow", names[i] ? `${names[i]} just followed!` : "New follower!", names[i] ? "" : "Thanks for the follow!", undefined, names[i] ? whoFor(names[i]) : null);
-      } finally { busy = false; }
-    }
-    tick();
-    setInterval(tick, POLL_MS);
-  }
-
-  /* Follow alerts with a token: names are exact. Uses EventSub.
-     It only runs if &token=...&clientid=... are in the URL. */
-  function startFollows() {
-    if (!ALERTS_ON || !CHANNEL) return;
-    // Use Twitch EventSub when credentials are configured: it provides the exact new follower name.
-    // Without credentials, fall back to public follower-count polling (names depend on Twitch public access).
-    if (!TOKEN || !CLIENT_ID) {
-      startFollowsKeyless();
-      return;
-    }
-    const H = { "Authorization": "Bearer " + TOKEN, "Client-Id": CLIENT_ID };
-    let ids = null, current = null, retry = 0;
-    async function getIds() {
-      if (ids) return ids;
-      const [a, b] = await Promise.all([
-        fetch("https://api.twitch.tv/helix/users?login=" + encodeURIComponent(CHANNEL), { headers: H }).then(r => r.json()),
-        fetch("https://api.twitch.tv/helix/users", { headers: H }).then(r => r.json())
-      ]);
-      ids = { broadcaster: a.data[0].id, mod: b.data[0].id };
-      return ids;
-    }
-    function open(url, isReconnect) {
-      const ws = new WebSocket(url || "wss://eventsub.wss.twitch.tv/ws");
-      current = ws;
-      ws.onmessage = async (ev) => {
-        let msg; try { msg = JSON.parse(ev.data); } catch (e) { return; }
-        const type = msg.metadata && msg.metadata.message_type;
-        if (type === "session_welcome") {
-          retry = 0;
-          if (isReconnect) return;                           // subscriptions carry over on a reconnect
-          try {
-            const i = await getIds();
-            const r = await fetch("https://api.twitch.tv/helix/eventsub/subscriptions", {
-              method: "POST",
-              headers: { ...H, "Content-Type": "application/json" },
-              body: JSON.stringify({
-                type: "channel.follow", version: "2",
-                condition: { broadcaster_user_id: i.broadcaster, moderator_user_id: i.mod },
-                transport: { method: "websocket", session_id: msg.payload.session.id }
-              })
-            });
-            if (!r.ok) {
-              console.warn("follow alerts: subscribe failed", r.status, await r.text());
-              plainNotice(r.status === 401 ? "Follow alerts: the token or Client ID is not valid." : r.status === 403 ? "Follow alerts: the token's account must be the streamer or a mod, with the moderator:read:followers scope." : "Follow alerts could not start (error " + r.status + ").");
-            } else plainNotice("Follow alerts connected.");
-          } catch (e) { console.warn("follow alerts failed", e); plainNotice("Follow alerts could not start. Check the Client ID and token in setup (F2)."); }
-        } else if (type === "session_reconnect") {
-          open(msg.payload.session.reconnect_url, true);
-        } else if (type === "notification" && msg.metadata.subscription_type === "channel.follow") {
-          queueAlert("follow", `${msg.payload.event.user_name} just followed!`, "", undefined, whoFor(msg.payload.event.user_name));
-        }
-      };
-      ws.onclose = () => {
-        if (ws !== current) return;
-        setTimeout(() => open(), Math.min(1000 * 2 ** retry++, 30000));
-      };
-      ws.onerror = () => ws.close();
-    }
-    open();
-  }
-
   /* ---------- SFX (used inside TTS) ---------- */
   const SFX_NAMES = new Set(["meow", "lotsofmeows", "gunshot", "lotsofgunshots", "vineboom", "airhorns", "knocking", "ambienceone", "ambiencetwo", "bwomp", "fireinthehole", "geometrydash", "loudtojump", "metalpipe", "spongebobfail", "shocked", "55", "drip", "money", "bell", "rizz", ...EXTRA_SFX]);
   const SFX_MAX = 3;
   const SFX_VARIANTS = { meow: ["meow-1", "meow-2", "meow-4"], lotsofmeows: ["meow-3"] };   // each play picks one of these files at random
-  [...SFX_NAMES, "cheer", "lowcheer", "follow", "raid", "gift", "request", "lowraid"].forEach(preloadSfx);
+  [...SFX_NAMES, "cheer", "lowcheer", "raid", "gift", "request", "lowraid"].forEach(preloadSfx);
   Object.values(SFX_VARIANTS).flat().forEach(preloadSfx);
   const SFX_COSTS = { loudtojump: 1000 };          // price per sound (anything not listed uses SFX_CMD_COST)
   const CMD_ONLY_SFX = new Set(["loudtojump"]);    // can't be used inside !tts
@@ -2508,7 +2411,7 @@
 
   // spoken alert lines (raids, follows, subs, gifts, bits) in the normal TTS voice
   function speakAlert(text) {
-    if (!OVERLAYMODE || !TTS_ON || allMuted || ttsMuted) return;
+    if (alertsOff || alertSoundsOff || !OVERLAYMODE || !TTS_ON || allMuted || ttsMuted) return;
     const t = cleanTts(String(text || ""));
     if (!t || ttsBlocked(t)) return;
     ttsQueue.push([{ say: t }]);
@@ -2587,13 +2490,14 @@
     const amount = Math.abs(result);
     const wwho = whoFor(name, tags);
     const card = showAlertChat("wheel", `${name} spins the wheel...`, "Rolling...", 20, true, wwho);
-    const tick = setInterval(() => { card.as.textContent = `${Math.random() < 0.5 ? "−" : "+"}${1 + Math.floor(Math.random() * 20)}`; }, 90);
+    const tick = setInterval(() => { card.as.textContent = `${Math.random() < 0.5 ? "−" : "+"}${1 + Math.floor(Math.random() * 20)}`; apUpdate(card.el); }, 90);
     setTimeout(() => {
       clearInterval(tick);
       fillTitle(card.at, result >= 0
         ? `${name} won ${amount} ${currencyLabel(amount)}!`
         : `${name} lost ${amount} ${currencyLabel(amount)}!`, wwho);
       card.as.textContent = `${net >= 0 ? "+" : ""}${net} ${currencyLabel(Math.abs(net))} after the ${WHEEL_COST} ${currencyLabel(WHEEL_COST)} spin`;
+      apUpdate(card.el);
       if (result > 0) ambientPulse("wheel", result >= 15 ? 3 : result >= 8 ? 2 : 1);
       if (!MUTE) chime(result >= 15 ? [880, 1108.7, 1318.5, 1760, 2217] : result >= 8 ? [783.99, 987.77, 1174.66] : [659.25, 783.99]);
     }, 2200);
@@ -2694,7 +2598,7 @@
     if (!cm) return false;
     const cmd = cm[1].toLowerCase(), arg = (cm[2] || "").trim();
     {                                                                   // show the command as typed (not the silent !give<currency>, not mod-only ones from viewers)
-      const control = ["mutesfx", "unmutesfx", "mutetts", "unmutetts", "disablerequests", "enablerequests", "disablemeows", "enablemeows", "requestsoff", "requestson", "refreshchat", "resetcookies", "changetext", "changeicon", "changesize"].includes(cmd) || CUR_CMDS.some(c => cmd === "reset" + c);
+      const control = ["mutesfx", "unmutesfx", "mutetts", "unmutetts", "disablerequests", "enablerequests", "disablealerts", "enablealerts", "disablealertsounds", "enablealertsounds", "requestsoff", "requestson", "refreshchat", "resetcookies", "changetext", "changeicon", "changesize"].includes(cmd) || CUR_CMDS.some(c => cmd === "reset" + c);
       const open = ["wheel", "request", "gift", "requests"].includes(cmd);
       if (open || (control && canControlSfx(tags, user)) || (cmd === "donerequest" && isMod(tags))) pushCmdLine(tags, user, message);
     }
@@ -2741,11 +2645,17 @@
       case "unmutetts":
         if (canControlSfx(tags, user)) { ttsMuted = false; sfxNotice("TTS unmuted.", tags, user); }
         return true;
-      case "disablemeows":
-        if (canControlSfx(tags, user)) { catMeowOff = true; sfxNotice("Cat visit meows disabled. TTS and !meow still work.", tags, user); }
+      case "disablealerts":
+        if (canControlSfx(tags, user)) { alertsOff = true; sfxNotice("Alerts disabled completely (no visuals, no sounds).", tags, user); }
         return true;
-      case "enablemeows":
-        if (canControlSfx(tags, user)) { catMeowOff = false; sfxNotice("Cat visit meows enabled.", tags, user); }
+      case "enablealerts":
+        if (canControlSfx(tags, user)) { alertsOff = false; sfxNotice("Alerts enabled.", tags, user); }
+        return true;
+      case "disablealertsounds":
+        if (canControlSfx(tags, user)) { alertSoundsOff = true; sfxNotice("Alert sounds disabled. Alerts still show.", tags, user); }
+        return true;
+      case "enablealertsounds":
+        if (canControlSfx(tags, user)) { alertSoundsOff = false; sfxNotice("Alert sounds enabled.", tags, user); }
         return true;
       case "disablerequests": case "requestsoff":
         if (canControlSfx(tags, user)) { requestsDisabled = true; sfxNotice("Level requests disabled. Attempts won't cost cookies.", tags, user); }
@@ -2768,7 +2678,6 @@
     box.id = "demo";
     const modTags = { mod: "1", badges: "broadcaster/1", "display-name": "Demo" };
     const items = {
-      "Follow":   () => queueAlert("follow", "SampleViewer just followed!"),
       "Raid":     () => doRaidAlert("SampleViewer", 42),
       "Small raid":() => doRaidAlert("SampleViewer", 5),
       "BIG raid": () => doRaidAlert("SampleViewer", 150),
@@ -3016,6 +2925,7 @@
     if (el.offsetHeight > limit + 1) { el.style.maxHeight = limit + "px"; el.style.overflow = "hidden"; }      // last resort (a single very tall line)
   }
   function push(el, tags, fade = FADE_S) {
+    if (/(^|\s)(alertc|hype|cookie|cheer)(\s|$)/.test(el.className)) { if (OVERLAYMODE) apForward(el, fade); return; }   // alerts + cookie cards live on #alerts-and-more, not in chat
     if (VIEWCHAT && !viewchatAllows(el)) return;
     wrapForLine(el);
     if (tags.id) el.dataset.id = tags.id;
@@ -3180,7 +3090,7 @@
 
     if (tags.bits && /^\d+$/.test(tags.bits)) {
       const bitsN = Number(tags.bits), bitsWho = tags["display-name"] || user;
-      if (ALERTS_ON && bitsN >= BIG_BITS) {
+      if (ALERTS_ON && !alertsOff && bitsN >= BIG_BITS) {
         showHype({ label: "BIG CHEER", who: bitsWho, whoColor: whoFor(bitsWho, tags).color, color: "#9b6bff", fade: 14, power: bitsN >= 5000 ? 3 : bitsN >= 1000 ? 2 : 1,
                    big: `${bitsN.toLocaleString("en-US")} BITS!`, sub: "THANK YOU!" });
         alertSound("bits", bitsN >= 1000 ? 3 : 2);
@@ -3362,7 +3272,7 @@
   }
 
   /* ---------- Ambient pulses: main overlay sends, #ambient page draws ---------- */
-  const AMB_COLORS = { follow: "#9147ff", sub: "#9147ff", gift: "#ff5fd2", cgift: "#ffb347", bits: "#9b6bff", raid: "#ff5fd2", lowraid: "#ff5fd2", request: "#4fc3ff", cheer: "#ffcf4a", wheel: "#3ddc97", welcome: "#4fe0d0" };
+  const AMB_COLORS = { sub: "#9147ff", gift: "#ff5fd2", cgift: "#ffb347", bits: "#9b6bff", raid: "#ff5fd2", lowraid: "#ff5fd2", request: "#4fc3ff", cheer: "#ffcf4a", wheel: "#3ddc97", welcome: "#4fe0d0" };
   const AMB_KEY = "overlay-ambient-msg-v1";
   const AMB_INTENSITY = params.has("intensity") ? Math.min(3, Math.max(0.1, parseFloat(params.get("intensity")) || 1)) : 1;
   let ambBus = null; try { ambBus = new BroadcastChannel("overlay-ambient-v1"); } catch (_) {}
@@ -3415,49 +3325,71 @@
     if (DEMO) setTimeout(() => ambDraw("cheer", 2), 600);          // &demo=1 on the ambient page shows a test pulse
   }
 
-  /* ---------- Cat visits: a cat wanders into chat every minute ---------- */
-  const CAT_ON = params.get("cat") !== "0";
-  const CAT_MS = Math.max(10, parseFloat(params.get("catsec")) || 600) * 1000;
-  const CAT_LINES = [
-    ["A wild cat appears.", "It has no explanation."],
-    ["The cat has reviewed your chat.", "Verdict: unimpressed."],
-    ["The cat knocked something off the stream.", "Eye contact was maintained."],
-    ["Meow.", "Translation: pay me in cookies."],
-    ["The cat sat on the keyboard.", "asdkjhfgsdkjf"],
-    ["The cat is judging your last message.", "Silently. Aggressively."],
-    ["The cat demands snacks.", "Negotiations have failed."],
-    ["The cat stared at nothing for 10 seconds.", "Chat, did you see it too?"],
-    ["The cat is here for moderation duties.", "Its only action is sitting on the mods."],
-    ["Cat inspection complete.", "You all pass. Barely."],
-    ["The cat has chosen this chat as its new bed.", "Please do not breathe loudly."],
-    ["The cat zoomed past at 3 AM speed.", "It does not know why either."],
-    ["Plot twist: the cat was the streamer all along.", ""],
-    ["The cat would like to speak to the manager.", "The manager is a laser pointer."]
-  ];
-  let catLast = -1;
-  function showCat() {
-    let i; do { i = Math.floor(Math.random() * CAT_LINES.length); } while (i === catLast && CAT_LINES.length > 1);
-    catLast = i;
-    const [title, sub] = CAT_LINES[i];
-    const el = document.createElement("div");
-    el.className = "msg cat";
-    const ic = makeIcon("cat", "ui-icon cat-ico");
-    const body = document.createElement("div");
-    const t = document.createElement("div"); t.className = "ctext"; t.textContent = title;
-    body.append(t);
-    if (sub) { const s = document.createElement("div"); s.className = "csub"; s.textContent = sub; body.append(s); }
-    el.append(ic, body);
-    push(el, {}, 12);
-    if (!MUTE && !allMuted && !sfxMuted && !catMeowOff) playSfx("meow");     // uses meow.mp3 if you have it, else the built-in meow
+
+  /* ---------- #alerts-and-more: overlay sends alert/cookie cards, this page animates them ---------- */
+  const AP_KEY = "overlay-alerts-msg-v1";
+  let apBus = null; try { apBus = new BroadcastChannel("overlay-alerts-v1"); } catch (_) {}
+  const apSeen = new Set();
+  function apSend(msg) {
+    msg.n = Date.now() + "-" + Math.random().toString(36).slice(2);
+    apSeen.add(msg.n);
+    if (apBus) { try { apBus.postMessage(msg); } catch (_) {} }
+    try { localStorage.setItem(AP_KEY, JSON.stringify(msg)); } catch (_) {}
   }
-  if (CAT_ON && !VIEWCHAT && !TEXTMODE && !AMBIENTMODE && settings.chat && (settings.configured || CHANNEL)) setInterval(showCat, CAT_MS);
+  function apForward(el, fade) {
+    if (!el.dataset.rid) el.dataset.rid = Math.random().toString(36).slice(2);
+    const cls = (el.className.match(/\b(alertc|hype|cookie|cheer)\b/) || [])[1] || "alertc";
+    apSend({ type: "card", rid: el.dataset.rid, cls, kind: el.dataset.kind || "", html: el.outerHTML });
+  }
+  function apUpdate(el) { if (el && el.dataset.rid) apSend({ type: "update", rid: el.dataset.rid, html: el.outerHTML }); }
+
+  const apQueue = []; let apBusy = false; const apLive = {};
+  function apHandle(m) {
+    if (!m || apSeen.has(m.n)) return;
+    apSeen.add(m.n); if (apSeen.size > 400) apSeen.delete(apSeen.values().next().value);
+    if (m.type === "update") {
+      const q = apQueue.find(x => x.rid === m.rid); if (q) q.html = m.html;
+      const live = apLive[m.rid]; if (live) live.querySelector(".ap-in").innerHTML = m.html;
+    } else if (m.type === "card") {
+      if (apQueue.length > 10) apQueue.shift();
+      apQueue.push(m); apNext();
+    }
+  }
+  function apNext() {
+    if (apBusy || !apQueue.length) return;
+    apBusy = true;
+    const m = apQueue.shift(), stage = document.getElementById("ap-stage");
+    const wrap = document.createElement("div"); wrap.className = "ap-card";
+    wrap.innerHTML = '<div class="ap-in">' + m.html + '</div><div class="ap-shine"></div>';
+    const inner = wrap.querySelector(".msg");
+    const st = inner ? inner.style : null;
+    const glow = st && (st.getPropertyValue("--uc") || st.getPropertyValue("--ac") || st.getPropertyValue("--hc"));
+    if (glow) wrap.style.setProperty("--glow", glow.trim());
+    stage.appendChild(wrap);
+    apLive[m.rid] = wrap;
+    const hold = (m.cls === "hype" ? 10 : (m.kind === "request" || m.kind === "wheel") ? 9 : ALERT_SEC) * 1000;
+    setTimeout(() => {
+      wrap.classList.add("leaving");
+      setTimeout(() => { wrap.remove(); delete apLive[m.rid]; apBusy = false; setTimeout(apNext, 250); }, 600);
+    }, hold);
+  }
+  function startAlertsPage() {
+    if (apBus) apBus.onmessage = e => apHandle(e.data);
+    addEventListener("storage", e => { if (e.key === AP_KEY && e.newValue) { try { apHandle(JSON.parse(e.newValue)); } catch (_) {} } });
+    if (DEMO) setTimeout(() => apHandle({ n: "demo" + Date.now(), type: "card", rid: "demo", cls: "alertc", kind: "sub",
+      html: '<div class="msg alertc" style="--ac:#9147ff;--uc:#9147ff"><div class="ai"><svg class="ui-icon alert-icon"><use href="#ico-star"/></svg></div><div><div class="at"><span style="color:#9147ff">SampleViewer</span> just subscribed!</div><div class="as">Tier 1 · hello!</div></div></div>' }), 600);
+  }
 
   if (TEXTMODE) document.body.classList.add("text-mode");
-  if (AMBIENTMODE) {
+  if (ALERTSMODE) {
+    document.body.classList.add("alerts-mode");
+    document.title = `${DISPLAY_ACCOUNT} alerts`;
+    startAlertsPage();
+  } else if (AMBIENTMODE) {
     document.body.classList.add("ambient-mode");
     document.title = `${DISPLAY_ACCOUNT} ambient`;
     startAmbient();
-    if (settings.configured || CHANNEL) { connect(); startFollows(); }     // silent read-only chat connection of its own, so pulses do not depend on the other page
+    if (settings.configured || CHANNEL) { connect(); }     // silent read-only chat connection of its own, so pulses do not depend on the other page
   } else if (VIEWCHAT) {
     document.body.classList.add("viewchat");
     document.title = `${DISPLAY_ACCOUNT}'s chat`;
@@ -3466,11 +3398,11 @@
     const info = document.createElement("div"); info.className = "vc-info"; info.id = "vc-wait"; info.textContent = (CHANNEL || YT_VIDEO) ? `Connecting to ${DISPLAY_ACCOUNT}'s chat…` : "No channel set. Add ?channel=yourname to the link.";
     chat.appendChild(info);
     connect();
-    startFollows();
+    
     startYouTube();
   } else if (settings.configured || CHANNEL || YT_VIDEO) {
     connect();
-    startFollows();
+    
     startYouTube();
   }
 
@@ -3629,32 +3561,6 @@
   steBackdrop.addEventListener("keydown", e => { if (e.key === "Enter" && e.target.tagName === "INPUT") { e.preventDefault(); saveTextEditor(); } });
   document.addEventListener("keydown", e => { if (e.key === "Escape" && !e.defaultPrevented && !steBackdrop.classList.contains("closed")) closeTextEditor(); });
 
-  const CHAT_FONTS = [
-    ["Nunito", '"Nunito","Segoe UI","Helvetica Neue",Arial,sans-serif'],
-    ["Segoe UI", '"Segoe UI",Tahoma,sans-serif'],
-    ["Arial", 'Arial,Helvetica,sans-serif'],
-    ["Verdana", 'Verdana,Geneva,sans-serif'],
-    ["Trebuchet MS", '"Trebuchet MS",sans-serif'],
-    ["Georgia", 'Georgia,serif'],
-    ["Times New Roman", '"Times New Roman",Times,serif'],
-    ["Courier New", '"Courier New",monospace'],
-    ["Comic Sans MS", '"Comic Sans MS","Comic Sans",cursive'],
-    ["Impact", 'Impact,"Arial Black",sans-serif']
-  ];
-  const CHAT_FONT_KEY = "overlay-chat-font-v1";
-  let chatFontIdx = 0;
-  function applyChatFont(i) { chatFontIdx = ((i % CHAT_FONTS.length) + CHAT_FONTS.length) % CHAT_FONTS.length; chat.style.fontFamily = CHAT_FONTS[chatFontIdx][1]; }
-  try { applyChatFont(parseInt(localStorage.getItem(CHAT_FONT_KEY) || "0", 10) || 0); } catch (_) {}
-  function cycleChatFont(step) {
-    applyChatFont(chatFontIdx + step);
-    try { localStorage.setItem(CHAT_FONT_KEY, String(chatFontIdx)); } catch (_) {}
-    const msg = "Font: " + CHAT_FONTS[chatFontIdx][0];
-    setStatus(msg);
-    setTimeout(() => { if (statusEl.textContent === msg) setStatus(""); }, 1500);
-    if (!VIEWCHAT) fitChat();
-  }
-  addEventListener("storage", e => { if (e.key === CHAT_FONT_KEY) applyChatFont(parseInt(e.newValue || "0", 10) || 0); });
-
   document.addEventListener("keydown", (event) => {
     if (event.repeat || event.ctrlKey || event.metaKey || event.altKey || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || event.target.isContentEditable) return;
     if (event.key.toLowerCase() === "a") {
@@ -3671,9 +3577,6 @@
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {}
       if (setupStatus) setSetupStatus("TTS language set to English (US).", "ok");
       console.info("TTS language set to English (US).");
-    } else if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
-      event.preventDefault();
-      cycleChatFont(event.key === "ArrowRight" ? 1 : -1);
     } else if (event.key === "F2") {
       event.preventDefault();
       openSetup();
