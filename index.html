@@ -10,6 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
 <style>
+  *, *::before, *::after { font-synthesis: none; }      /* DM Mono has no bold: never fake one */
   /* URL options:
      ?channel=name   any Twitch username
      &max=6          max messages on screen (default 6)
@@ -48,7 +49,7 @@
     position: absolute; inset: 0;
     display: flex; flex-direction: column; justify-content: flex-end;
     padding: 12px 16px; box-sizing: border-box;
-    font-family: "DM Mono", ui-monospace, Menlo, Consolas, monospace; font-weight: 600; letter-spacing: .01em; -webkit-font-smoothing: antialiased;
+    font-family: "DM Mono", ui-monospace, Menlo, Consolas, monospace; font-weight: 400; letter-spacing: .01em; -webkit-font-smoothing: antialiased;
     font-size: var(--size, 20px); line-height: 1.3; color: #fff;
     text-shadow: 0 2px 6px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.95), 0 0 12px rgba(0,0,0,.8), 0 0 24px rgba(0,0,0,.6);
   }
@@ -57,7 +58,7 @@
     animation: in .25s ease-out both; transition: opacity .6s ease;
   }
   .msg.out { opacity: 0; }
-  .name { font-weight: 800; }
+  .name { font-weight: 500; }
   .name::after { content: ":"; color: #fff; font-weight: 400; margin-right: .35em; }
   .name.bogname {
     background: linear-gradient(90deg, #b983ff, #d9b8ff, #f6ecff, #d9b8ff, #b983ff);
@@ -194,7 +195,7 @@
     position: absolute; inset: 0; z-index: 5;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: 8px; pointer-events: none; padding: 18px; box-sizing: border-box;
-    font-family: "DM Mono", ui-monospace, Menlo, Consolas, monospace; font-weight: 600; letter-spacing: .01em; -webkit-font-smoothing: antialiased;
+    font-family: "DM Mono", ui-monospace, Menlo, Consolas, monospace; font-weight: 400; letter-spacing: .01em; -webkit-font-smoothing: antialiased;
     font-size: var(--size, 20px); color: #fff;
     text-shadow: 0 2px 6px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.95), 0 0 12px rgba(0,0,0,.8), 0 0 24px rgba(0,0,0,.6);
   }
@@ -289,7 +290,7 @@
   #st-edit-backdrop {
     position: fixed; inset: 0; z-index: 100001; display: flex; align-items: center; justify-content: center;
     padding: 18px; box-sizing: border-box; background: rgba(0,0,0,.62);
-    font: 600 14px/1.45 "DM Mono", ui-monospace, Menlo, Consolas, monospace; color: #e7e8ea; text-shadow: none;
+    font: 400 14px/1.45 "DM Mono", ui-monospace, Menlo, Consolas, monospace; color: #e7e8ea; text-shadow: none;
   }
   #st-edit-backdrop.closed { display: none; }
   #st-edit-backdrop [hidden] { display: none !important; }
@@ -332,7 +333,7 @@
     position: fixed; inset: 0; z-index: 100000; display: flex;
     align-items: center; justify-content: center; padding: 18px; box-sizing: border-box;
     background: rgba(0,0,0,.62);
-    font: 600 14px/1.45 "DM Mono", ui-monospace, Menlo, Consolas, monospace;
+    font: 400 14px/1.45 "DM Mono", ui-monospace, Menlo, Consolas, monospace;
     color: #e7e8ea; text-shadow: none;
   }
   #global-setup-backdrop.open { display: flex; }
@@ -1335,12 +1336,10 @@
   /* ---------- Cookies ---------- */
   const STORE_KEY = "cookies:" + CHANNEL;
   let cookies = {};
-  // Every fresh launch starts a new cookie season, except after !refreshchat (balances are kept).
+  // Balances are kept in this browser and survive refreshes and restarts. Use !resetcookies to start a new season.
   if (OVERLAYMODE && !DB_COOKIES) try {                   // only the overlay manages cookie balances (with the database on, it holds them instead)
-    if (sessionStorage.getItem("keep-cookies") === "1") {
-      sessionStorage.removeItem("keep-cookies");
-      cookies = JSON.parse(localStorage.getItem(STORE_KEY) || "{}") || {};
-    } else localStorage.setItem(STORE_KEY, "{}");
+    try { sessionStorage.removeItem("keep-cookies"); } catch (e) {}
+    cookies = JSON.parse(localStorage.getItem(STORE_KEY) || "{}") || {};
   } catch (e) {}
   const saveCookies = () => { if (!OVERLAYMODE) return; try { localStorage.setItem(STORE_KEY, JSON.stringify(cookies)); } catch (e) {} cloudCookiesDirty(); };
   const bal = (u) => cookies[u.toLowerCase()] || 0;
@@ -1522,7 +1521,7 @@
   const noteLast = new Map();
   function addCookieCard(tags, user, short, cost = TTS_COST, what = "TTS") {
     const now = Date.now();
-    if (now - (noteLast.get(user) || 0) < 5000) return;     // don't let one person flood cards
+    if (now - (noteLast.get(user) || 0) < (short ? 5000 : 1500)) return;     // don't let one person flood cards
     noteLast.set(user, now);
     const name = tags["display-name"] || user;
     const mod = isMod(tags);
@@ -2353,7 +2352,7 @@
   }
 
   // Hosted no-signup TTS proxy. No Puter, no Google Translate direct endpoint, no system-voice fallback.
-  const TTS_FX = { female: { pitch: 1.2, speed: 1.5, rate: 0.7 } };   // rate = playback speed of the female voice (1 = normal, 0.5 = half speed)   // English female voice (higher pitch) for alerts: gifts, bits, follows, subs, raids
+  const TTS_FX = { female: { pitch: 1.2, speed: 1.5, rate: 0.8 } };   // rate = playback speed of the female voice (1 = normal)   // English female voice (higher pitch) for alerts: gifts, bits, follows, subs, raids
   async function speakOnline(text, cfg = settings, style = "") {
     const fx = TTS_FX[style];
     const url = "https://tts-api.netlify.app/?text=" + encodeURIComponent(text) + "&lang=en" + (fx ? `&pitch=${fx.pitch}&speed=${fx.speed}` : "&pitch=0.8&speed=1.5");
@@ -3260,7 +3259,7 @@
           return;
         }
       } else if (/^!tts(\s|$)/i.test(message)) { handleTts(tags, user, message); return; }
-      { const bm = message.match(/^!([a-z0-9]+)\s*$/i); if (bm && CUR_CMDS.includes(bm[1].toLowerCase())) { pushCmdLine(tags, user, message); showBalance(tags, user); return; } }
+      { const bm = message.match(/^!([a-z0-9]+)\s*$/i); if (bm && CUR_CMDS.includes(bm[1].toLowerCase())) { try { pushCmdLine(tags, user, message); } catch (e) { console.error(e); } showBalance(tags, user); return; } }
       if (handleCommand(tags, user, message)) return;
       }
     }
