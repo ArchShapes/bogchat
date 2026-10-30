@@ -60,12 +60,13 @@
   .name { font-weight: 800; }
   .name::after { content: ":"; color: #fff; font-weight: 400; margin-right: .35em; }
   .name.bogname {
-    background: linear-gradient(90deg, #7a2cff, #a96bff, #e3c4ff, #a96bff, #7a2cff);
+    background: linear-gradient(90deg, #b983ff, #d9b8ff, #f6ecff, #d9b8ff, #b983ff);
     background-size: 300% 100%;
     -webkit-background-clip: text; background-clip: text;
     -webkit-text-fill-color: transparent; color: transparent;
     animation: bogshine 4s linear infinite;
-    filter: drop-shadow(0 0 4px rgba(176,110,255,.55));
+    text-shadow: none;                       /* the chat's black text shadow showed through the see-through letters and made the name dark */
+    filter: drop-shadow(0 0 5px rgba(200,150,255,.6));
   }
   @keyframes bogshine { from { background-position: 0% 50%; } to { background-position: 300% 50%; } }
   .badges { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 3px; margin-right: 5px; vertical-align: baseline; }
