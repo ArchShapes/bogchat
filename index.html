@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
 <style>
   /* URL options:
      ?channel=name   any Twitch username
@@ -48,7 +48,7 @@
     position: absolute; inset: 0;
     display: flex; flex-direction: column; justify-content: flex-end;
     padding: 12px 16px; box-sizing: border-box;
-    font-family: "Nunito", "Segoe UI", "Helvetica Neue", Arial, sans-serif; font-weight: 600; letter-spacing: .01em; -webkit-font-smoothing: antialiased;
+    font-family: "DM Mono", ui-monospace, Menlo, Consolas, monospace; font-weight: 600; letter-spacing: .01em; -webkit-font-smoothing: antialiased;
     font-size: var(--size, 20px); line-height: 1.3; color: #fff;
     text-shadow: 0 2px 6px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.95), 0 0 12px rgba(0,0,0,.8), 0 0 24px rgba(0,0,0,.6);
   }
@@ -158,7 +158,7 @@
   body.popout #chat { --size: 17px; padding: 8px 10px; }
   body.popout .vc-time { display: none; }
   body.popout #vc-head { font-size: .72em; padding: 4px 6px 8px; }
-  #vc-away { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; color: #7d7d86; font: 700 15px "Nunito", "Segoe UI", sans-serif; }
+  #vc-away { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; color: #7d7d86; font: 700 15px "DM Mono", ui-monospace, Menlo, Consolas, monospace; }
   #vc-head {
     position: sticky; top: 0; z-index: 4; padding: 11px 14px; text-align: center;
     background: #18181b; border-bottom: 1px solid #2f2f35; color: #efeff1; font-size: .8em; font-weight: 800; letter-spacing: .02em;
@@ -194,7 +194,7 @@
     position: absolute; inset: 0; z-index: 5;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: 8px; pointer-events: none; padding: 18px; box-sizing: border-box;
-    font-family: "Nunito", "Segoe UI", "Helvetica Neue", Arial, sans-serif; font-weight: 600; letter-spacing: .01em; -webkit-font-smoothing: antialiased;
+    font-family: "DM Mono", ui-monospace, Menlo, Consolas, monospace; font-weight: 600; letter-spacing: .01em; -webkit-font-smoothing: antialiased;
     font-size: var(--size, 20px); color: #fff;
     text-shadow: 0 2px 6px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.95), 0 0 12px rgba(0,0,0,.8), 0 0 24px rgba(0,0,0,.6);
   }
@@ -241,7 +241,7 @@
     to   { opacity: 1; transform: none; }
   }
 
-  #screen-text { --st-x:38vw; --st-fs:clamp(28px,5vw,88px); --st-size:1; display:none; position:fixed; inset:0; box-sizing:border-box; color:#fff; font:800 calc(var(--st-fs) * var(--st-size))/1.15 "Nunito", "Segoe UI", sans-serif; text-align:center; overflow-wrap:anywhere; white-space:pre-wrap; text-shadow:0 2px 6px rgba(0,0,0,.9),0 0 4px rgba(0,0,0,.9); }
+  #screen-text { --st-x:38vw; --st-fs:clamp(28px,5vw,88px); --st-size:1; display:none; position:fixed; inset:0; box-sizing:border-box; color:#fff; font:800 calc(var(--st-fs) * var(--st-size))/1.15 "DM Mono", ui-monospace, Menlo, Consolas, monospace; text-align:center; overflow-wrap:anywhere; white-space:pre-wrap; text-shadow:0 2px 6px rgba(0,0,0,.9),0 0 4px rgba(0,0,0,.9); }
   body.text-mode #screen-text { display:flex; }
   /* The icon's top-left corner is a fixed point (top-right on the right side). !changesize grows or shrinks everything from that corner. */
   #st-wrap { position:absolute; left:var(--st-x); top:calc(50% - var(--st-fs) * .525); width:calc(100vw - var(--st-x) - 3vw); height:0; text-align:left; transform-origin:0 0; animation:st-float 6s ease-in-out infinite; }
@@ -289,7 +289,7 @@
   #st-edit-backdrop {
     position: fixed; inset: 0; z-index: 100001; display: flex; align-items: center; justify-content: center;
     padding: 18px; box-sizing: border-box; background: rgba(0,0,0,.62);
-    font: 600 14px/1.45 "Nunito", "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: #e7e8ea; text-shadow: none;
+    font: 600 14px/1.45 "DM Mono", ui-monospace, Menlo, Consolas, monospace; color: #e7e8ea; text-shadow: none;
   }
   #st-edit-backdrop.closed { display: none; }
   #st-edit-backdrop [hidden] { display: none !important; }
@@ -297,7 +297,7 @@
   .ste-head { padding: 18px 22px 12px; border-bottom: 1px solid #232528; }
   #st-edit h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 4px; font-size: 16px; font-weight: 600; letter-spacing: 0; }
   .ste-note { margin: 0; color: #8a8e96; font-size: 13px; }
-  #st-edit kbd { padding: 1px 5px; border: 1px solid #33363b; border-bottom-width: 2px; border-radius: 4px; background: #1b1d1f; font: 700 11px "Nunito", "Segoe UI", sans-serif; color: #d6d6dc; }
+  #st-edit kbd { padding: 1px 5px; border: 1px solid #33363b; border-bottom-width: 2px; border-radius: 4px; background: #1b1d1f; font: 700 11px "DM Mono", ui-monospace, Menlo, Consolas, monospace; color: #d6d6dc; }
   .ste-body { display: flex; flex-direction: column; gap: 14px; padding: 18px 22px; }
   .ste-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   #st-edit label { display: flex; flex-direction: column; gap: 5px; min-width: 0; color: #b4b7bd; font-size: 12px; font-weight: 550; }
@@ -332,7 +332,7 @@
     position: fixed; inset: 0; z-index: 100000; display: flex;
     align-items: center; justify-content: center; padding: 18px; box-sizing: border-box;
     background: rgba(0,0,0,.62);
-    font: 600 14px/1.45 "Nunito", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    font: 600 14px/1.45 "DM Mono", ui-monospace, Menlo, Consolas, monospace;
     color: #e7e8ea; text-shadow: none;
   }
   #global-setup-backdrop.open { display: flex; }
@@ -347,7 +347,7 @@
   #global-setup h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 4px; font-size: 16px; font-weight: 600; letter-spacing: 0; }
   .setup-live-dot { display: none; }
   #global-setup .setup-note { margin: 0; color: #8a8e96; font-size: 13px; line-height: 1.5; }
-  #global-setup kbd { padding: 1px 5px; border: 1px solid #33363b; border-bottom-width: 2px; border-radius: 4px; background: #1b1d1f; font: 700 11px "Nunito", "Segoe UI", sans-serif; color: #d6d6dc; }
+  #global-setup kbd { padding: 1px 5px; border: 1px solid #33363b; border-bottom-width: 2px; border-radius: 4px; background: #1b1d1f; font: 700 11px "DM Mono", ui-monospace, Menlo, Consolas, monospace; color: #d6d6dc; }
 
   .setup-body { padding: 4px 24px; overflow-y: auto; flex: 1 1 auto; }
   .setup-body, body.viewchat #chat { scrollbar-width: none; -ms-overflow-style: none; }
@@ -394,7 +394,7 @@
   #global-setup-status.ok, #global-setup-tts-status.ok, #global-db-status.ok { color: #5fdcc6; }
   #global-setup-status.error, #global-setup-tts-status.error, #global-db-status.error { color: #ff9a9a; }
 
-  #setup-hint { position: fixed; z-index: 9999; top: 14px; left: 50%; transform: translate(-50%, -10px); padding: 9px 13px; border: 1px solid #393940; border-radius: 8px; background: #1a1a1d; color: #ededf0; font: 600 12px/1.4 "Nunito", "Segoe UI", sans-serif; opacity: 0; pointer-events: none; transition: opacity .22s ease, transform .22s ease; box-shadow: 0 8px 24px rgba(0,0,0,.2); }
+  #setup-hint { position: fixed; z-index: 9999; top: 14px; left: 50%; transform: translate(-50%, -10px); padding: 9px 13px; border: 1px solid #393940; border-radius: 8px; background: #1a1a1d; color: #ededf0; font: 600 12px/1.4 "DM Mono", ui-monospace, Menlo, Consolas, monospace; opacity: 0; pointer-events: none; transition: opacity .22s ease, transform .22s ease; box-shadow: 0 8px 24px rgba(0,0,0,.2); }
   #setup-hint.show { opacity: 1; transform: translate(-50%, 0); }
   .msg.alertc { box-shadow: none; background: rgba(18,18,22,.94); border-color: rgba(255,255,255,.14); }
   .alertc .ai, .alert .ai { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.2); }
@@ -3683,7 +3683,7 @@
   document.addEventListener("keydown", e => { if (e.key === "Escape" && !e.defaultPrevented && !steBackdrop.classList.contains("closed")) closeTextEditor(); });
 
   const CHAT_FONTS = [
-    ["Nunito", '"Nunito","Segoe UI","Helvetica Neue",Arial,sans-serif'],
+    ["DM Mono", '"DM Mono",ui-monospace,Menlo,Consolas,monospace'],
     ["Segoe UI", '"Segoe UI",Tahoma,sans-serif'],
     ["Arial", 'Arial,Helvetica,sans-serif'],
     ["Verdana", 'Verdana,Geneva,sans-serif'],
