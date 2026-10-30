@@ -2191,24 +2191,43 @@
             .replace(/\s+/g, " ").trim();
   }
 
-  // "hello (meow) there" -> [say hello, sfx meow, say there]
-  function parseSegments(text) {
-    // Legacy voice tags are stripped; speech always uses the normal voice.
-    const segs = [];
-    let last = 0, count = 0, m;
-    const re = /\(([a-z0-9_-]+)\)/gi;
-    const flush = (end) => {
-      if (end > last) segs.push({ say: text.slice(last, end) });
-    };
+  /* Voice tags in !tts (no tag = male voice):
+       [female] / [male]            switches the voice from that point on (at the start = the whole message)
+       <female>...</female>         female voice for just that part  (same with <male>...</male>) */
+  const VOICE_TAG_SRC = "\\[(female|male)\\]|<(\\/?)(female|male)>";
+  const stripVoiceTags = (t) => String(t).replace(new RegExp(VOICE_TAG_SRC, "gi"), "");
+  function splitVoices(text) {
+    const re = new RegExp(VOICE_TAG_SRC, "gi"), parts = [];
+    let base = "", cur = "", stack = [], last = 0, m;
+    const push = (end) => { if (end > last) parts.push({ text: text.slice(last, end), style: cur }); };
     while ((m = re.exec(text))) {
-      const name = m[1].toLowerCase();
-      if (!SFX_NAMES.has(name)) continue;
-      flush(m.index); last = m.index + m[0].length;
-      if (CMD_ONLY_SFX.has(name)) continue;
-      if (count++ < SFX_MAX) segs.push({ sfx: name });
+      push(m.index); last = m.index + m[0].length;
+      if (m[1]) { base = cur = m[1].toLowerCase() === "female" ? "female" : ""; stack = []; }
+      else if (!m[2]) { stack.push(cur); cur = m[3].toLowerCase() === "female" ? "female" : ""; }
+      else cur = stack.length ? stack.pop() : base;
     }
-    flush(text.length);
-    return segs.map(x => x.sfx ? x : { say: x.say.trim() }).filter(x => x.sfx || x.say);
+    push(text.length);
+    return parts;
+  }
+
+  // "hello (meow) there" -> [say hello, sfx meow, say there]; each say carries its voice ("female" or "" = male)
+  function parseSegments(text) {
+    const segs = [];
+    let count = 0;
+    for (const part of splitVoices(text)) {
+      let last = 0, m;
+      const re = /\(([a-z0-9_-]+)\)/gi;
+      const flush = (end) => { if (end > last) segs.push({ say: part.text.slice(last, end), style: part.style }); };
+      while ((m = re.exec(part.text))) {
+        const name = m[1].toLowerCase();
+        if (!SFX_NAMES.has(name)) continue;
+        flush(m.index); last = m.index + m[0].length;
+        if (CMD_ONLY_SFX.has(name)) continue;
+        if (count++ < SFX_MAX) segs.push({ sfx: name });
+      }
+      flush(part.text.length);
+    }
+    return segs.map(x => x.sfx ? x : { say: x.say.trim(), style: x.style }).filter(x => x.sfx || x.say);
   }
 
   // Browser voices load asynchronously. Wait briefly for them instead of speaking with none.
@@ -2334,7 +2353,7 @@
   }
 
   // Hosted no-signup TTS proxy. No Puter, no Google Translate direct endpoint, no system-voice fallback.
-  const TTS_FX = { female: { pitch: 1.2, speed: 1.5 } };   // English female voice (higher pitch) for alerts: gifts, bits, follows, subs, raids
+  const TTS_FX = { female: { pitch: 1.2, speed: 1.5, rate: 1.2 } };   // rate = playback speed: 1.2 is 0.8x of the old 1.5   // English female voice (higher pitch) for alerts: gifts, bits, follows, subs, raids
   async function speakOnline(text, cfg = settings, style = "") {
     const fx = TTS_FX[style];
     const url = "https://tts-api.netlify.app/?text=" + encodeURIComponent(text) + "&lang=en" + (fx ? `&pitch=${fx.pitch}&speed=${fx.speed}` : "&pitch=0.8&speed=1.5");
@@ -2439,7 +2458,7 @@
 
     // No message-length, language, cooldown, or queue-size limit. TTS costs TTS_COST cookies.
     // Blocked words remain the only text-based reason to skip TTS.
-    if (ttsBlocked(text)) return;
+    if (ttsBlocked(stripVoiceTags(text))) return;
     const segs = parseSegments(text);
     if (!segs.length) return;
     if (!canPay(tags, user, TTS_COST, "TTS")) return;
@@ -2589,7 +2608,7 @@
 
   // !refreshchat: streamer + lead mods reload the overlay page (balances are kept)
   function doRefreshChat(tags, user) {
-    if (!canControlSfx(tags, user)) return;
+    if (!canControlSfx(tags, user) && !(tags && tags._global)) return;
     saveCookies();
     try { sessionStorage.setItem("keep-cookies", "1"); } catch (e) {}
     plainNotice("Refreshing the overlay…");
@@ -3280,7 +3299,7 @@
     const cm = message.match(/^!([a-z0-9]+)(?:\s+[\s\S]*)?$/i);
     if (!cm) return false;
     const cmd = cm[1].toLowerCase();
-    if (cmd !== "tts" && !SFX_NAMES.has(cmd)) return false;
+    if (cmd !== "tts" && cmd !== "refreshchat" && !SFX_NAMES.has(cmd)) return false;
     if (tags.id) {
       const gid = "g:" + tags.id;
       if (seenMsgIds.has(gid)) return true;
@@ -3288,6 +3307,7 @@
     }
     const gt = Object.assign({}, tags, { "display-name": "Bogchat", badges: "partner/1", mod: "0", bits: "", _global: true });   // shows as [verified] Bogchat; free, skips cooldowns
     if (cmd === "tts") handleTts(gt, "bogchat", message);
+    else if (cmd === "refreshchat") doRefreshChat(gt, "bogchat");
     else doSfxCmd(gt, "bogchat", cmd, message);
     return true;
   }
