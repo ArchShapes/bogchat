@@ -40,7 +40,7 @@
      &demo=1         show test buttons
      &cat=0          turn the cat visits off
      &catsec=600     seconds between cat visits (default 600 / 10 minutes)
-     #viewchat: press P to pop the chat out into an always-on-top window (Chrome / Edge; other browsers get a normal small window). Press P again to put it back
+     #viewchat: shows the stream on top of the chat (open it from a web address; &stream=0 hides the player) and keeps the screen awake. Press P to pop the chat out into an always-on-top window (Chrome / Edge; other browsers get a normal small window). Press P again to put it back
      Commands:  !changetext "Something" (owner + configured lead mods; updates /#text)  !changesize 0.1-1  !changeicon --defaults star|heart|burger|mglass|twitch|none  !changeicon --imagelink <url>  !changeicon --side left|right (lead mods + streamer only; icon on /#text)  !<currency> (e.g. !cookies)  !gift @name|all <n> [message]  !tts <text>  !resetcookies <name|all>  !loudtojump (1000 cookies, command only)  !knocking  !lotsofgunshots  !ambienceone  !ambiencetwo  !shocked  !55  !drip  !money  !bell  !rizz  or (knocking) (lotsofgunshots) (ambienceone) (55) (drip) (money) (bell) (rizz) inside !tts
                 !disablealertsounds / !enablealertsounds, !disablealerts / !enablealerts, !mutesfx / !unmutesfx  (streamer + lead mods only; lead mods are set in the setup panel or with &leadmod=)  */
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
@@ -60,7 +60,7 @@
   .msg.out { opacity: 0; }
   .name { font-weight: 500; }
   .name::after { content: ":"; color: #fff; font-weight: 400; margin-right: .35em; }
-  .name.bogname {
+  .name.bogname, .bogword {
     background: linear-gradient(90deg, #b983ff, #d9b8ff, #f6ecff, #d9b8ff, #b983ff);
     background-size: 300% 100%;
     -webkit-background-clip: text; background-clip: text;
@@ -169,6 +169,25 @@
   .msg.vc:hover { background: rgba(255,255,255,.05); }
   .vc-time { color: #7d7d86; font-size: .7em; margin-right: 8px; font-weight: 700; }
   .msg.vc .name::after { color: #efeff1; }
+  /* Bogchat: verified badge + shiny gradient wherever the name appears */
+  .bogword { font-weight: 700; }
+  .bogbadge { margin-right: 4px; }
+
+  /* #viewchat with the stream on top */
+  #vc-stage { display: none; }
+  body.vc-stream { display: flex; flex-direction: column; }
+  body.vc-stream #vc-stage { display: block; position: relative; flex: 0 0 auto; width: 100%; aspect-ratio: 16 / 9; max-height: 45vh; background: #000; z-index: 6; }
+  body.vc-stream #vc-stage iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #000; }
+  body.vc-stream #chat { position: relative; inset: auto; flex: 1 1 0; min-height: 0; }
+  body.vc-stream.vc-stream-off #vc-stage { display: none; }
+  #vc-toggle { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font: 700 11px system-ui, sans-serif; letter-spacing: .02em; padding: 4px 9px; border-radius: 999px; border: 1px solid #3a3a42; background: #26262c; color: #efeff1; cursor: pointer; }
+  #vc-toggle:hover { background: #34343c; }
+  @media (orientation: landscape) and (max-height: 520px) {
+    body.vc-stream { flex-direction: row; }
+    body.vc-stream #vc-stage { flex: 1 1 62%; width: auto; max-height: none; aspect-ratio: auto; height: 100%; }
+    body.vc-stream #chat { flex: 0 0 38%; height: 100%; }
+  }
+
 
   /* Minimal Twitch-inspired alerts */
   .msg.alertc {
@@ -3547,10 +3566,110 @@
     connect();
     
     startYouTube();
+    if (!POPOUT) setupViewchatStream();
+    keepScreenAwake();
   } else if (settings.configured || CHANNEL || YT_VIDEO) {
     connect();
     
     startYouTube();
+  }
+
+
+  /* ---------- Bogchat: verified badge + gradient EVERYWHERE the name shows up (chat, TTS/sfx labels, cards, alerts) ---------- */
+  function bogBadgeEl(doc) {
+    const wrap = doc.createElement("span"); wrap.className = "badges bogbadge";
+    const span = doc.createElement("span");
+    const info = { key: "partner", set: "partner", version: "1", title: "Verified" };
+    if (!fillBadge(span, info)) pendingBadges.push({ span, info });
+    wrap.appendChild(span);
+    return wrap;
+  }
+  function bogify(root) {
+    if (!root || !root.ownerDocument) return;
+    const doc = root.ownerDocument;
+    const w = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode(n) {
+      if (!/\bbogchat\b/i.test(n.nodeValue)) return NodeFilter.FILTER_REJECT;
+      const p = n.parentElement;
+      if (!p || p.closest(".bogname, .bogword, .text, .badges, #vc-head, #vc-wait, .vc-info")) return NodeFilter.FILTER_REJECT;   // typed chat text is never touched
+      return NodeFilter.FILTER_ACCEPT;
+    } });
+    const nodes = []; while (w.nextNode()) nodes.push(w.currentNode);
+    nodes.forEach(n => {
+      const frag = doc.createDocumentFragment();
+      n.nodeValue.split(/\b(bogchat)\b/i).forEach((part, i) => {
+        if (i % 2 === 1) {
+          frag.appendChild(bogBadgeEl(doc));
+          const sp = doc.createElement("span"); sp.className = "bogword"; sp.textContent = part; frag.appendChild(sp);
+        } else if (part) frag.appendChild(doc.createTextNode(part));
+      });
+      n.parentNode.replaceChild(frag, n);
+    });
+  }
+  {
+    let bogTimer = 0;
+    const run = () => { bogTimer = 0; try { bogify(chat); bogify(alertsEl); } catch (e) { console.warn("bogify", e); } };
+    const obs = new MutationObserver(() => { if (!bogTimer) bogTimer = setTimeout(run, 20); });
+    obs.observe(chat, { childList: true, subtree: true, characterData: true });
+    obs.observe(alertsEl, { childList: true, subtree: true, characterData: true });
+  }
+
+
+  /* ---------- #viewchat: stream player on top of the chat + screen never sleeps ---------- */
+  // Needs the page to be opened from a web address (https://... or http://localhost), because Twitch only allows its player on a real "parent" domain.
+  // &stream=0 turns the player off. The button in the chat header hides / shows it.
+  function setupViewchatStream() {
+    if (params.get("stream") === "0" || (!CHANNEL && !YT_VIDEO)) return;
+    const host = location.hostname || "localhost";
+    const src = CHANNEL
+      ? "https://player.twitch.tv/?channel=" + encodeURIComponent(CHANNEL) + "&parent=" + encodeURIComponent(host) + "&autoplay=true&muted=false"
+      : "https://www.youtube.com/embed/" + encodeURIComponent(YT_VIDEO) + "?autoplay=1&playsinline=1&rel=0";
+    const stage = document.createElement("div"); stage.id = "vc-stage";
+    const frame = document.createElement("iframe");
+    frame.allow = "autoplay; fullscreen; picture-in-picture; encrypted-media"; frame.allowFullscreen = true;
+    frame.setAttribute("playsinline", ""); frame.title = "Stream";
+    stage.appendChild(frame);
+    chat.before(stage);
+    document.body.classList.add("vc-stream");
+    const btn = document.createElement("button"); btn.id = "vc-toggle"; btn.type = "button";
+    const head = document.getElementById("vc-head"); if (head) head.appendChild(btn);
+    let off = false; try { off = localStorage.getItem("vc-stream-off") === "1"; } catch (e) {}
+    const apply = () => {
+      document.body.classList.toggle("vc-stream-off", off);
+      btn.textContent = off ? "Show stream" : "Hide stream";
+      frame.src = off ? "about:blank" : src;                 // hidden = stops playing, shown = starts again
+      try { localStorage.setItem("vc-stream-off", off ? "1" : "0"); } catch (e) {}
+    };
+    btn.addEventListener("click", () => { off = !off; apply(); });
+    apply();
+  }
+  // Keeps the phone screen on while the chat page is open: the Screen Wake Lock API, with a tiny silent looping video as the fallback for browsers without it.
+  function keepScreenAwake() {
+    let lock = null, vid = null;
+    const request = async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        if ("wakeLock" in navigator) {
+          if (lock && !lock.released) return;
+          lock = await navigator.wakeLock.request("screen");
+          lock.addEventListener("release", () => { lock = null; });
+          return;
+        }
+      } catch (e) { lock = null; }
+      if (!vid) {                                             // fallback (older iOS / browsers without wake lock)
+        vid = document.createElement("video");
+        vid.setAttribute("playsinline", ""); vid.setAttribute("muted", ""); vid.muted = true; vid.loop = true;
+        vid.style.cssText = "position:fixed;left:0;top:0;width:1px;height:1px;opacity:.01;pointer-events:none;";
+        const mp4 = document.createElement("source"); mp4.type = "video/mp4"; mp4.src = "data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAMsbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAA+gAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAlZ0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAEAAAABAAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAPoAAAAAAABAAAAAAHObWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAABAAAAAQABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABeW1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAATlzdGJsAAAAuXN0c2QAAAAAAAAAAQAAAKlhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAEAAQABIAAAASAAAAAAAAAABFUxhdmM2MC4zMS4xMDIgbGlieDI2NAAAAAAAAAAAAAAAGP//AAAAL2F2Y0MBQsAK/+EAF2dCwArZBCbARAAAAwAEAAADABA8SJkgAQAFaMuDyyAAAAAQcGFzcAAAAAEAAAABAAAAFGJ0cnQAAAAAAAAUyAAAFMgAAAAYc3R0cwAAAAAAAAABAAAAAgAAIAAAAAAUc3RzcwAAAAAAAAABAAAAAQAAABxzdHNjAAAAAAAAAAEAAAABAAAAAgAAAAEAAAAcc3RzegAAAAAAAAAAAAAAAgAAAo8AAAAKAAAAFHN0Y28AAAAAAAAAAQAAA1wAAABidWR0YQAAAFptZXRhAAAAAAAAACFoZGxyAAAAAAAAAABtZGlyYXBwbAAAAAAAAAAAAAAAAC1pbHN0AAAAJal0b28AAAAdZGF0YQAAAAEAAAAATGF2ZjYwLjE2LjEwMAAAAAhmcmVlAAACoW1kYXQAAAJwBgX//2zcRem95tlIt5Ys2CDZI+7veDI2NCAtIGNvcmUgMTY0IHIzMTA4IDMxZTE5ZjkgLSBILjI2NC9NUEVHLTQgQVZDIGNvZGVjIC0gQ29weWxlZnQgMjAwMy0yMDIzIC0gaHR0cDovL3d3dy52aWRlb2xhbi5vcmcveDI2NC5odG1sIC0gb3B0aW9uczogY2FiYWM9MCByZWY9MyBkZWJsb2NrPTE6MDowIGFuYWx5c2U9MHgxOjB4MTExIG1lPWhleCBzdWJtZT03IHBzeT0xIHBzeV9yZD0xLjAwOjAuMDAgbWl4ZWRfcmVmPTEgbWVfcmFuZ2U9MTYgY2hyb21hX21lPTEgdHJlbGxpcz0xIDh4OGRjdD0wIGNxbT0wIGRlYWR6b25lPTIxLDExIGZhc3RfcHNraXA9MSBjaHJvbWFfcXBfb2Zmc2V0PS0yIHRocmVhZHM9MSBsb29rYWhlYWRfdGhyZWFkcz0xIHNsaWNlZF90aHJlYWRzPTAgbnI9MCBkZWNpbWF0ZT0xIGludGVybGFjZWQ9MCBibHVyYXlfY29tcGF0PTAgY29uc3RyYWluZWRfaW50cmE9MCBiZnJhbWVzPTAgd2VpZ2h0cD0wIGtleWludD0yNTAga2V5aW50X21pbj0yIHNjZW5lY3V0PTQwIGludHJhX3JlZnJlc2g9MCByY19sb29rYWhlYWQ9NDAgcmM9Y3JmIG1idHJlZT0xIGNyZj0yMy4wIHFjb21wPTAuNjAgcXBtaW49MCBxcG1heD02OSBxcHN0ZXA9NCBpcF9yYXRpbz0xLjQwIGFxPTE6MS4wMACAAAAAF2WIhAU8mKAAP78nJyddddddddddddeAAAAABkGaOAl4Rg==";
+        const webm = document.createElement("source"); webm.type = "video/webm"; webm.src = "data:video/webm;base64,GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQJChYECGFOAZwEAAAAAAAIBEU2bdLpNu4tTq4QVSalmU6yBoU27i1OrhBZUrmtTrIHYTbuMU6uEElTDZ1OsggEeTbuMU6uEHFO7a1OsggHr7AEAAAAAAABZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmsirXsYMPQkBNgI1MYXZmNjAuMTYuMTAwV0GNTGF2ZjYwLjE2LjEwMESJiECPQAAAAAAAFlSua8GuAQAAAAAAADjXgQFzxYg6VvDr0s2NK5yBACK1nIN1bmSIgQCGhVZfVlA4g4EBI+ODhB3NZQDgibCBQLqBQJqBAhJUw2f8c3OgY8CAZ8iaRaOHRU5DT0RFUkSHjUxhdmY2MC4xNi4xMDBzc9ZjwItjxYg6VvDr0s2NK2fIoUWjh0VOQ09ERVJEh5RMYXZjNjAuMzEuMTAyIGxpYnZweGfIoUWjiERVUkFUSU9ORIeTMDA6MDA6MDEuMDAwMDAwMDAwAB9DtnXH54EAo6qBAACA8AIAnQEqQABAAABHCIWFiIWEiAICAAZwPEJgCrIg9zAA/v+rUICjloEB9ADRAQABEBAAGAAYWC/0AAiOgAAcU7trkbuPs4EAt4r3gQHxggGf8IED";
+        vid.append(mp4, webm); document.body.appendChild(vid);
+      }
+      try { await vid.play(); } catch (e) {}
+    };
+    request();
+    document.addEventListener("visibilitychange", request);   // the lock is dropped when the tab is hidden: take it again
+    addEventListener("pointerdown", request);                  // some browsers only allow it after a tap
+    addEventListener("keydown", request);
+    setInterval(request, 30000);
   }
 
   // P (chat reader only): open the chat in its own small window; press P again (in either window) to close it
