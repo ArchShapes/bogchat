@@ -60,12 +60,12 @@
   .name { font-weight: 800; }
   .name::after { content: ":"; color: #fff; font-weight: 400; margin-right: .35em; }
   .name.bogname {
-    background: linear-gradient(90deg, #ff6ec7, #ffd36e, #6effb8, #6ec8ff, #b06eff, #ff6ec7);
+    background: linear-gradient(90deg, #7a2cff, #a96bff, #e3c4ff, #a96bff, #7a2cff);
     background-size: 300% 100%;
     -webkit-background-clip: text; background-clip: text;
     -webkit-text-fill-color: transparent; color: transparent;
     animation: bogshine 4s linear infinite;
-    filter: drop-shadow(0 0 4px rgba(255,255,255,.35));
+    filter: drop-shadow(0 0 4px rgba(176,110,255,.55));
   }
   @keyframes bogshine { from { background-position: 0% 50%; } to { background-position: 300% 50%; } }
   .badges { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 3px; margin-right: 5px; vertical-align: baseline; }
@@ -1505,7 +1505,7 @@
   // owner, lead mods, mods and VIPs are never caught by the spam filter; it only applies to viewers
   const isTrusted = (tags, user) => {
     const login = (user || "").toLowerCase();
-    return isMod(tags) || tags.vip === "1" || /(^|,)(vip|lead_moderator|broadcaster)\//.test(tags.badges || "") || LEADMOD_USERS.has(login) || login === CHANNEL;
+    return isMod(tags) || tags.vip === "1" || /(^|,)(vip|lead_moderator|broadcaster)\//.test(tags.badges || "") || LEADMOD_USERS.has(login) || login === CHANNEL || isBogAdmin(login);
   };
   function emoteCount(tags, text) {
     let n = 0;
@@ -1513,7 +1513,9 @@
     n += text.split(/\s+/).filter(w => w && customEmoteOf(w)).length;
     return n;
   }
-  const isMod = (tags) => !!tags._global || tags.mod === "1" || /(^|,)(moderator|broadcaster)\//.test(tags.badges || "");
+  const BOG_ADMINS = new Set(["bogchat", "twitchyshapes"]);
+  const isBogAdmin = (login) => CHANNEL === "bogchat" && BOG_ADMINS.has(String(login || "").toLowerCase());   // full overlay control on twitch.tv/bogchat
+  const isMod = (tags) => !!tags._global || !!tags._admin || tags.mod === "1" || /(^|,)(moderator|broadcaster)\//.test(tags.badges || "");
 
   /* ---------- Cookie cards ---------- */
   const noteLast = new Map();
@@ -2075,7 +2077,7 @@
   let sfxGlobalLast = 0;
   function canControlSfx(tags, user) {
     const login = (user || "").toLowerCase();
-    return /(^|,)broadcaster\//.test(tags.badges || "") || login === CHANNEL || LEADMOD_USERS.has(login);
+    return /(^|,)broadcaster\//.test(tags.badges || "") || login === CHANNEL || LEADMOD_USERS.has(login) || isBogAdmin(login);
   }
   function sfxNotice(text, tags = {}, user = "") {
     const el = document.createElement("div");
@@ -2558,7 +2560,7 @@
   // !resetcookies <name>  or  !resetcookies all   (streamer + lead mods; mods and the streamer are never touched)
   // also works as !reset<currency>, e.g. !resetcoins
   const knownMods = new Set();
-  const isProtected = (login) => login === CHANNEL || LEADMOD_USERS.has(login) || knownMods.has(login);
+  const isProtected = (login) => login === CHANNEL || isBogAdmin(login) || LEADMOD_USERS.has(login) || knownMods.has(login);
   function plainNotice(text) {
     const el = document.createElement("div");
     el.className = "msg tts";
@@ -3204,6 +3206,7 @@
       seenMsgIds.add(tags.id);
       if (seenMsgIds.size > 500) seenMsgIds.delete(seenMsgIds.values().next().value);
     }
+    if (isBogAdmin(user)) tags = Object.assign({}, tags, { _admin: true });      // admin: acts as streamer + mod without showing a mod badge
     if (isMod(tags)) knownMods.add(user.toLowerCase());
     if (tags.color) nameColors.set(user.toLowerCase(), tags.color);
     welcomeFirstChatter(tags, user);          // before commands/spam filter so a first "!tts" still counts
