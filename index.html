@@ -2741,12 +2741,39 @@
   };
   const EMOTE_WORD = /^([^\p{L}\p{N}]*)([\p{L}\p{N}_]+)([^\p{L}\p{N}]*)$/u;
   const USER_EMOTES = new Map();     // alias (lowercase) -> image URL, from the emotes you add in setup (F2)
+  const SEVENTV = new Map();         // exact emote name (case-sensitive) -> image URL, from 7TV global + channel sets
   const customEmoteOf = (word) => {
-    const m = word.match(EMOTE_WORD); if (!m) return null;
-    const k = m[2].toLowerCase();
-    if (USER_EMOTES.has(k)) return { m, url: USER_EMOTES.get(k) };
-    return CUSTOM_EMOTES[k] ? { m, file: CUSTOM_EMOTES[k] } : null;
+    const m = word.match(EMOTE_WORD);
+    if (m) {
+      const k = m[2].toLowerCase();
+      if (USER_EMOTES.has(k)) return { m, url: USER_EMOTES.get(k) };
+      if (CUSTOM_EMOTES[k]) return { m, file: CUSTOM_EMOTES[k] };
+    }
+    if (SEVENTV.size) {
+      if (SEVENTV.has(word)) return { m: ["", "", word, ""], url: SEVENTV.get(word) };     // whole word, also names with symbols
+      if (m && SEVENTV.has(m[2])) return { m, url: SEVENTV.get(m[2]) };                    // with punctuation around it
+    }
+    return null;
   };
+  /* ---------- 7TV emotes (global + this channel's set). Works on the overlay and on #viewchat ---------- */
+  let seventvChannelStarted = false;
+  async function seventvLoad(url) {
+    try {
+      const r = await fetch(url); if (!r.ok) return;
+      const j = await r.json();
+      const list = Array.isArray(j.emotes) ? j.emotes : (j.emote_set && j.emote_set.emotes) || [];
+      for (const e of list) {
+        const host = e.data && e.data.host; if (!host || !host.url || !e.name) continue;
+        SEVENTV.set(e.name, "https:" + host.url + "/2x.webp");
+      }
+    } catch (_) {}
+  }
+  seventvLoad("https://7tv.io/v3/emote-sets/global");
+  function seventvLoadChannel(roomId) {
+    if (seventvChannelStarted || !roomId) return;
+    seventvChannelStarted = true;
+    seventvLoad("https://7tv.io/v3/users/twitch/" + encodeURIComponent(roomId));
+  }
 
   /* ---------- Your own emotes: images + aliases, added in setup (F2) ---------- */
   // Images are stored in this browser (IndexedDB), so they work for any local file and survive restarts.
@@ -3228,7 +3255,7 @@
         if (un) { handleUserNotice(tags, un[1] || ""); return; }
 
         const parts = rest.match(/^:([^!]+)![^ ]+ PRIVMSG #[^ ]+ :(.*)$/);
-        if (parts) { loadChannelBadges(tags["room-id"]); addMessage(tags, parts[1], parts[2]); return; }
+        if (parts) { loadChannelBadges(tags["room-id"]); seventvLoadChannel(tags["room-id"]); addMessage(tags, parts[1], parts[2]); return; }
 
         if (/ JOIN #/.test(rest) && rest.startsWith(":justinfan")) {
           retry = 0; setStatus("");
