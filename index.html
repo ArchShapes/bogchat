@@ -624,7 +624,7 @@
         </details>
       </div>
 
-      <div class="setup-section">
+      <div class="setup-section" hidden>
         <h3>Custom emotes <span class="opt">(your own images)</span></h3>
         <div class="ue-add">
           <label><span>Image <span class="opt">(.png, .jpg, .gif, .webp...)</span></span>
@@ -2734,7 +2734,7 @@
   }
 
   // Custom emotes: the word (any capitalization) is replaced by the image next to this file.
-  const CUSTOM_EMOTES = { ww: "ww.gif", ll: "ll.png", normalface: "normalface.png", son: "son.png", sonion: "son.png", petthemods: "petmods.gif", petmods: "petmods.gif", hi: "hi.gif", scared: "speedscared.jpg", muga: "muga.gif", "49": "49.gif", "55": "55.gif", "67": "67.png", laugh: "laugh.gif", minionlaughing: "laugh.gif", 92: "92.png", uhh: "uuh.gif", uuh: "uuh.gif"};
+  const CUSTOM_EMOTES = {};          // local image emotes removed: emotes now come from 7TV only
   const emoteSources = (file) => {
     const base = file.replace(/\.[^.]+$/, "");
     return [file, ...["png", "gif", "webp", "jpg", "jpeg", "avif", "svg"].map(e => `${base}.${e}`)].filter((v, i, a) => a.indexOf(v) === i);
@@ -2746,7 +2746,6 @@
     const m = word.match(EMOTE_WORD);
     if (m) {
       const k = m[2].toLowerCase();
-      if (USER_EMOTES.has(k)) return { m, url: USER_EMOTES.get(k) };
       if (CUSTOM_EMOTES[k]) return { m, file: CUSTOM_EMOTES[k] };
     }
     if (SEVENTV.size) {
