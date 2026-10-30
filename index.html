@@ -2517,8 +2517,9 @@
   }
 
   // !gift @name 20 [message]  (5 to 70 per gift) plays lowcheer.mp3
+  // !gift all 100 [message]    (5 to 200)
   // !gift all 100 [message]    splits the amount between everyone who chatted in the last 10 minutes
-  const GIFT_MIN = 5, GIFT_MAX = 70;
+  const GIFT_MIN = 5, GIFT_MAX = 70, GIFT_ALL_MAX = 200;      // !gift @name: 5-70, !gift all: 5-200
   function cleanGiftNote(t) {
     const note = String(t || "").replace(/\[(?:scream|spongebob)\]|<\/?(?:scream|spongebob)>/gi, "")
       .replace(/https?:\/\/\S+|www\.\S+/gi, "").replace(/\s+/g, " ").trim().slice(0, 100);
@@ -2530,9 +2531,10 @@
     const to = m[1].toLowerCase(), n = parseInt(m[2], 10), note = cleanGiftNote(m[3]);
     if (n < 1 || cdLeft("gift:" + user, 3000)) return;
     if (to !== "all" && to === user.toLowerCase()) return;
-    if (n < GIFT_MIN || n > GIFT_MAX) {                         // gifts are only allowed from 5 to 70
+    const maxGift = to === "all" ? GIFT_ALL_MAX : GIFT_MAX;
+    if (n < GIFT_MIN || n > maxGift) {                          // @name gifts: 5-70, !gift all: 5-200
       markCd("gift:" + user);
-      queueAlert("cookie", `${nameOf(tags, user)}: gifts must be between ${GIFT_MIN} and ${GIFT_MAX} ${currencyLabel(GIFT_MAX)}`, "", undefined, whoFor(nameOf(tags, user), tags));
+      queueAlert("cookie", `${nameOf(tags, user)}: gifts must be between ${GIFT_MIN} and ${maxGift} ${currencyLabel(maxGift)}`, "", undefined, whoFor(nameOf(tags, user), tags));
       return;
     }
     if (to === "all") {
