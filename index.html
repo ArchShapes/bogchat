@@ -12,6 +12,7 @@
 <style>
   *, *::before, *::after { font-synthesis: none; }
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+  body.no-message-in .msg, body.no-message-in .msg.cheer, body.no-message-in .msg.cookie, body.no-message-in .msg.hype, body.no-message-in .msg.alertc, body.no-message-in .msg.tts, body.no-message-in .msg.welcome, body.no-message-in .msg.cat { animation: none !important; }
   #chat {
     position: absolute; inset: 0;
     display: flex; flex-direction: column; justify-content: flex-end;
@@ -41,24 +42,24 @@
   .native-badge { display: inline-block; width: 1.05em; height: 1.05em; vertical-align: -.16em; object-fit: contain; }
   .emote { height: 1.5em; vertical-align: middle; margin: -.2em 1px; }
 
-  /* Command/Action notification labels */
+  /* Command & Sound Label Styling */
   .msg.cmd-label {
-    margin: 4px 0; padding: 7px 12px; width: fit-content; max-width: 100%; box-sizing: border-box; text-align: left;
-    background: rgba(20,20,30,0.88); border: 1px solid rgba(255,255,255,0.15); border-left: 3px solid #3ec9b0; border-radius: 12px;
+    margin: 4px 0; padding: 6px 13px; width: fit-content; max-width: 100%; box-sizing: border-box; text-align: left;
+    background: rgba(14,12,20,.82); border: 1px solid rgba(255,255,255,.10); border-left: 3px solid #3ec9b0; border-radius: 12px;
     box-shadow: 0 3px 12px rgba(0,0,0,.3); text-shadow: 0 2px 6px rgba(0,0,0,.9);
     animation: msgIn .35s ease-out backwards;
   }
-  .msg.cmd-label .cmd-user { font-weight: 700; color: #3ec9b0; }
+  .cmd-label .cmd-user { font-weight: 700; color: #3ec9b0; }
 
-  /* TTS Banner Label */
+  /* TTS Label Card Styling */
   .msg.tts-label {
-    margin: 6px 0; padding: 9px 14px; width: fit-content; max-width: 100%; box-sizing: border-box; text-align: left;
-    background: rgba(30,20,10,0.9); border: 1px solid rgba(255,196,107,0.4); border-left: 3px solid #ffc46b; border-radius: 12px;
-    box-shadow: 0 4px 15px rgba(0,0,0,.4); text-shadow: 0 2px 6px rgba(0,0,0,.9);
+    margin: 4px 0; padding: 8px 14px; width: fit-content; max-width: 100%; box-sizing: border-box; text-align: left;
+    background: rgba(14,12,20,.88); border: 1px solid rgba(255,196,107,.4); border-left: 3px solid #ffc46b; border-radius: 12px;
+    box-shadow: 0 3px 12px rgba(0,0,0,.3); text-shadow: 0 2px 6px rgba(0,0,0,.9);
     animation: msgIn .35s ease-out backwards;
   }
-  .tts-label .tts-header { font-size: 0.8em; font-weight: 700; color: #ffc46b; text-transform: uppercase; margin-bottom: 2px; }
-  .tts-label .tts-body { font-size: 1.05em; font-weight: 600; color: #fff; }
+  .tts-label .tts-header { font-size: .8em; font-weight: 700; color: #ffc46b; text-transform: uppercase; letter-spacing: 0.05em; }
+  .tts-label .tts-text { font-size: 1em; font-weight: 500; color: #fff; margin-top: 2px; }
 
   #status {
     position: absolute; top: 8px; right: 12px; font: 12px system-ui, sans-serif;
@@ -67,20 +68,26 @@
   #status.show { opacity: .8; }
   @keyframes in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   @keyframes msgIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  .msg.out { opacity: 0 !important; transform: translateY(-6px); max-height: 0 !important; padding-top: 0 !important; padding-bottom: 0 !important; margin-top: 0 !important; margin-bottom: 0 !important; }
 </style>
 </head>
 <body>
+
 <div id="chat"></div>
 <div id="status"></div>
 
 <script>
 (() => {
   const params = new URLSearchParams(location.search);
-  const CHANNEL = params.get("channel") || "bogdanthegdplayer";
+  const SETTINGS_KEY = "global-overlay-settings-v1";
+  let settings = { channel: "bogdanthegdplayer", tts: true, alerts: true, chat: true };
+  try { settings = { ...settings, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}") }; } catch (e) {}
+
+  const normChannel = (v) => String(v || "").trim().toLowerCase().replace(/^https?:\/\/(www\.)?twitch\.tv\//, "").replace(/^[@#]/, "").replace(/[^a-z0-9_]/g, "").slice(0, 25);
+  const CHANNEL = normChannel(params.get("channel")) || normChannel(settings.channel) || "bogdanthegdplayer";
   const FADE_S = parseFloat(params.get("fade") ?? "30");
   const MAX_MSG = Math.max(1, parseInt(params.get("max") || "6", 10));
-  const TTS_ON = params.get("tts") !== "0";
-  const TTS_VOL = 1;
 
   const chat = document.getElementById("chat");
   const statusEl = document.getElementById("status");
@@ -94,121 +101,97 @@
     return hex;
   }
 
-  function unesc(v) {
-    return v.replace(/\\(.)/g, (m, c) => ({ s: " ", ":": ";", "\\": "\\", r: "\r", n: "\n" }[c] ?? c));
-  }
-  function parseTags(raw) {
-    const out = {};
-    raw.split(";").forEach(p => { const i = p.indexOf("="); out[p.slice(0, i)] = unesc(p.slice(i + 1)); });
-    return out;
-  }
-
   function dismiss(el) {
     if (!el || el._gone) return;
     el._gone = true;
     el.style.animation = "none";
     el.classList.add("out");
-    setTimeout(() => el.remove(), 1200);
+    setTimeout(() => el.remove(), 1000);
   }
 
   function push(el, fade = FADE_S) {
     chat.appendChild(el);
     const all = [...chat.children].filter(e => !e._gone);
     while (all.length > MAX_MSG) dismiss(all.shift());
-    if (fade > 0) setTimeout(() => el.remove(), fade * 1000);
+    if (fade > 0) setTimeout(() => dismiss(el), fade * 1000);
     chat.scrollTop = chat.scrollHeight;
   }
 
-  // --- TTS Handling & Label Generation ---
+  /* --- TTS Label Banner --- */
   const ttsQueue = [];
   let ttsBusy = false;
 
-  async function speakText(text) {
-    if (!("speechSynthesis" in window)) return;
-    return new Promise((resolve) => {
+  function speakText(text) {
+    return new Promise(resolve => {
+      if (!("speechSynthesis" in window)) return resolve();
       const u = new SpeechSynthesisUtterance(text);
-      u.volume = TTS_VOL;
-      u.onend = () => resolve();
-      u.onerror = () => resolve();
+      u.onend = u.onerror = () => resolve();
       window.speechSynthesis.speak(u);
     });
   }
 
-  async function runTts() {
+  async function processTtsQueue() {
     if (ttsBusy || !ttsQueue.length) return;
     ttsBusy = true;
     const text = ttsQueue.shift();
     await speakText(text);
     ttsBusy = false;
-    runTts();
+    processTtsQueue();
   }
 
-  function handleTts(tags, user, message) {
-    if (!TTS_ON) return;
-    const text = message.replace(/^!tts\s*/i, "").trim();
-    if (!text) return;
-
-    // 1. Create TTS Label Banner instead of chat line
-    const displayName = tags["display-name"] || user;
+  function showTtsLabel(user, text) {
     const el = document.createElement("div");
     el.className = "msg tts-label";
-    
-    const header = document.createElement("div");
-    header.className = "tts-header";
-    header.textContent = `${displayName} says:`;
+
+    const head = document.createElement("div");
+    head.className = "tts-header";
+    head.textContent = `${user} sent TTS:`;
 
     const body = document.createElement("div");
-    body.className = "tts-body";
+    body.className = "tts-text";
     body.textContent = text;
 
-    el.append(header, body);
+    el.append(head, body);
     push(el, 15);
 
-    // 2. Queue audio playback
     ttsQueue.push(text);
-    runTts();
+    processTtsQueue();
   }
 
-  // --- Command Label Handling ---
-  function handleCommandLabel(tags, user, commandName) {
-    const displayName = tags["display-name"] || user;
+  /* --- Command Notification Label --- */
+  const SFX_NAMES = new Set(["vineboom", "bruh", "cookie", "applause", "airhorn", "meow", "knocking", "drip", "bell", "rizz"]);
+
+  function showCmdLabel(user, cmd) {
     const el = document.createElement("div");
     el.className = "msg cmd-label";
-    
-    const userSpan = document.createElement("span");
-    userSpan.className = "cmd-user";
-    userSpan.textContent = displayName;
 
-    el.append(userSpan, document.createTextNode(` just played ${commandName}!`));
+    const uSpan = document.createElement("span");
+    uSpan.className = "cmd-user";
+    uSpan.textContent = user;
+
+    el.append(uSpan, document.createTextNode(` just played ${cmd}!`));
     push(el, 8);
   }
 
-  // --- Sound Effects & Command Router ---
-  const SFX_NAMES = new Set(["vineboom", "bruh", "cookie", "applause", "airhorn", "meow"]);
-  
   function handleCommand(tags, user, message) {
-    const cm = message.match(/^!([a-z0-9]+)(?:\s+(.*))?$/i);
-    if (!cm) return false;
-    const cmd = cm[1].toLowerCase();
+    const match = message.match(/^!([a-z0-9]+)(?:\s+(.*))?$/i);
+    if (!match) return false;
 
-    // Check if it's a TTS command
+    const cmd = match[1].toLowerCase();
+    const displayName = tags["display-name"] || user;
+
     if (cmd === "tts") {
-      handleTts(tags, user, message);
+      const text = (match[2] || "").trim();
+      if (text) showTtsLabel(displayName, text);
       return true;
     }
 
-    // Check if it's a sound effect / command
-    if (SFX_NAMES.has(cmd)) {
-      handleCommandLabel(tags, user, cmd);
-      // Play dummy audio / sound trigger here if needed
-      return true;
-    }
-
-    // Default: suppress unknown commands from chat as requested ("commands should NOT appear in chat")
+    // Sound effect or general command execution
+    showCmdLabel(displayName, cmd);
     return true;
   }
 
-  // --- Message Processing ---
+  /* --- Normal Chat Renderer --- */
   function buildChatLine(tags, user, message) {
     const displayName = tags["display-name"] || user;
     const el = document.createElement("div");
@@ -227,20 +210,15 @@
     return el;
   }
 
-  function addMessage(tags, user, message) {
-    // If message starts with '!', treat it as a command -> Filter out from chat and turn into label
-    if (message.startsWith("!")) {
-      handleCommand(tags, user, message);
-      return;
-    }
-
-    // Normal chat messages stay in chat
-    push(buildChatLine(tags, user, message));
+  function parseTags(raw) {
+    const out = {};
+    raw.split(";").forEach(p => { const i = p.indexOf("="); out[p.slice(0, i)] = p.slice(i + 1); });
+    return out;
   }
 
-  // --- Twitch WebSocket Connection ---
+  /* --- Twitch Connection --- */
   function connectTwitch() {
-    setStatus("connecting to Twitch…");
+    setStatus("Connecting to #" + CHANNEL + "…");
     const ws = new WebSocket("wss://irc-ws.chat.twitch.tv:443");
 
     ws.onopen = () => {
@@ -256,16 +234,24 @@
         if (rest[0] === "@") { const i = rest.indexOf(" "); tags = parseTags(rest.slice(1, i)); rest = rest.slice(i + 1); }
         if (rest.startsWith("PING")) { ws.send("PONG :tmi.twitch.tv"); return; }
 
+        if (/ JOIN #/.test(rest)) { setStatus(""); return; }
+
         const parts = rest.match(/^:([^!]+)![^ ]+ PRIVMSG #([^ ]+) :(.*)$/);
         if (parts) {
           const who = parts[1], text = parts[3];
-          addMessage(tags, who, text);
+
+          // If it's a command, handle it as a label and suppress from normal chat
+          if (text.startsWith("!")) {
+            handleCommand(tags, who, text);
+          } else {
+            push(buildChatLine(tags, who, text));
+          }
         }
       });
     };
 
     ws.onclose = () => {
-      setStatus("reconnecting…");
+      setStatus("Reconnecting…");
       setTimeout(connectTwitch, 3000);
     };
   }
