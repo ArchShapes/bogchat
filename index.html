@@ -21,7 +21,7 @@
      &tts=0          turn !tts off
      &ttsvol=1       TTS volume 0-1
      &ttsvoice=name  pick a voice (part of its name, e.g. "zira")
-     &drop=35        % chance a message earns 1 cookie
+     &drop=20        % chance a message earns 1 cookie
      &block=a,b      extra words blocked from TTS
      &sfxvol=0.8     TTS sound-effect volume 0-1
      TTS uses the normal voice
@@ -1148,7 +1148,7 @@
   const TTS_ON = OVERLAYMODE && settings.tts && params.get("tts") !== "0";
   const TTS_VOL = params.has("ttsvol") ? Math.min(1, Math.max(0, parseFloat(params.get("ttsvol")) || 0)) : 1;
   const TTS_VOICE = (params.get("ttsvoice") || "").toLowerCase();
-  const DROP = (params.has("drop") ? Math.min(100, Math.max(0, parseFloat(params.get("drop")) || 0)) : 35) / 100;
+  const DROP = (params.has("drop") ? Math.min(100, Math.max(0, parseFloat(params.get("drop")) || 0)) : 20) / 100;
   const EXTRA_BLOCK = (params.get("block") || "").toLowerCase().split(",").map(s => s.trim()).filter(Boolean);
   const SFX_QUEUE_MAX = 10;
   const ALERTS_ON = settings.alerts && params.get("alerts") !== "0";
@@ -1162,7 +1162,7 @@
   const TING_ON = params.get("ting") !== "0";
   const TING_MS = (params.has("tingsec") ? Math.max(5, parseFloat(params.get("tingsec")) || 60) : 60) * 1000;
   const WHEEL_BIAS = params.has("wheelbias") ? Math.max(0.5, parseFloat(params.get("wheelbias")) || 1.2) : 1.2;
-  const WHEEL_COST = 5, REQUEST_COST = 0, TTS_COST = 20;
+  const WHEEL_COST = 5, REQUEST_COST = 0, TTS_COST = 10;
   if (params.get("size")) document.getElementById("chat").style.setProperty("--size", params.get("size") + "px");
   if (params.get("bg"))   document.body.classList.add("bg");
 
@@ -2073,7 +2073,7 @@
   }
 
   // !<sfxname> plays that sound; !disablealertsounds / !enablealertsounds, !disablealerts / !enablealerts, !mutesfx / !unmutesfx are for the streamer and lead mods only
-  const SFX_CMD_COST = 5, SFX_CMD_CD = 2500;      // currency charged per !sound (streamer + lead mods play free); 0 = free for everyone
+  const SFX_CMD_COST = 10, SFX_CMD_CD = 2500;      // currency charged per !sound (streamer + lead mods play free); 0 = free for everyone
   const sfxCmdLast = new Map();
   let sfxGlobalLast = 0;
   function canControlSfx(tags, user) {
@@ -2334,7 +2334,7 @@
   }
 
   // Hosted no-signup TTS proxy. No Puter, no Google Translate direct endpoint, no system-voice fallback.
-  const TTS_FX = {};
+  const TTS_FX = { female: { pitch: 1.2, speed: 1.5 } };   // English female voice (higher pitch) for alerts: gifts, bits, follows, subs, raids
   async function speakOnline(text, cfg = settings, style = "") {
     const fx = TTS_FX[style];
     const url = "https://tts-api.netlify.app/?text=" + encodeURIComponent(text) + "&lang=en" + (fx ? `&pitch=${fx.pitch}&speed=${fx.speed}` : "&pitch=0.8&speed=1.5");
@@ -2427,7 +2427,7 @@
     if (!OVERLAYMODE || !TTS_ON || allMuted || ttsMuted) return;
     const t = cleanTts(String(text || ""));
     if (!t || ttsBlocked(t)) return;
-    ttsQueue.push([{ say: t }]);
+    ttsQueue.push([{ say: t, style: "female" }]);          // alerts always use the English female voice
     runTts();
   }
 
@@ -2516,9 +2516,9 @@
     }, 2200);
   }
 
-  // !gift @name 20 [message]  (max 50 per gift) plays lowcheer.mp3
+  // !gift @name 20 [message]  (5 to 70 per gift) plays lowcheer.mp3
   // !gift all 100 [message]    splits the amount between everyone who chatted in the last 10 minutes
-  const GIFT_MAX = 50;
+  const GIFT_MIN = 5, GIFT_MAX = 70;
   function cleanGiftNote(t) {
     const note = String(t || "").replace(/\[(?:scream|spongebob)\]|<\/?(?:scream|spongebob)>/gi, "")
       .replace(/https?:\/\/\S+|www\.\S+/gi, "").replace(/\s+/g, " ").trim().slice(0, 100);
@@ -2529,14 +2529,14 @@
     if (!m) return;
     const to = m[1].toLowerCase(), n = parseInt(m[2], 10), note = cleanGiftNote(m[3]);
     if (n < 1 || cdLeft("gift:" + user, 3000)) return;
-    if (to === "all") {
-      if (addCheer(tags, user, n, { gift: true, charge: true, note })) markCd("gift:" + user);
+    if (to !== "all" && to === user.toLowerCase()) return;
+    if (n < GIFT_MIN || n > GIFT_MAX) {                         // gifts are only allowed from 5 to 70
+      markCd("gift:" + user);
+      queueAlert("cookie", `${nameOf(tags, user)}: gifts must be between ${GIFT_MIN} and ${GIFT_MAX} ${currencyLabel(GIFT_MAX)}`, "", undefined, whoFor(nameOf(tags, user), tags));
       return;
     }
-    if (to === user.toLowerCase()) return;
-    if (n > GIFT_MAX) {
-      markCd("gift:" + user);
-      queueAlert("cookie", `${nameOf(tags, user)}: the gift limit is ${GIFT_MAX} ${currencyLabel(GIFT_MAX)} per gift`, "", undefined, whoFor(nameOf(tags, user), tags));
+    if (to === "all") {
+      if (addCheer(tags, user, n, { gift: true, charge: true, note })) markCd("gift:" + user);
       return;
     }
     if (!canPay(tags, user, n, "that gift")) return;
