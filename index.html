@@ -241,6 +241,8 @@
 
   /* Small notices */
   .msg.note { font-size: .85em; opacity: .9; }
+  .msg.global-message { overflow-wrap: anywhere; }
+  .global-label { color: #ffffff; font-weight: 600; }
 
   /* TTS line */
   .msg.tts {
@@ -3237,6 +3239,27 @@
     // wheel, gift, balance, mute/unmute etc. already show their own labels/cards, so no extra line is added
   }
 
+  function systemEventLine(message) {
+    const el = document.createElement("div");
+    el.className = "msg note keep";
+    el.style.color = "#ffffff";
+    el.textContent = message;
+    push(el, {}, 12);
+  }
+
+  function globalMessageLine(message, tags = {}) {
+    const el = document.createElement("div");
+    el.className = "msg global-message";
+    const label = document.createElement("span");
+    label.className = "global-label";
+    label.textContent = "Global Message: ";
+    const body = document.createElement("span");
+    body.className = "text";
+    body.appendChild(buildText(message, tags.emotes));
+    el.append(label, body);
+    push(el, tags);
+  }
+
   const seenMsgIds = new Set();
   function addMessage(tags, user, message) {
     if (String(message).length > 899) return;
@@ -3271,6 +3294,11 @@
       if (seenMsgIds.has(tags.id)) return;
       seenMsgIds.add(tags.id);
       if (seenMsgIds.size > 500) seenMsgIds.delete(seenMsgIds.values().next().value);
+    }
+    if (tags["msg-id"] === "announcement") {
+      const who = tags["display-name"] || user;
+      systemEventLine(`${who} announced: ${message}`);
+      return;
     }
     if (isBogAdmin(user)) tags = Object.assign({}, tags, { _admin: true });      // admin: acts as streamer + mod without showing a mod badge
     if (isMod(tags)) knownMods.add(user.toLowerCase());
@@ -3388,6 +3416,10 @@
           if (room === GLOBAL_CHANNEL) {
             const isGlobalSender = GLOBAL_SENDERS.has(who.toLowerCase());
             if (isGlobalSender && handleGlobal(tags, who, text)) return;      // global command: plays everywhere
+            if (isGlobalSender && CHANNEL !== GLOBAL_CHANNEL) {
+              globalMessageLine(text, tags);
+              return;
+            }
             if (CHANNEL !== GLOBAL_CHANNEL) return;                           // other overlays ignore everything else from #bogchat
           } else if (room !== CHANNEL) return;
           loadChannelBadges(tags["room-id"]); seventvLoadChannel(tags["room-id"]); addMessage(tags, who, text); return;
@@ -3401,13 +3433,23 @@
 
         if (/ CLEARMSG /.test(rest) && tags["target-msg-id"]) { removeBy(`[data-id="${tags["target-msg-id"]}"]`); return; }
         if (/ CLEARCHAT /.test(rest)) {
-          if (/CLEARCHAT #[^ ]+ :/.test(rest)) {
-            const target = rest.split(":").pop().toLowerCase();
+          const moderator = tags["display-name"] || tags.login || "A moderator";
+          const targetMatch = rest.match(/CLEARCHAT #[^ ]+ :([^\r\n]+)/);
+          if (targetMatch) {
+            const target = targetMatch[1].trim();
+            const duration = Number(tags["ban-duration"] || 0);
+            if (VIEWCHAT) {
+              if (duration > 0) systemEventLine(`${target} just got timed out.`);
+              else systemEventLine(`${target} just got banned.`);
+            }
             chat.querySelectorAll(".msg").forEach(e => {
               const n = e.querySelector(".name, .who");
-              if (n && n.textContent.toLowerCase() === target) e.remove();
+              if (n && n.textContent.toLowerCase() === target.toLowerCase()) e.remove();
             });
-          } else chat.querySelectorAll(".msg").forEach(e => e.remove());
+          } else {
+            if (VIEWCHAT) systemEventLine("The chat was cleared.");
+            chat.querySelectorAll(".msg").forEach(e => e.remove());
+          }
         }
       });
     };
