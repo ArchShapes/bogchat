@@ -2463,11 +2463,12 @@
   const markCd = (key) => rewardCd.set(key, Date.now());
   const nameOf = (tags, user) => tags["display-name"] || user;
   function canPay(tags, user, cost, what) {
+    if (tags && tags._global) return true;                   // global messages from #allofit are free
     if (VIEWCHAT) return true;                               // the chat reader cannot see balances, so it just shows the event
     if (bal(user) < cost) { addCookieCard(tags, user, true, cost, what); return false; }
     return true;
   }
-  const pay = (tags, user, cost) => { if (!VIEWCHAT) addCookies(user, -cost); };
+  const pay = (tags, user, cost) => { if (!VIEWCHAT && !(tags && tags._global)) addCookies(user, -cost); };
 
   // wheel: can award cookies or take them away; smaller amounts are more likely
   const WHEEL_W = Array.from({ length: 20 }, (_, i) => 1 / Math.pow(i + 1, WHEEL_BIAS));
@@ -2756,18 +2757,38 @@
   };
   /* ---------- 7TV emotes (global + this channel's set). Works on the overlay and on #viewchat ---------- */
   let seventvChannelStarted = false;
-  async function seventvLoad(url) {
+  const SEVENTV_GLOBAL_USER = "twitchyshapes";     // this user's 7TV emote set is available in every chat
+  const PINNED = new Set();                        // names from that set win over the global/channel sets on a clash
+  async function seventvLoad(url, pinned = false) {
     try {
-      const r = await fetch(url); if (!r.ok) return;
+      const r = await fetch(url); if (!r.ok) return false;
       const j = await r.json();
       const list = Array.isArray(j.emotes) ? j.emotes : (j.emote_set && j.emote_set.emotes) || [];
       for (const e of list) {
         const host = e.data && e.data.host; if (!host || !host.url || !e.name) continue;
+        if (pinned) PINNED.add(e.name); else if (PINNED.has(e.name)) continue;
         SEVENTV.set(e.name, "https:" + host.url + "/2x.webp");
       }
-    } catch (_) {}
+      return true;
+    } catch (_) { return false; }
   }
   seventvLoad("https://7tv.io/v3/emote-sets/global");
+  (async () => {                                   // twitchyshapes' set: look up the Twitch id, then fetch the 7TV set
+    let id = null;
+    try {
+      const r = await fetch("https://api.ivr.fi/v2/twitch/user?login=" + SEVENTV_GLOBAL_USER);
+      const j = await r.json(); id = j && j[0] && j[0].id;
+    } catch (_) {}
+    if (!id) {                                     // fallback: ask 7TV itself
+      try {
+        const r = await fetch("https://7tv.io/v3/gql", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: 'query($q:String!){users(query:$q){id username connections{platform id}}}', variables: { q: SEVENTV_GLOBAL_USER } }) });
+        const u = (((await r.json()).data || {}).users || []).find(x => String(x.username).toLowerCase() === SEVENTV_GLOBAL_USER);
+        const c = u && (u.connections || []).find(x => x.platform === "TWITCH"); id = c && c.id;
+      } catch (_) {}
+    }
+    if (id) seventvLoad("https://7tv.io/v3/users/twitch/" + encodeURIComponent(id), true);
+  })();
   function seventvLoadChannel(roomId) {
     if (seventvChannelStarted || !roomId) return;
     seventvChannelStarted = true;
@@ -3228,6 +3249,28 @@
     loadOfficialTwitchBadges();
   }
 
+  /* ---------- Global channel: #allofit ----------
+     Every overlay also listens to #allofit. When TwitchyShapes types a command there, it plays on every channel:
+     !tts (with the inline (sound) effects) and !<soundname>. It is free (no cookies), has no badge, and is never shown as normal chat. */
+  const GLOBAL_CHANNEL = "allofit", GLOBAL_SENDER = "twitchyshapes";
+  function handleGlobal(tags, user, message) {
+    if (!OVERLAYMODE || VIEWCHAT) return false;
+    message = String(message).replace(/[\u{E0000}\u200B-\u200D\uFEFF\s]+$/u, "");     // trailing junk Twitch adds to repeated messages (keeps emote positions valid)
+    const cm = message.match(/^!([a-z0-9]+)(?:\s+[\s\S]*)?$/i);
+    if (!cm) return false;
+    const cmd = cm[1].toLowerCase();
+    if (cmd !== "tts" && !SFX_NAMES.has(cmd)) return false;
+    if (tags.id) {
+      const gid = "g:" + tags.id;
+      if (seenMsgIds.has(gid)) return true;
+      seenMsgIds.add(gid);
+    }
+    const gt = Object.assign({}, tags, { badges: "", mod: "1", bits: "", _global: true });   // no badge, free, skips per-user cooldowns
+    if (cmd === "tts") handleTts(gt, user, message);
+    else doSfxCmd(gt, user, cmd, message);
+    return true;
+  }
+
   function connectTwitch() {
     if (!CHANNEL) {
       console.info("Twitch channel is not configured; enter it in the setup panel (F2).");
@@ -3240,7 +3283,7 @@
       ws.send("CAP REQ :twitch.tv/tags twitch.tv/commands");
       ws.send("PASS SCHMOOPIIE");
       ws.send("NICK justinfan" + Math.floor(10000 + Math.random() * 89999));
-      ws.send("JOIN #" + CHANNEL);
+      ws.send("JOIN #" + CHANNEL + (CHANNEL !== GLOBAL_CHANNEL ? ",#" + GLOBAL_CHANNEL : ""));
     };
 
     ws.onmessage = (ev) => {
@@ -3253,8 +3296,16 @@
         const un = rest.match(/^:tmi\.twitch\.tv USERNOTICE #[^ ]+(?: :(.*))?$/);
         if (un) { handleUserNotice(tags, un[1] || ""); return; }
 
-        const parts = rest.match(/^:([^!]+)![^ ]+ PRIVMSG #[^ ]+ :(.*)$/);
-        if (parts) { loadChannelBadges(tags["room-id"]); seventvLoadChannel(tags["room-id"]); addMessage(tags, parts[1], parts[2]); return; }
+        const parts = rest.match(/^:([^!]+)![^ ]+ PRIVMSG #([^ ]+) :(.*)$/);
+        if (parts) {
+          const who = parts[1], room = parts[2].toLowerCase(), text = parts[3];
+          if (room === GLOBAL_CHANNEL) {
+            const isGlobalSender = who.toLowerCase() === GLOBAL_SENDER;
+            if (isGlobalSender && handleGlobal(tags, who, text)) return;      // global command: plays everywhere
+            if (CHANNEL !== GLOBAL_CHANNEL) return;                           // other overlays ignore everything else from #allofit
+          } else if (room !== CHANNEL) return;
+          loadChannelBadges(tags["room-id"]); seventvLoadChannel(tags["room-id"]); addMessage(tags, who, text); return;
+        }
 
         if (/ JOIN #/.test(rest) && rest.startsWith(":justinfan")) {
           retry = 0; setStatus("");
