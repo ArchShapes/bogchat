@@ -2353,7 +2353,7 @@
   }
 
   // Hosted no-signup TTS proxy. No Puter, no Google Translate direct endpoint, no system-voice fallback.
-  const TTS_FX = { female: { pitch: 1.2, speed: 1.5, rate: 1.2 } };   // rate = playback speed: 1.2 is 0.8x of the old 1.5   // English female voice (higher pitch) for alerts: gifts, bits, follows, subs, raids
+  const TTS_FX = { female: { pitch: 1.2, speed: 1.5, rate: 0.5 } };   // rate = playback speed of the female voice (1 = normal, 0.5 = half speed)   // English female voice (higher pitch) for alerts: gifts, bits, follows, subs, raids
   async function speakOnline(text, cfg = settings, style = "") {
     const fx = TTS_FX[style];
     const url = "https://tts-api.netlify.app/?text=" + encodeURIComponent(text) + "&lang=en" + (fx ? `&pitch=${fx.pitch}&speed=${fx.speed}` : "&pitch=0.8&speed=1.5");
