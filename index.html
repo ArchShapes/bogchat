@@ -658,21 +658,6 @@
       </div>
 
       <div class="setup-section">
-        <h3>Custom emotes <span class="opt">(your own images)</span></h3>
-        <div class="ue-add">
-          <label><span>Image <span class="opt">(.png, .jpg, .gif, .webp...)</span></span>
-            <input id="ue-file" class="ue-file" type="file" accept="image/*">
-          </label>
-          <label><span>Aliases <span class="opt">(comma separated)</span></span>
-            <input id="ue-aliases" autocomplete="off" placeholder="pog, poggers">
-          </label>
-          <button id="ue-add" type="button">Add emote</button>
-        </div>
-        <p class="hint" id="ue-status" aria-live="polite">Typing an alias in chat shows the image. Images are kept in this browser only (up to 4 MB each). Refresh the other pages after adding.</p>
-        <div class="ue-list" id="ue-list"></div>
-      </div>
-
-      <div class="setup-section">
         <h3>Overlay</h3>
         <div class="setup-checks">
           <label class="setup-check"><input id="cfg-alerts-enabled" type="checkbox" checked> Alerts</label>
@@ -2784,27 +2769,15 @@
     return out;
   }
 
-  // Custom emotes: the word (any capitalization) is replaced by the image next to this file.
-  const CUSTOM_EMOTES = { ww: "ww.gif", ll: "ll.png", normalface: "normalface.png", son: "son.png", sonion: "son.png", petthemods: "petmods.gif", petmods: "petmods.gif", hi: "hi.gif", scared: "speedscared.jpg", muga: "muga.gif", "49": "49.gif", "55": "55.gif", "67": "67.png", laugh: "laugh.gif", minionlaughing: "laugh.gif", 92: "92.png", uhh: "uuh.gif", uuh: "uuh.gif"};
-  const emoteSources = (file) => {
-    const base = file.replace(/\.[^.]+$/, "");
-    return [file, ...["png", "gif", "webp", "jpg", "jpeg", "avif", "svg"].map(e => `${base}.${e}`)].filter((v, i, a) => a.indexOf(v) === i);
-  };
+  // Emotes are rendered from 7TV only. No local, uploaded, or Twitch-native emote images.
   const EMOTE_WORD = /^([^\p{L}\p{N}]*)([\p{L}\p{N}_]+)([^\p{L}\p{N}]*)$/u;
-  const USER_EMOTES = new Map();     // alias (lowercase) -> image URL, from the emotes you add in setup (F2)
-  const SEVENTV = new Map();         // exact emote name (case-sensitive) -> image URL, from 7TV global + channel sets
-  const SEVENTV_LC = new Map();      // same names in lowercase: a 7TV emote replaces a local emote with the same name
+  const SEVENTV = new Map();         // exact emote name -> image URL from 7TV global + channel sets
+  const SEVENTV_LC = new Map();      // lowercase lookup for matching aliases
   const customEmoteOf = (word) => {
     const m = word.match(EMOTE_WORD);
-    if (SEVENTV.size) {
-      if (SEVENTV.has(word)) return { m: ["", "", word, ""], url: SEVENTV.get(word) };     // whole word, also names with symbols
-      if (m && SEVENTV.has(m[2])) return { m, url: SEVENTV.get(m[2]) };                    // with punctuation around it
-    }
-    if (!m) return null;
-    const k = m[2].toLowerCase();
-    if (SEVENTV_LC.has(k) && (USER_EMOTES.has(k) || CUSTOM_EMOTES[k])) return { m, url: SEVENTV_LC.get(k) };   // same name on 7TV: 7TV wins
-    if (USER_EMOTES.has(k)) return { m, url: USER_EMOTES.get(k) };
-    return CUSTOM_EMOTES[k] ? { m, file: CUSTOM_EMOTES[k] } : null;
+    if (SEVENTV.has(word)) return { m: ["", "", word, ""], url: SEVENTV.get(word) };
+    if (m && SEVENTV.has(m[2])) return { m, url: SEVENTV.get(m[2]) };
+    return null;
   };
   /* ---------- 7TV emotes (global + this channel's set). Works on the overlay and on #viewchat ---------- */
   let seventvChannelStarted = false;
@@ -2848,71 +2821,6 @@
     seventvLoad("https://7tv.io/v3/users/twitch/" + encodeURIComponent(roomId));
   }
 
-  /* ---------- Your own emotes: images + aliases, added in setup (F2) ---------- */
-  // Images are stored in this browser (IndexedDB), so they work for any local file and survive restarts.
-  const UE_DB = "overlay-emotes-v1";
-  const ueOpen = () => new Promise((res, rej) => {
-    try { const r = indexedDB.open(UE_DB, 1); r.onupgradeneeded = () => r.result.createObjectStore("emotes", { keyPath: "id" }); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); } catch (e) { rej(e); }
-  });
-  const ueTx = async (mode, fn) => { const db = await ueOpen(); return new Promise((res, rej) => { const t = db.transaction("emotes", mode); const q = fn(t.objectStore("emotes")); t.oncomplete = () => res(q && q.result); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); }); };
-  const ueAll = () => ueTx("readonly", st => st.getAll());
-  const uePut = rec => ueTx("readwrite", st => st.put(rec));
-  const ueDel = id => ueTx("readwrite", st => st.delete(id));
-  const ueUrls = new Map();          // record id -> object URL
-  let ueList = [];
-  let ueBus = null; try { ueBus = new BroadcastChannel("overlay-emotes-v1"); } catch (_) {}
-  const ueAliases = (txt) => [...new Set(String(txt || "").split(/[\s,;]+/).map(a => a.replace(/^[^\p{L}\p{N}_]+|[^\p{L}\p{N}_]+$/gu, "").toLowerCase()).filter(a => /^[\p{L}\p{N}_]+$/u.test(a)))];
-  async function ueReload() {
-    try { ueList = (await ueAll()) || []; } catch (e) { ueList = []; }
-    USER_EMOTES.clear();
-    for (const r of ueList) {
-      if (!ueUrls.has(r.id)) ueUrls.set(r.id, URL.createObjectURL(r.blob));
-      for (const a of r.aliases || []) USER_EMOTES.set(a, ueUrls.get(r.id));
-    }
-    ueRender();
-  }
-  const ueStatus = (msg, bad) => { const el = document.getElementById("ue-status"); if (el) { el.textContent = msg; el.style.color = bad ? "#ff9a9a" : ""; } };
-  function ueRender() {
-    const box = document.getElementById("ue-list"); if (!box) return;
-    box.replaceChildren();
-    if (!ueList.length) { const p = document.createElement("div"); p.className = "ue-empty"; p.textContent = "No custom emotes yet."; box.appendChild(p); return; }
-    for (const r of ueList.slice().sort((a, b) => a.added - b.added)) {
-      const row = document.createElement("div"); row.className = "ue-row";
-      const img = document.createElement("img"); img.src = ueUrls.get(r.id); img.alt = "";
-      const inp = document.createElement("input"); inp.value = (r.aliases || []).join(", "); inp.placeholder = "aliases, comma separated"; inp.autocomplete = "off";
-      inp.addEventListener("change", async () => {
-        const al = ueAliases(inp.value);
-        if (!al.length) { inp.value = (r.aliases || []).join(", "); ueStatus("An emote needs at least one alias.", true); return; }
-        r.aliases = al; inp.value = al.join(", ");
-        try { await uePut(r); ueBroadcast(); await ueReload(); ueStatus("Aliases updated.", false); } catch (e) { ueStatus("Could not save: " + (e && e.message || e), true); }
-      });
-      const del = document.createElement("button"); del.type = "button"; del.textContent = "Remove";
-      del.addEventListener("click", async () => {
-        try { await ueDel(r.id); ueUrls.delete(r.id); ueBroadcast(); await ueReload(); ueStatus("Removed.", false); } catch (e) { ueStatus("Could not remove: " + (e && e.message || e), true); }
-      });
-      row.append(img, inp, del); box.appendChild(row);
-    }
-  }
-  const ueBroadcast = () => { if (ueBus) { try { ueBus.postMessage("reload"); } catch (_) {} } };
-  if (ueBus) ueBus.onmessage = () => ueReload();
-  const ueAddBtn = document.getElementById("ue-add");
-  if (ueAddBtn) ueAddBtn.addEventListener("click", async () => {
-    const fileEl = document.getElementById("ue-file"), aliasEl = document.getElementById("ue-aliases");
-    const f = fileEl.files && fileEl.files[0];
-    if (!f) { ueStatus("Choose an image file first.", true); return; }
-    if (!/^image\//.test(f.type)) { ueStatus("That file is not an image.", true); return; }
-    if (f.size > 4 * 1024 * 1024) { ueStatus("That image is over 4 MB. Use a smaller one.", true); return; }
-    let al = ueAliases(aliasEl.value);
-    if (!al.length) al = ueAliases(f.name.replace(/\.[^.]+$/, ""));
-    if (!al.length) { ueStatus("Type at least one alias (letters, numbers or _).", true); return; }
-    try {
-      await uePut({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), blob: f, aliases: al, added: Date.now() });
-      fileEl.value = ""; aliasEl.value = "";
-      ueBroadcast(); await ueReload();
-      ueStatus("Added. Type " + al.join(" or ") + " in chat.", false);
-    } catch (e) { ueStatus("Could not save the image in this browser: " + (e && e.message || e), true); }
-  });
-  ueReload();
   function emotifyText(str) {
     const frag = document.createDocumentFragment();
     let buf = "";
@@ -2922,13 +2830,12 @@
       if (!hit) { buf += part; continue; }
       buf += hit.m[1]; flush();
       const img = document.createElement("img");
-      img.className = "emote custom-emote";
-      const srcs = hit.url ? [hit.url] : emoteSources(hit.file); let si = 0;
-      img.alt = hit.m[2]; img.title = hit.m[2];
-      img.onerror = () => {                                                      // wrong extension? try the other common ones, then show the plain word
-        if (++si < srcs.length) img.src = srcs[si]; else img.replaceWith(document.createTextNode(hit.m[2]));
-      };
-      img.src = srcs[0];
+      img.className = "emote";
+      img.alt = hit.m[2];
+      img.title = hit.m[2];
+      img.loading = "lazy";
+      img.src = hit.url;
+      img.onerror = () => img.replaceWith(document.createTextNode(hit.m[2]));
       frag.appendChild(img);
       buf = hit.m[3];
     }
@@ -2979,32 +2886,8 @@
   }
 
   function buildText(message, emoteTag) {
-    const frag = document.createDocumentFragment();
-    const chars = Array.from(message);
-    const ranges = [];
-    if (emoteTag) {
-      emoteTag.split("/").forEach(e => {
-        const [id, pos] = e.split(":");
-        (pos || "").split(",").forEach(r => {
-          const [s, en] = r.split("-").map(Number);
-          if (!isNaN(s) && !isNaN(en)) ranges.push({ s, e: en, id });
-        });
-      });
-      ranges.sort((a, b) => a.s - b.s);
-    }
-    let cur = 0;
-    const text = (a, b) => { if (b > a) frag.appendChild(emotifyText(chars.slice(a, b).join(""))); };
-    for (const r of ranges) {
-      text(cur, r.s);
-      const img = document.createElement("img");
-      img.className = "emote";
-      img.alt = chars.slice(r.s, r.e + 1).join("");
-      img.src = `https://static-cdn.jtvnw.net/emoticons/v2/${r.id}/default/dark/2.0`;
-      frag.appendChild(img);
-      cur = r.e + 1;
-    }
-    text(cur, chars.length);
-    return frag;
+    // Twitch-native emote tags are intentionally ignored: only 7TV emotes are shown.
+    return emotifyText(String(message));
   }
 
   // smooth removal: fade out, then collapse the space so nothing jumps
