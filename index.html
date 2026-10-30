@@ -624,7 +624,7 @@
         </details>
       </div>
 
-      <div class="setup-section" hidden>
+      <div class="setup-section">
         <h3>Custom emotes <span class="opt">(your own images)</span></h3>
         <div class="ue-add">
           <label><span>Image <span class="opt">(.png, .jpg, .gif, .webp...)</span></span>
@@ -1504,7 +1504,7 @@
     n += text.split(/\s+/).filter(w => w && customEmoteOf(w)).length;
     return n;
   }
-  const isMod = (tags) => tags.mod === "1" || /(^|,)(moderator|broadcaster)\//.test(tags.badges || "");
+  const isMod = (tags) => !!tags._global || tags.mod === "1" || /(^|,)(moderator|broadcaster)\//.test(tags.badges || "");
 
   /* ---------- Cookie cards ---------- */
   const noteLast = new Map();
@@ -2735,7 +2735,7 @@
   }
 
   // Custom emotes: the word (any capitalization) is replaced by the image next to this file.
-  const CUSTOM_EMOTES = {};          // local image emotes removed: emotes now come from 7TV only
+  const CUSTOM_EMOTES = { ww: "ww.gif", ll: "ll.png", normalface: "normalface.png", son: "son.png", sonion: "son.png", petthemods: "petmods.gif", petmods: "petmods.gif", hi: "hi.gif", scared: "speedscared.jpg", muga: "muga.gif", "49": "49.gif", "55": "55.gif", "67": "67.png", laugh: "laugh.gif", minionlaughing: "laugh.gif", 92: "92.png", uhh: "uuh.gif", uuh: "uuh.gif"};
   const emoteSources = (file) => {
     const base = file.replace(/\.[^.]+$/, "");
     return [file, ...["png", "gif", "webp", "jpg", "jpeg", "avif", "svg"].map(e => `${base}.${e}`)].filter((v, i, a) => a.indexOf(v) === i);
@@ -2743,17 +2743,18 @@
   const EMOTE_WORD = /^([^\p{L}\p{N}]*)([\p{L}\p{N}_]+)([^\p{L}\p{N}]*)$/u;
   const USER_EMOTES = new Map();     // alias (lowercase) -> image URL, from the emotes you add in setup (F2)
   const SEVENTV = new Map();         // exact emote name (case-sensitive) -> image URL, from 7TV global + channel sets
+  const SEVENTV_LC = new Map();      // same names in lowercase: a 7TV emote replaces a local emote with the same name
   const customEmoteOf = (word) => {
     const m = word.match(EMOTE_WORD);
-    if (m) {
-      const k = m[2].toLowerCase();
-      if (CUSTOM_EMOTES[k]) return { m, file: CUSTOM_EMOTES[k] };
-    }
     if (SEVENTV.size) {
       if (SEVENTV.has(word)) return { m: ["", "", word, ""], url: SEVENTV.get(word) };     // whole word, also names with symbols
       if (m && SEVENTV.has(m[2])) return { m, url: SEVENTV.get(m[2]) };                    // with punctuation around it
     }
-    return null;
+    if (!m) return null;
+    const k = m[2].toLowerCase();
+    if (SEVENTV_LC.has(k) && (USER_EMOTES.has(k) || CUSTOM_EMOTES[k])) return { m, url: SEVENTV_LC.get(k) };   // same name on 7TV: 7TV wins
+    if (USER_EMOTES.has(k)) return { m, url: USER_EMOTES.get(k) };
+    return CUSTOM_EMOTES[k] ? { m, file: CUSTOM_EMOTES[k] } : null;
   };
   /* ---------- 7TV emotes (global + this channel's set). Works on the overlay and on #viewchat ---------- */
   let seventvChannelStarted = false;
@@ -2767,7 +2768,9 @@
       for (const e of list) {
         const host = e.data && e.data.host; if (!host || !host.url || !e.name) continue;
         if (pinned) PINNED.add(e.name); else if (PINNED.has(e.name)) continue;
-        SEVENTV.set(e.name, "https:" + host.url + "/2x.webp");
+        const u = "https:" + host.url + "/2x.webp";
+        SEVENTV.set(e.name, u);
+        if (!SEVENTV_LC.has(e.name.toLowerCase())) SEVENTV_LC.set(e.name.toLowerCase(), u);
       }
       return true;
     } catch (_) { return false; }
@@ -3251,7 +3254,7 @@
 
   /* ---------- Global channel: #allofit ----------
      Every overlay also listens to #allofit. When TwitchyShapes types a command there, it plays on every channel:
-     !tts (with the inline (sound) effects) and !<soundname>. It is free (no cookies), has no badge, and is never shown as normal chat. */
+     !tts (with the inline (sound) effects) and !<soundname>. It is free (no cookies), shows as [verified] Bogchat, and is never shown as normal chat. */
   const GLOBAL_CHANNEL = "allofit", GLOBAL_SENDER = "twitchyshapes";
   function handleGlobal(tags, user, message) {
     if (!OVERLAYMODE || VIEWCHAT) return false;
@@ -3265,9 +3268,9 @@
       if (seenMsgIds.has(gid)) return true;
       seenMsgIds.add(gid);
     }
-    const gt = Object.assign({}, tags, { badges: "", mod: "1", bits: "", _global: true });   // no badge, free, skips per-user cooldowns
-    if (cmd === "tts") handleTts(gt, user, message);
-    else doSfxCmd(gt, user, cmd, message);
+    const gt = Object.assign({}, tags, { "display-name": "Bogchat", badges: "partner/1", mod: "0", bits: "", _global: true });   // shows as [verified] Bogchat; free, skips cooldowns
+    if (cmd === "tts") handleTts(gt, "bogchat", message);
+    else doSfxCmd(gt, "bogchat", cmd, message);
     return true;
   }
 
