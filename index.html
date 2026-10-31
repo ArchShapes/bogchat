@@ -3113,7 +3113,16 @@
     if (cmd === "tts") {
       let msg = stripVoiceTags(cleanTts(emoteNamesForTts(String(message).replace(/^!tts\s*/i, ""), tags && tags.emotes)));
       if (msg.length > 200) msg = msg.slice(0, 200).trim() + "…";
-      cmdLabel(tags, user, "volume", "said:", msg || "…");
+      if (tags && tags._global) {                // TTS from twitch.tv/bogchat: "Global Message: <text>" instead of "Bogchat said: <text>"
+        const el = document.createElement("div");
+        el.className = "msg tts cmdlabel";
+        const spk = document.createElement("span"); spk.className = "spk"; spk.appendChild(makeIcon("volume", "ui-icon"));
+        el.style.setProperty("--uc", readable(tags.color, "Bogchat"));
+        const n = document.createElement("span"); n.className = "name lname global-label"; n.textContent = "Global Message:"; n.style.color = "#ffffff";
+        const t = document.createElement("span"); t.className = "text"; t.textContent = " " + (msg || "…");
+        el.append(spk, n, t);
+        push(el, {});
+      } else cmdLabel(tags, user, "volume", "said:", msg || "…");
     } else if (SFX_NAMES.has(cmd)) {
       cmdLabel(tags, user, "volume", "just played", cmd + "!");
     } else if (cmd === "changetext") {
