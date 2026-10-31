@@ -2467,6 +2467,10 @@
     if (ttsBlocked(stripVoiceTags(text))) return;
     const segs = parseSegments(text);
     if (!segs.length) return;
+    if (tags && tags._global) {                      // TTS from twitch.tv/bogchat (Bogchat / TwitchyShapes) is announced first
+      const firstSay = segs.find(x => x.say);
+      segs.unshift({ say: "Global Message:", style: firstSay ? firstSay.style : "" });
+    }
     if (!canPay(tags, user, TTS_COST, "TTS")) return;
     pay(tags, user, TTS_COST);
 
