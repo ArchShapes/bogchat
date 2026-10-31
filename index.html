@@ -3317,6 +3317,7 @@
               return;
             }
             if (CHANNEL !== GLOBAL_CHANNEL) return;                           // other overlays ignore everything else from #bogchat
+            if (isGlobalSender && /^!tts(\s|$)/i.test(text)) tags = Object.assign({}, tags, { _global: true });   // same Global Message voice + label when it arrives as normal chat
           } else if (room !== CHANNEL) return;
           loadChannelBadges(tags["room-id"]); seventvLoadChannel(tags["room-id"]); addMessage(tags, who, text); return;
         }
