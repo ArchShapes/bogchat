@@ -3514,7 +3514,7 @@
   }
 
 
-  /* ---------- Bogchat: verified badge + gradient EVERYWHERE the name shows up (chat, TTS/sfx labels, cards, alerts) ---------- */
+  /* ---------- Bogchat: verified badge + gradient only on Bogchat's chat messages, not in labels ---------- */
   function bogBadgeEl(doc) {
     const wrap = doc.createElement("span"); wrap.className = "badges bogbadge";
     const span = doc.createElement("span");
@@ -3544,13 +3544,8 @@
       n.parentNode.replaceChild(frag, n);
     });
   }
-  {
-    let bogTimer = 0;
-    const run = () => { bogTimer = 0; try { bogify(chat); bogify(alertsEl); } catch (e) { console.warn("bogify", e); } };
-    const obs = new MutationObserver(() => { if (!bogTimer) bogTimer = setTimeout(run, 20); });
-    obs.observe(chat, { childList: true, subtree: true, characterData: true });
-    obs.observe(alertsEl, { childList: true, subtree: true, characterData: true });
-  }
+  // The verified badge + gradient now only appear on Bogchat's actual chat messages (see buildChatLine).
+  // Labels (TTS / sound / command labels), notices, cards and alerts show a plain "Bogchat", so bogify() is intentionally not run on them.
 
 
   /* ---------- #viewchat: stream player on top of the chat + screen never sleeps ---------- */
