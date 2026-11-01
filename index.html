@@ -2889,9 +2889,60 @@
     root.replaceChildren(frag);
   }
 
+  // Twitch-native emotes (global ones like Kappa, plus any channel emotes the sender can use) come in the IRC "emotes" tag as id:start-end ranges.
+  const twitchEmoteUrl = id => "https://static-cdn.jtvnw.net/emoticons/v2/" + id + "/default/dark/2.0";
+  function twitchEmoteImg(id, name) {
+    const img = document.createElement("img");
+    img.className = "emote"; img.alt = name; img.title = name; img.loading = "lazy";
+    img.src = twitchEmoteUrl(id);
+    img.onerror = () => img.replaceWith(document.createTextNode(name));
+    return img;
+  }
+  function twitchEmoteRanges(message, emoteTag) {
+    const chars = Array.from(String(message)), out = [];
+    if (!emoteTag) return { chars, out };
+    for (const e of String(emoteTag).split("/")) {
+      const [id, pos] = e.split(":");
+      if (!/^\w+$/.test(id || "") || !pos) continue;
+      for (const r of pos.split(",")) {
+        const [a, b] = r.split("-").map(Number);
+        if (!Number.isInteger(a) || !Number.isInteger(b) || a < 0 || b < a || b >= chars.length) continue;
+        const name = chars.slice(a, b + 1).join("");
+        if (/\s/.test(name)) continue;                       // a range that doesn't line up with one word is ignored
+        out.push({ a, b, id, name });
+      }
+    }
+    out.sort((x, y) => x.a - y.a);
+    return { chars, out };
+  }
   function buildText(message, emoteTag) {
-    // Twitch-native emote tags are intentionally ignored: only 7TV emotes are shown.
-    return emotifyText(String(message));
+    const { chars, out } = twitchEmoteRanges(message, emoteTag);
+    if (!out.length) return emotifyText(String(message));
+    const frag = document.createDocumentFragment();
+    let pos = 0;
+    for (const r of out) {
+      if (r.a < pos) continue;
+      if (r.a > pos) frag.appendChild(emotifyText(chars.slice(pos, r.a).join("")));
+      frag.appendChild(twitchEmoteImg(r.id, r.name));
+      pos = r.b + 1;
+    }
+    if (pos < chars.length) frag.appendChild(emotifyText(chars.slice(pos).join("")));
+    return frag;
+  }
+  // for labels whose text was cleaned (so the original ranges no longer line up): learn name -> id from the original message, then match by word
+  function twitchEmoteMap(message, emoteTag) {
+    const m = new Map(); for (const r of twitchEmoteRanges(message, emoteTag).out) m.set(r.name, r.id); return m;
+  }
+  function emotifyWithMap(str, map) {
+    if (!map || !map.size) return emotifyText(String(str));
+    const frag = document.createDocumentFragment();
+    let run = "";
+    const flush = () => { if (run) { frag.appendChild(emotifyText(run)); run = ""; } };
+    for (const part of String(str).split(/(\s+)/)) {
+      if (map.has(part)) { flush(); frag.appendChild(twitchEmoteImg(map.get(part), part)); } else run += part;
+    }
+    flush();
+    return frag;
   }
 
   // smooth removal: fade out, then collapse the space so nothing jumps
@@ -3101,7 +3152,8 @@
     const dn = tags["display-name"] || user;
     el.style.setProperty("--uc", readable(tags.color, dn));
     const n = document.createElement("span"); n.className = "name lname"; n.textContent = dn; n.style.color = "#ffffff";
-    const t = document.createElement("span"); t.className = "text"; t.textContent = " " + verb + (text ? " " + text : "");
+    const t = document.createElement("span"); t.className = "text";
+    if (text instanceof Node) { t.append(" " + verb + " ", text); } else t.textContent = " " + verb + (text ? " " + text : "");
     el.append(spk, n, t);
     push(el, {});
   }
@@ -3113,16 +3165,18 @@
     if (cmd === "tts") {
       let msg = stripVoiceTags(cleanTts(emoteNamesForTts(String(message).replace(/^!tts\s*/i, ""), tags && tags.emotes)));
       if (msg.length > 200) msg = msg.slice(0, 200).trim() + "…";
+      const emoMap = twitchEmoteMap(message, tags && tags.emotes);
+      const msgNode = emotifyWithMap(msg || "…", emoMap);
       if (tags && tags._global) {                // TTS from twitch.tv/bogchat: "Global Message: <text>" instead of "Bogchat said: <text>"
         const el = document.createElement("div");
         el.className = "msg tts cmdlabel";
         const spk = document.createElement("span"); spk.className = "spk"; spk.appendChild(makeIcon("volume", "ui-icon"));
         el.style.setProperty("--uc", readable(tags.color, "Bogchat"));
         const n = document.createElement("span"); n.className = "name lname global-label"; n.textContent = "Global Message:"; n.style.color = "#ffffff";
-        const t = document.createElement("span"); t.className = "text"; t.textContent = " " + (msg || "…");
+        const t = document.createElement("span"); t.className = "text"; t.append(" ", msgNode);
         el.append(spk, n, t);
         push(el, {});
-      } else cmdLabel(tags, user, "volume", "said:", msg || "…");
+      } else cmdLabel(tags, user, "volume", "said:", msgNode);
     } else if (SFX_NAMES.has(cmd)) {
       cmdLabel(tags, user, "volume", "just played", cmd + "!");
     } else if (cmd === "changetext") {
