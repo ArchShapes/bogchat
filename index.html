@@ -2633,8 +2633,8 @@
     if (cmd === "cheer" || CUR_CMDS.some(c => cmd === "cheer" + c)) return true;   // !cheer is disabled
     if (cmd === "changetext") {
       if (!canControlSfx(tags, user)) return true;
-      const quoted = arg.match(/^(?:"([\s\S]*)"|'([\s\S]*)')$/);
-      const value = (quoted ? (quoted[1] ?? quoted[2]) : arg).trim().slice(0, 500);
+      const quoted = arg.match(/^(?:"([\s\S]*)"|'([\s\S]*)'|\u201C([\s\S]*)\u201D)$/);
+      const value = (quoted ? (quoted[1] ?? quoted[2] ?? quoted[3]) : arg).trim().slice(0, 500);
       setScreenText(value);
       return true;
     }
@@ -2652,7 +2652,7 @@
         if (!side) sfxNotice("Use !changeicon --side left or !changeicon --side right", tags, user); else setScreenSide(side);
         return true;
       }
-      const m = arg.match(/^--(defaults?|imagelink|image|link)\s+(\S+)/i);
+      const m = arg.match(/^--(defaults?|imagelink|image|link)\s+(\S+)/i) || (arg.match(/^(\S+)\s*$/) && [null, /^https?:\/\//i.test(arg.trim()) ? "imagelink" : "default", arg.trim()]);   // also accepts !changeicon star / !changeicon https://…
       const usage = "Use !changeicon --defaults star|heart|burger|mglass|twitch|none, !changeicon --imagelink https://… or !changeicon --side left|right";
       if (!m) { sfxNotice(usage, tags, user); return true; }
       const value = /^default/i.test(m[1]) ? m[2] : m[2];
