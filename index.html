@@ -36,7 +36,7 @@
      &ting=0         turn the "first message after a quiet minute" ting off
      &tingsec=60     how many quiet seconds before the ting
      &leadmod=name1,name2  show a LeadMod badge for these logins
-     &silent=name1,name2   show a Silent badge for these logins
+     &silent=name1,name2   these logins are never shown in chat
      &demo=1         show test buttons
      &cat=0          turn the cat visits off
      &catsec=600     seconds between cat visits (default 600 / 10 minutes)
@@ -68,6 +68,15 @@
     animation: bogshine 4s linear infinite;
     text-shadow: none;                       /* the chat's black text shadow showed through the see-through letters and made the name dark */
     filter: drop-shadow(0 0 5px rgba(200,150,255,.6));
+  }
+  .name.tsname {
+    background: linear-gradient(90deg, #2f7bff, #6fb1ff, #e6f2ff, #6fb1ff, #2f7bff);
+    background-size: 300% 100%;
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+    animation: bogshine 4s linear infinite;
+    text-shadow: none;
+    filter: drop-shadow(0 0 5px rgba(90,160,255,.6));
   }
   @keyframes bogshine { from { background-position: 0% 50%; } to { background-position: 300% 50%; } }
   .badges { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 3px; margin-right: 5px; vertical-align: baseline; }
@@ -3132,6 +3141,7 @@
     n.textContent = name;
     n.style.color = readable(tags.color, displayName);
     if (isBog) { n.classList.add("bogname"); n.style.color = "transparent"; }      // shiny gradient name
+    else if (String(user).toLowerCase() === "twitchyshapes") { n.classList.add("tsname"); n.style.color = "transparent"; }   // shiny blue gradient name
 
     const t = document.createElement("span");
     t.className = "text";
@@ -3289,6 +3299,7 @@
 
     // bots never show; owner, lead mods, mods and VIPs always do; viewers go through the spam filter
     if (BOTS.has(user.toLowerCase())) return;
+    if (SILENT_USERS.has(user.toLowerCase())) return;   // silent / monitored users are never shown in chat
     if (/^\s*!/.test(message)) return;                  // commands are never shown as chat lines (only as labels)
     if (!isTrusted(tags, user) && isSpam(user, tags, message)) return;
 
@@ -3583,7 +3594,7 @@
     const w = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode(n) {
       if (!/\bbogchat\b/i.test(n.nodeValue)) return NodeFilter.FILTER_REJECT;
       const p = n.parentElement;
-      if (!p || p.closest(".bogname, .bogword, .text, .badges, #vc-head, #vc-wait, .vc-info")) return NodeFilter.FILTER_REJECT;   // typed chat text is never touched
+      if (!p || p.closest(".bogname, .tsname, .bogword, .text, .badges, #vc-head, #vc-wait, .vc-info")) return NodeFilter.FILTER_REJECT;   // typed chat text is never touched
       return NodeFilter.FILTER_ACCEPT;
     } });
     const nodes = []; while (w.nextNode()) nodes.push(w.currentNode);
