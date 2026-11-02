@@ -70,13 +70,13 @@
     filter: drop-shadow(0 0 5px rgba(200,150,255,.6));
   }
   .name.tsname {
-    background: linear-gradient(90deg, #2f7bff, #6fb1ff, #e6f2ff, #6fb1ff, #2f7bff);
+    background: linear-gradient(90deg, #0a3fbf, #1f62e6, #4a8cff, #1f62e6, #0a3fbf);
     background-size: 300% 100%;
     -webkit-background-clip: text; background-clip: text;
     -webkit-text-fill-color: transparent; color: transparent;
     animation: bogshine 4s linear infinite;
     text-shadow: none;
-    filter: drop-shadow(0 0 5px rgba(90,160,255,.6));
+    filter: drop-shadow(0 0 5px rgba(30,100,230,.6));
   }
   @keyframes bogshine { from { background-position: 0% 50%; } to { background-position: 300% 50%; } }
   .badges { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 3px; margin-right: 5px; vertical-align: baseline; }
@@ -2200,7 +2200,6 @@
 
   function cleanTts(t) {
     return t.replace(/\[(?:scream|spongebob)\]|<\/?(?:scream|spongebob)>/gi, "")
-            .replace(/https?:\/\/\S+|www\.\S+/gi, "")
             .replace(/@\w+/g, "")
             .replace(/(.)\1{4,}/gu, "$1$1$1")
             .replace(/\s+/g, " ").trim();
