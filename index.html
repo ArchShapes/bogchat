@@ -60,25 +60,6 @@
   .msg.out { opacity: 0; }
   .name { font-weight: 500; }
   .name::after { content: ":"; color: #fff; font-weight: 400; margin-right: .35em; }
-  .name.bogname, .bogword {
-    background: linear-gradient(90deg, #b983ff, #d9b8ff, #f6ecff, #d9b8ff, #b983ff);
-    background-size: 300% 100%;
-    -webkit-background-clip: text; background-clip: text;
-    -webkit-text-fill-color: transparent; color: transparent;
-    animation: bogshine 4s linear infinite;
-    text-shadow: none;                       /* text-shadow would show through the see-through letters, so the shadow is done with filter: drop-shadow below */
-    filter: drop-shadow(0 2px 3px rgba(0,0,0,.9)) drop-shadow(0 0 4px rgba(0,0,0,.95)) drop-shadow(0 0 12px rgba(0,0,0,.8)) drop-shadow(0 0 5px rgba(200,150,255,.6));
-  }
-  .name.tsname {
-    background: linear-gradient(90deg, #0a3fbf, #1f62e6, #4a8cff, #1f62e6, #0a3fbf);
-    background-size: 300% 100%;
-    -webkit-background-clip: text; background-clip: text;
-    -webkit-text-fill-color: transparent; color: transparent;
-    animation: bogshine 4s linear infinite;
-    text-shadow: none;
-    filter: drop-shadow(0 2px 3px rgba(0,0,0,.9)) drop-shadow(0 0 4px rgba(0,0,0,.95)) drop-shadow(0 0 12px rgba(0,0,0,.8)) drop-shadow(0 0 5px rgba(30,100,230,.6));
-  }
-  @keyframes bogshine { from { background-position: 0% 50%; } to { background-position: 300% 50%; } }
   .badges { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 3px; margin-right: 5px; vertical-align: baseline; }
   .chat-badge {
     display: inline-block; padding: 1px 5px; border-radius: 3px;
@@ -178,7 +159,7 @@
   .msg.vc:hover { background: rgba(255,255,255,.05); }
   .vc-time { color: #7d7d86; font-size: .7em; margin-right: 8px; font-weight: 700; }
   .msg.vc .name::after { color: #efeff1; }
-  /* Bogchat: verified badge + shiny gradient wherever the name appears */
+  /* Bogchat: verified badge wherever the name appears */
   .bogword { font-weight: 700; }
   .bogbadge { margin-right: 4px; }
 
@@ -3147,8 +3128,6 @@
     n.className = "name";
     n.textContent = name;
     n.style.color = readable(tags.color, displayName);
-    if (isBog) { n.classList.add("bogname"); n.style.color = "transparent"; }      // shiny gradient name
-    else if (String(user).toLowerCase() === "twitchyshapes") { n.classList.add("tsname"); n.style.color = "transparent"; }   // shiny blue gradient name
 
     const t = document.createElement("span");
     t.className = "text";
@@ -3601,7 +3580,7 @@
     const w = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode(n) {
       if (!/\bbogchat\b/i.test(n.nodeValue)) return NodeFilter.FILTER_REJECT;
       const p = n.parentElement;
-      if (!p || p.closest(".bogname, .tsname, .bogword, .text, .badges, #vc-head, #vc-wait, .vc-info")) return NodeFilter.FILTER_REJECT;   // typed chat text is never touched
+      if (!p || p.closest(".bogword, .text, .badges, #vc-head, #vc-wait, .vc-info")) return NodeFilter.FILTER_REJECT;   // typed chat text is never touched
       return NodeFilter.FILTER_ACCEPT;
     } });
     const nodes = []; while (w.nextNode()) nodes.push(w.currentNode);
