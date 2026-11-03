@@ -66,8 +66,8 @@
     -webkit-background-clip: text; background-clip: text;
     -webkit-text-fill-color: transparent; color: transparent;
     animation: bogshine 4s linear infinite;
-    text-shadow: none;                       /* the chat's black text shadow showed through the see-through letters and made the name dark */
-    filter: drop-shadow(0 0 5px rgba(200,150,255,.6));
+    text-shadow: none;                       /* text-shadow would show through the see-through letters, so the shadow is done with filter: drop-shadow below */
+    filter: drop-shadow(0 2px 3px rgba(0,0,0,.9)) drop-shadow(0 0 4px rgba(0,0,0,.95)) drop-shadow(0 0 12px rgba(0,0,0,.8)) drop-shadow(0 0 5px rgba(200,150,255,.6));
   }
   .name.tsname {
     background: linear-gradient(90deg, #0a3fbf, #1f62e6, #4a8cff, #1f62e6, #0a3fbf);
@@ -76,7 +76,7 @@
     -webkit-text-fill-color: transparent; color: transparent;
     animation: bogshine 4s linear infinite;
     text-shadow: none;
-    filter: drop-shadow(0 0 5px rgba(30,100,230,.6));
+    filter: drop-shadow(0 2px 3px rgba(0,0,0,.9)) drop-shadow(0 0 4px rgba(0,0,0,.95)) drop-shadow(0 0 12px rgba(0,0,0,.8)) drop-shadow(0 0 5px rgba(30,100,230,.6));
   }
   @keyframes bogshine { from { background-position: 0% 50%; } to { background-position: 300% 50%; } }
   .badges { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 3px; margin-right: 5px; vertical-align: baseline; }
@@ -2198,8 +2198,16 @@
     return chars.join("");
   }
 
+  // Slang the TTS voice reads out in full (whole words only, any capitalisation)
+  const TTS_SLANG = {
+    ngl: "not gonna lie", btw: "by the way", idk: "i don't know", fym: "fuck you mean",
+    dih: "deeh", ts: "this shit", lol: "haha", wdym: "what do you mean", idc: "i don't care",
+    lmao: "laughing my ass off", lfmao: "laughing my fiss ass off"
+  };
+  const TTS_SLANG_RE = new RegExp("(?<![\\w'])(" + Object.keys(TTS_SLANG).join("|") + ")(?![\\w'])", "gi");
   function cleanTts(t) {
     return t.replace(/\[(?:scream|spongebob)\]|<\/?(?:scream|spongebob)>/gi, "")
+            .replace(TTS_SLANG_RE, w => TTS_SLANG[w.toLowerCase()])
             .replace(/@\w+/g, "")
             .replace(/(.)\1{4,}/gu, "$1$1$1")
             .replace(/\s+/g, " ").trim();
