@@ -2186,9 +2186,9 @@
     lmao: "laughing my ass off", lfmao: "laughing my fiss ass off"
   };
   const TTS_SLANG_RE = new RegExp("(?<![\\w'])(" + Object.keys(TTS_SLANG).join("|") + ")(?![\\w'])", "gi");
-  function cleanTts(t) {
+  function cleanTts(t, speak = false) {
     return t.replace(/\[(?:scream|spongebob)\]|<\/?(?:scream|spongebob)>/gi, "")
-            .replace(TTS_SLANG_RE, w => TTS_SLANG[w.toLowerCase()])
+            .replace(TTS_SLANG_RE, w => speak ? TTS_SLANG[w.toLowerCase()] : w)   // slang is only expanded for the spoken voice, never in labels
             .replace(/@\w+/g, "")
             .replace(/(.)\1{4,}/gu, "$1$1$1")
             .replace(/\s+/g, " ").trim();
@@ -2447,7 +2447,7 @@
   // spoken alert lines (raids, follows, subs, gifts, bits) in the normal TTS voice
   function speakAlert(text) {
     if (!OVERLAYMODE || !TTS_ON || allMuted || ttsMuted) return;
-    const t = cleanTts(String(text || ""));
+    const t = cleanTts(String(text || ""), true);
     if (!t || ttsBlocked(t)) return;
     ttsQueue.push([{ say: t, style: "female" }]);          // alerts always use the English female voice
     runTts();
@@ -2456,7 +2456,7 @@
   function handleTts(tags, user, message) {
     if (!TTS_ON || allMuted || ttsMuted) return;
     const messageWithEmoteNames = emoteNamesForTts(message, tags && tags.emotes);
-    const text = cleanTts(messageWithEmoteNames.replace(/^!tts\s*/i, ""));
+    const text = cleanTts(messageWithEmoteNames.replace(/^!tts\s*/i, ""), true);
     if (!text) return;
 
     // No message-length, language, cooldown, or queue-size limit. TTS costs TTS_COST cookies.
@@ -2784,37 +2784,66 @@
   let seventvChannelStarted = false;
   const SEVENTV_GLOBAL_USER = "twitchyshapes";     // this user's 7TV emote set is available in every chat
   const PINNED = new Set();                        // names from that set win over the global/channel sets on a clash
+  /* Loading is hardened: every request is retried, the image URL is read from the files 7TV lists (with or without "https:"),
+     and each set is cached in localStorage so emotes still show if 7TV is slow, down, or blocked on this connection. */
+  const STV_CACHE = "stvCache1:";
+  const stvSave = (k, v) => { try { localStorage.setItem(STV_CACHE + k, JSON.stringify(v)); } catch (_) {} };
+  const stvRead = (k) => { try { return JSON.parse(localStorage.getItem(STV_CACHE + k) || "null"); } catch (_) { return null; } };
+  const stvSleep = (ms) => new Promise(r => setTimeout(r, ms));
+  async function stvFetchJson(url, opts, tries = 5) {
+    for (let i = 0; i < tries; i++) {
+      try {
+        const r = await fetch(url, opts);
+        if (r.ok) return await r.json();
+      } catch (_) {}
+      await stvSleep(1500 * (i + 1));
+    }
+    return null;
+  }
+  function stvEmoteUrl(host) {
+    let base = String(host.url || ""); if (!base) return null;
+    if (base.startsWith("//")) base = "https:" + base; else if (!/^https?:/i.test(base)) base = "https://" + base.replace(/^\/+/, "");
+    const files = Array.isArray(host.files) ? host.files : [];
+    const f = files.find(x => x.name === "2x.webp") || files.find(x => /^2x\./.test(x.name) && /webp/i.test(x.name))
+           || files.find(x => /^2x\./.test(x.name)) || files.find(x => /^1x\./.test(x.name)) || { name: "2x.webp" };
+    return base.replace(/\/$/, "") + "/" + f.name;
+  }
+  function stvApply(pairs, pinned) {
+    for (const [name, u] of pairs) {
+      if (pinned) PINNED.add(name); else if (PINNED.has(name)) continue;
+      SEVENTV.set(name, u);
+      if (!SEVENTV_LC.has(name.toLowerCase())) SEVENTV_LC.set(name.toLowerCase(), u);
+    }
+  }
   async function seventvLoad(url, pinned = false) {
-    try {
-      const r = await fetch(url); if (!r.ok) return false;
-      const j = await r.json();
-      const list = Array.isArray(j.emotes) ? j.emotes : (j.emote_set && j.emote_set.emotes) || [];
-      for (const e of list) {
-        const host = e.data && e.data.host; if (!host || !host.url || !e.name) continue;
-        if (pinned) PINNED.add(e.name); else if (PINNED.has(e.name)) continue;
-        const u = "https:" + host.url + "/2x.webp";
-        SEVENTV.set(e.name, u);
-        if (!SEVENTV_LC.has(e.name.toLowerCase())) SEVENTV_LC.set(e.name.toLowerCase(), u);
-      }
-      return true;
-    } catch (_) { return false; }
+    const cached = stvRead(url);
+    if (cached && cached.length) stvApply(cached, pinned);                // show cached emotes right away
+    const j = await stvFetchJson(url);
+    if (!j) return !!(cached && cached.length);
+    const list = Array.isArray(j.emotes) ? j.emotes : (j.emote_set && j.emote_set.emotes) || [];
+    const pairs = [];
+    for (const e of list) {
+      const host = e.data && e.data.host; if (!host || !e.name) continue;
+      const u = stvEmoteUrl(host); if (u) pairs.push([e.name, u]);
+    }
+    if (pairs.length) { stvApply(pairs, pinned); stvSave(url, pairs); }
+    return true;
   }
   seventvLoad("https://7tv.io/v3/emote-sets/global");
   (async () => {                                   // twitchyshapes' set: look up the Twitch id, then fetch the 7TV set
     let id = null;
-    try {
-      const r = await fetch("https://api.ivr.fi/v2/twitch/user?login=" + SEVENTV_GLOBAL_USER);
-      const j = await r.json(); id = j && j[0] && j[0].id;
-    } catch (_) {}
-    if (!id) {                                     // fallback: ask 7TV itself
-      try {
-        const r = await fetch("https://7tv.io/v3/gql", { method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: 'query($q:String!){users(query:$q){id username connections{platform id}}}', variables: { q: SEVENTV_GLOBAL_USER } }) });
-        const u = (((await r.json()).data || {}).users || []).find(x => String(x.username).toLowerCase() === SEVENTV_GLOBAL_USER);
-        const c = u && (u.connections || []).find(x => x.platform === "TWITCH"); id = c && c.id;
-      } catch (_) {}
+    try { id = localStorage.getItem(STV_CACHE + "uid"); } catch (_) {}
+    if (!id) {
+      const j = await stvFetchJson("https://api.ivr.fi/v2/twitch/user?login=" + SEVENTV_GLOBAL_USER, undefined, 3);
+      id = j && j[0] && j[0].id;
     }
-    if (id) seventvLoad("https://7tv.io/v3/users/twitch/" + encodeURIComponent(id), true);
+    if (!id) {                                     // fallback: ask 7TV itself
+      const j = await stvFetchJson("https://7tv.io/v3/gql", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: 'query($q:String!){users(query:$q){id username connections{platform id}}}', variables: { q: SEVENTV_GLOBAL_USER } }) }, 3);
+      const u = (((j || {}).data || {}).users || []).find(x => String(x.username).toLowerCase() === SEVENTV_GLOBAL_USER);
+      const c = u && (u.connections || []).find(x => x.platform === "TWITCH"); id = c && c.id;
+    }
+    if (id) { try { localStorage.setItem(STV_CACHE + "uid", id); } catch (_) {} seventvLoad("https://7tv.io/v3/users/twitch/" + encodeURIComponent(id), true); }
   })();
   function seventvLoadChannel(roomId) {
     if (seventvChannelStarted || !roomId) return;
