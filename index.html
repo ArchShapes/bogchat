@@ -9,7 +9,27 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+ <head>
+  <title>My Webpage</title>
+
+  <!-- This JSON script tells Discord exactly how to render the chat bubble -->
+  <script id="discord:component-embed" type="application/json">
+  {
+    "component": {
+      "type": 17, 
+      "accent_color": 5793266, 
+      "components": [
+        {
+          "type": 10,
+          "content": "# 🌐 Welcome to My Site\nThis text supports **Discord Markdown**.\n\n* Feature 1\n* Feature 2"
+        }
+      ]
+    }
+  }
+  </script>
+ </head>
 <style>
+
   *, *::before, *::after { font-synthesis: none; }      /* DM Mono has no bold: never fake one */
   /* URL options:
      ?channel=name   any Twitch username
