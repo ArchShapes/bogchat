@@ -2786,7 +2786,7 @@
   const PINNED = new Set();                        // names from that set win over the global/channel sets on a clash
   /* Loading is hardened: every request is retried, the image URL is read from the files 7TV lists (with or without "https:"),
      and each set is cached in localStorage so emotes still show if 7TV is slow, down, or blocked on this connection. */
-  const STV_CACHE = "stvCache1:";
+  const STV_CACHE = "stvCache3:";
   const stvSave = (k, v) => { try { localStorage.setItem(STV_CACHE + k, JSON.stringify(v)); } catch (_) {} };
   const stvRead = (k) => { try { return JSON.parse(localStorage.getItem(STV_CACHE + k) || "null"); } catch (_) { return null; } };
   const stvSleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -2800,36 +2800,67 @@
     }
     return null;
   }
-  function stvEmoteUrl(host) {
-    let base = String(host.url || ""); if (!base) return null;
+  const STV_CDN = "https://cdn.7tv.app/emote/";
+  const SEVENTV_ALT = new Map();                   // emote name -> fallback image URL (the one 7TV's API itself lists)
+  function stvHostUrl(host) {
+    let base = String((host && host.url) || ""); if (!base) return null;
     if (base.startsWith("//")) base = "https:" + base; else if (!/^https?:/i.test(base)) base = "https://" + base.replace(/^\/+/, "");
     const files = Array.isArray(host.files) ? host.files : [];
-    const f = files.find(x => x.name === "2x.webp") || files.find(x => /^2x\./.test(x.name) && /webp/i.test(x.name))
-           || files.find(x => /^2x\./.test(x.name)) || files.find(x => /^1x\./.test(x.name)) || { name: "2x.webp" };
+    const f = files.find(x => x.name === "2x.webp") || files.find(x => /^2x\./.test(x.name)) || files.find(x => /^1x\./.test(x.name)) || { name: "2x.webp" };
     return base.replace(/\/$/, "") + "/" + f.name;
   }
-  function stvApply(pairs, pinned) {
-    for (const [name, u] of pairs) {
-      if (pinned) PINNED.add(name); else if (PINNED.has(name)) continue;
-      SEVENTV.set(name, u);
-      if (!SEVENTV_LC.has(name.toLowerCase())) SEVENTV_LC.set(name.toLowerCase(), u);
+  /* Every loaded set is kept in STV_SETS (url -> { pairs, pinned, sig }); the emote maps are rebuilt from them, so an emote that is
+     added, renamed or removed on 7TV is picked up by the refresh below. Pinned (TwitchyShapes) names win on a clash. */
+  const STV_SETS = new Map();
+  function stvRebuild() {
+    SEVENTV.clear(); SEVENTV_LC.clear(); SEVENTV_ALT.clear(); PINNED.clear();
+    for (const pass of [false, true]) {
+      for (const set of STV_SETS.values()) {
+        if (set.pinned !== pass) continue;
+        for (const [name, u, alt] of set.pairs) {
+          if (pass) PINNED.add(name);
+          SEVENTV.set(name, u); if (alt) SEVENTV_ALT.set(name, alt); else SEVENTV_ALT.delete(name);
+          if (!SEVENTV_LC.has(name.toLowerCase())) SEVENTV_LC.set(name.toLowerCase(), u);
+        }
+      }
     }
   }
-  async function seventvLoad(url, pinned = false) {
-    const cached = stvRead(url);
-    if (cached && cached.length) stvApply(cached, pinned);                // show cached emotes right away
-    const j = await stvFetchJson(url);
-    if (!j) return !!(cached && cached.length);
-    const list = Array.isArray(j.emotes) ? j.emotes : (j.emote_set && j.emote_set.emotes) || [];
-    const pairs = [];
-    for (const e of list) {
-      const host = e.data && e.data.host; if (!host || !e.name) continue;
-      const u = stvEmoteUrl(host); if (u) pairs.push([e.name, u]);
-    }
-    if (pairs.length) { stvApply(pairs, pinned); stvSave(url, pairs); }
+  function stvStore(url, pairs, pinned) {                  // returns true when the set changed
+    const sig = pairs.length + ":" + pairs.map(x => x[0] + "=" + x[1]).join("|");
+    const old = STV_SETS.get(url);
+    if (old && old.sig === sig && old.pinned === pinned) return false;
+    STV_SETS.set(url, { pairs, pinned, sig });
+    stvRebuild();
     return true;
   }
-  seventvLoad("https://7tv.io/v3/emote-sets/global");
+  const stvBusy = new Set();
+  async function seventvLoad(url, pinned = false, tries = 5) {
+    if (stvBusy.has(url)) return false;
+    stvBusy.add(url);
+    try {
+      if (!STV_SETS.has(url)) {                                          // first load: show cached emotes right away
+        const cached = stvRead(url);
+        if (cached && cached.length) stvStore(url, cached, pinned);
+      }
+      const j = await stvFetchJson(url, undefined, tries);
+      if (!j) { if (tries > 1) console.warn("[7TV] could not load", url); return STV_SETS.has(url); }
+      const list = Array.isArray(j.emotes) ? j.emotes : (j.emote_set && j.emote_set.emotes) || [];
+      const pairs = [];
+      for (const e of list) {
+        if (!e || !e.name) continue;
+        const id = e.id || (e.data && e.data.id); if (!id) continue;
+        pairs.push([e.name, STV_CDN + id + "/2x.webp", stvHostUrl(e.data && e.data.host)]);
+      }
+      if (pairs.length) {
+        if (stvStore(url, pairs, pinned)) console.info("[7TV] " + pairs.length + " emotes from " + url);
+        stvSave(url, pairs);
+      }
+      return true;
+    } finally { stvBusy.delete(url); }
+  }
+  const STV_GLOBAL_URL = "https://7tv.io/v3/emote-sets/global";
+  let stvUserUrl = null, stvChannelUrl = null;
+  seventvLoad(STV_GLOBAL_URL);
   (async () => {                                   // twitchyshapes' set: look up the Twitch id, then fetch the 7TV set
     let id = null;
     try { id = localStorage.getItem(STV_CACHE + "uid"); } catch (_) {}
@@ -2843,13 +2874,24 @@
       const u = (((j || {}).data || {}).users || []).find(x => String(x.username).toLowerCase() === SEVENTV_GLOBAL_USER);
       const c = u && (u.connections || []).find(x => x.platform === "TWITCH"); id = c && c.id;
     }
-    if (id) { try { localStorage.setItem(STV_CACHE + "uid", id); } catch (_) {} seventvLoad("https://7tv.io/v3/users/twitch/" + encodeURIComponent(id), true); }
+    if (id) {
+      try { localStorage.setItem(STV_CACHE + "uid", id); } catch (_) {}
+      stvUserUrl = "https://7tv.io/v3/users/twitch/" + encodeURIComponent(id);
+      seventvLoad(stvUserUrl, true);
+    }
   })();
   function seventvLoadChannel(roomId) {
     if (seventvChannelStarted || !roomId) return;
     seventvChannelStarted = true;
-    seventvLoad("https://7tv.io/v3/users/twitch/" + encodeURIComponent(roomId));
+    stvChannelUrl = "https://7tv.io/v3/users/twitch/" + encodeURIComponent(roomId);
+    seventvLoad(stvChannelUrl);
   }
+  // Refresh every 10 seconds: global set, TwitchyShapes' set and this channel's set (one quick try each; skipped while one is still loading)
+  setInterval(() => {
+    seventvLoad(STV_GLOBAL_URL, false, 1);
+    if (stvUserUrl) seventvLoad(stvUserUrl, true, 1);
+    if (stvChannelUrl) seventvLoad(stvChannelUrl, false, 1);
+  }, 10000);
 
   function emotifyText(str) {
     const frag = document.createDocumentFragment();
@@ -2865,7 +2907,11 @@
       img.title = hit.m[2];
       img.loading = "lazy";
       img.src = hit.url;
-      img.onerror = () => img.replaceWith(document.createTextNode(hit.m[2]));
+      img.onerror = () => {
+        const alt = SEVENTV_ALT.get(hit.m[2]);
+        if (alt && img.src !== alt && !img.dataset.alt) { img.dataset.alt = "1"; img.src = alt; return; }
+        img.replaceWith(document.createTextNode(hit.m[2]));
+      };
       frag.appendChild(img);
       buf = hit.m[3];
     }
