@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="referrer" content="no-referrer">
 <title>Stream chat overlay</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" type="image/png" href="favicon.png">
@@ -2427,8 +2428,11 @@
   async function speakOnline(text, cfg = settings, style = "") {
     const V = VOICE_STYLES[style] || VOICE_STYLES[""];
     // Google Translate English TTS (no signup). One voice only; the styles (angry / weird) are done with playback effects.
+    const gt = (c, client) => "https://translate.google.com/translate_tts?ie=UTF-8&tl=en&client=" + client + "&total=1&idx=0&textlen=" + c.length + "&q=" + encodeURIComponent(c);
     const providers = [
-      ["google", c => "https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=" + encodeURIComponent(c)]
+      ["google", c => gt(c, "tw-ob")],
+      ["google2", c => gt(c, "gtx")],
+      ["google3", c => "https://translate.googleapis.com/translate_tts?ie=UTF-8&tl=en&client=tw-ob&q=" + encodeURIComponent(c)]
     ];
     for (const chunk of ttsChunks(text)) {
       let ok = false, why = "";
