@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
  <head>
-  <title>Bogchat - Twitch</title>
+  <title>Bogchat</title>
 
   <!-- This JSON script tells Discord exactly how to render the chat bubble -->
   <script id="discord:component-embed" type="application/json">
@@ -42,6 +42,8 @@
      &tts=0          turn !tts off
      &ttsvol=1       TTS volume 0-1
      &ttsvoice=name  pick a voice (part of its name, e.g. "zira")
+     &mvoice=Matthew &fvoice=Joanna   online voices for the normal / female voice (Polly names: Matthew, Joey, Brian, Joanna, Salli, Kendra, Kimberly, Amy, Emma)
+     &ttsrate=1      speaking speed (1 = normal)
      &drop=20        % chance a message earns 1 cookie
      &block=a,b      extra words blocked from TTS
      &sfxvol=0.8     TTS sound-effect volume 0-1
@@ -1211,10 +1213,10 @@
     const lower = text.toLowerCase();
 
     if (BOTS.has(user.toLowerCase())) return true;
-    if (text.startsWith("!")) return true;                                  // bot commands
+    if (/^!(?=[\p{L}\p{N}])/u.test(text)) return true;                      // bot commands (a "!" followed by symbols, e.g. the emote "!!!", is normal chat)
     if (text.length > 250) return true;                                     // walls of text
     if (/(https?:\/\/|www\.|\b[a-z0-9-]+\.(com|net|org|gg|tv|ly|io|xyz|ru|me)\b)/i.test(text)) return true; // links
-    if (/(.)\1{11,}/u.test(text)) return true;                               // "aaaaaaaa"
+    if (/([\p{L}\p{N}])\1{11,}/u.test(text)) return true;                    // "aaaaaaaa" (repeated symbols like !!!!!!!! have no limit)
     if (/(\b\S+\b)(\s+\1){5,}/i.test(lower)) return true;                   // same word again and again
 
     const letters = text.replace(/[^a-z]/gi, "");
@@ -2146,6 +2148,10 @@
     "nigar",
     "nega",
     "niga",
+    "roblox",
+    "roblex",
+    "robux",
+    "robox",
     "fagg",
     "retard",
     "fuckyourself"
@@ -2210,7 +2216,7 @@
     return t.replace(/\[(?:scream|spongebob)\]|<\/?(?:scream|spongebob)>/gi, "")
             .replace(TTS_SLANG_RE, w => speak ? TTS_SLANG[w.toLowerCase()] : w)   // slang is only expanded for the spoken voice, never in labels
             .replace(/@\w+/g, "")
-            .replace(/(.)\1{4,}/gu, "$1$1$1")
+            .replace(/([\p{L}\p{N}])\1{4,}/gu, "$1$1$1")      // letters/digits are shortened to 3 in a row; symbols are left as they are
             .replace(/\s+/g, " ").trim();
   }
 
@@ -2274,17 +2280,24 @@
   }
 
   // English voices only. Never inherit the OBS/browser language or choose a non-English voice.
-  function pickVoice(voices, cfg = settings) {
+  // Picks a male or female voice by name and prefers the natural-sounding ones (Edge "Natural"/"Online", Google, Apple).
+  const MALE_VOICE = /(guy|davis|christopher|andrew|brian|ryan|eric|roger|steffan|tony|david|mark|james|daniel|alex|fred|aaron|arthur|male)/i;
+  const FEMALE_VOICE = /(aria|jenny|michelle|ana|emma|sara|libby|sonia|zira|hazel|susan|samantha|victoria|karen|moira|tessa|serena|allison|ava|nicole|joanna|salli|female)/i;
+  const NATURAL_VOICE = /(natural|neural|online|premium|enhanced|google)/i;
+  function pickVoice(voices, cfg = settings, style = "") {
     const en = voices.filter(v => /^en([_-]|$)/i.test(v.lang));
-    const wanted = [TTS_VOICE, (cfg.browserVoice || "").toLowerCase()].filter(Boolean);
+    const wanted = (style === "female" ? [] : [TTS_VOICE, (cfg.browserVoice || "").toLowerCase()]).filter(Boolean);
     for (const w of wanted) {
       const hit = en.find(v => v.name.toLowerCase() === w) || en.find(v => v.name.toLowerCase().includes(w));
       if (hit) return hit;
     }
     const lang = (cfg.language || "en-US").replace("_", "-").toLowerCase();
-    const preferred = en.filter(v => v.lang.replace("_", "-").toLowerCase() === lang);
-    const male = /(david|mark|guy|christopher|eric|tony|james|male)/i;
-    return preferred.find(v => male.test(v.name)) || en.find(v => male.test(v.name)) || preferred[0] || en[0] || null;
+    const want = style === "female" ? FEMALE_VOICE : MALE_VOICE, other = style === "female" ? MALE_VOICE : FEMALE_VOICE;
+    const rank = v => (NATURAL_VOICE.test(v.name) ? 0 : 2) + (v.lang.replace("_", "-").toLowerCase() === lang ? 0 : 1);
+    const pool = en.filter(v => want.test(v.name)).sort((x, y) => rank(x) - rank(y));
+    if (pool.length) return pool[0];
+    const rest = en.filter(v => !other.test(v.name)).sort((x, y) => rank(x) - rank(y));
+    return rest[0] || en[0] || null;
   }
 
   let allMuted = false, ttsAudioStop = null;     // M key: mutes every sound and TTS
@@ -2294,7 +2307,7 @@
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const ttsError = (message, code) => Object.assign(new Error(message), { code });
 
-  async function speakWithBrowser(text, cfg = settings, attempt = 0) {
+  async function speakWithBrowser(text, cfg = settings, attempt = 0, style = "") {
     if (!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) {
       throw ttsError("This browser does not support speech synthesis.", "unsupported");
     }
@@ -2305,8 +2318,9 @@
         const u = new SpeechSynthesisUtterance(text);
         u.lang = cfg.language || "en-US";
         u.volume = TTS_VOL;
-        const voice = pickVoice(voices, cfg);
+        const voice = pickVoice(voices, cfg, style);
         if (voice) { u.voice = voice; u.lang = voice.lang; }
+        u.rate = TTS_RATE; u.pitch = 1;
         let done = false, startTimer, maxTimer;
         const finish = err => {
           if (done) return;
@@ -2330,7 +2344,7 @@
       // Chrome sometimes interrupts the first utterance after the engine wakes up; try once more.
       if (attempt < 1 && (err.code === "interrupted" || err.code === "no-start")) {
         await wait(100);
-        return speakWithBrowser(text, cfg, attempt + 1);
+        return speakWithBrowser(text, cfg, attempt + 1, style);
       }
       throw err;
     }
@@ -2342,7 +2356,7 @@
       const audio = new Audio();
       audio.preload = "auto";
       audio.volume = TTS_VOL;
-      audio.playbackRate = 1.5;
+      audio.playbackRate = TTS_RATE;
       let done = false, startTimer, capTimer, wobbleTimer;
       const finish = err => {
         if (done) return;
@@ -2375,12 +2389,46 @@
     });
   }
 
-  // Hosted no-signup TTS proxy. No Puter, no Google Translate direct endpoint, no system-voice fallback.
-  const TTS_FX = { female: { pitch: 1.2, speed: 1.5, rate: 0.8 } };   // rate = playback speed of the female voice (1 = normal)   // English female voice (higher pitch) for alerts: gifts, bits, follows, subs, raids
+  /* Voices. Natural-sounding hosted voices (Amazon Polly, no signup), tried in this order; if one is down or blocked the next takes over:
+       1. StreamElements TTS   2. tts-api.netlify.app at normal speed/pitch   3. the best matching voice installed in the browser
+     Nothing is sped up or pitch-shifted any more, so the voices sound like themselves. Change them with &mvoice= / &fvoice= / &ttsrate=. */
+  const TTS_RATE = params.has("ttsrate") ? Math.min(2, Math.max(0.5, parseFloat(params.get("ttsrate")) || 1)) : 1;
+  const ONLINE_VOICE = { "": params.get("mvoice") || "Matthew", female: params.get("fvoice") || "Joanna" };
+  const TTS_FX = {};                                   // no speed/pitch tricks on the voices
+  const ttsDownUntil = {};                             // provider -> time before which it is skipped after a failure
+  // Long messages are cut at sentence/word ends so each request stays short and reliable
+  function ttsChunks(text, max = 200) {
+    const out = [];
+    let rest = String(text).replace(/\s+/g, " ").trim();
+    while (rest.length > max) {
+      let cut = Math.max(rest.lastIndexOf(". ", max), rest.lastIndexOf("! ", max), rest.lastIndexOf("? ", max), rest.lastIndexOf(", ", max));
+      if (cut < max * 0.4) cut = rest.lastIndexOf(" ", max);
+      if (cut < 1) cut = max;
+      out.push(rest.slice(0, cut + 1).trim());
+      rest = rest.slice(cut + 1).trim();
+    }
+    if (rest) out.push(rest);
+    return out;
+  }
   async function speakOnline(text, cfg = settings, style = "") {
-    const fx = TTS_FX[style];
-    const url = "https://tts-api.netlify.app/?text=" + encodeURIComponent(text) + "&lang=en" + (fx ? `&pitch=${fx.pitch}&speed=${fx.speed}` : "&pitch=0.8&speed=1.5");
-    await playAudioUrl(url, fx);
+    const voice = ONLINE_VOICE[style] || ONLINE_VOICE[""];
+    const providers = [
+      ["se", c => "https://api.streamelements.com/kappa/v2/speech?voice=" + encodeURIComponent(voice) + "&text=" + encodeURIComponent(c)],
+      ["netlify", c => "https://tts-api.netlify.app/?text=" + encodeURIComponent(c) + "&lang=en&pitch=" + (style === "female" ? "1.05" : "0.95") + "&speed=1"]
+    ];
+    for (const chunk of ttsChunks(text)) {
+      let ok = false;
+      for (const [name, mk] of providers) {
+        if ((ttsDownUntil[name] || 0) > Date.now()) continue;
+        try { await playAudioUrl(mk(chunk), TTS_FX[style] || {}); ok = true; break; }
+        catch (e) {
+          if (e && e.code === "not-allowed") throw e;           // the page needs a click first; keep the text queued
+          ttsDownUntil[name] = Date.now() + 60000;               // skip this provider for a minute
+          console.warn("[TTS] " + name + " failed, trying the next voice:", e && e.message);
+        }
+      }
+      if (!ok) await speakWithBrowser(chunk, cfg, 0, style);     // last resort: installed browser voice
+    }
   }
 
   // Optional custom endpoint from the setup panel (advanced)
@@ -3381,7 +3429,7 @@
     // bots never show; owner, lead mods, mods and VIPs always do; viewers go through the spam filter
     if (BOTS.has(user.toLowerCase())) return;
     if (SILENT_USERS.has(user.toLowerCase())) return;   // silent / monitored users are never shown in chat
-    if (/^\s*!/.test(message)) return;                  // commands are never shown as chat lines (only as labels)
+    if (/^\s*!(?=[\p{L}\p{N}])/u.test(message)) return;   // commands are never shown as chat lines (only as labels); "!!!" and other symbol-only starts are normal chat
     if (!isTrusted(tags, user) && isSpam(user, tags, message)) return;
 
     // Viewers earn random drops; moderators earn their guaranteed +1 above for every message.
