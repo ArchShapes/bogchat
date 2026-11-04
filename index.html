@@ -9,6 +9,24 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+ <head>
+  <title>My Webpage</title>
+
+  <!-- This JSON script tells Discord exactly how to render the chat bubble -->
+  <script id="discord:component-embed" type="application/json">
+  {
+    "component": {
+      "type": 17, 
+      "accent_color": 5793266, 
+      "components": [
+        {
+          "type": 10,
+          "content": "# 💭 Bogchat\nMake your streaming experience more hyped!"
+        }
+      ]
+    }
+  }
+  </script>
  </head>
 <style>
 
@@ -2187,7 +2205,7 @@
   const TTS_SLANG = {
     ngl: "not gonna lie", btw: "by the way", idk: "i don't know", fym: "fuck you mean",
     dih: "deeh", ts: "this shit", lol: "haha", wdym: "what do you mean", idc: "i don't care",
-    lmao: "laughing my ass off", lfmao: "laughing my fiss ass off", wtf: "what the fuck", fy: "fuck you", wth: "what the hell"
+    lmao: "laughing my ass off", lfmao: "laughing my fiss ass off"
   };
   const TTS_SLANG_RE = new RegExp("(?<![\\w'])(" + Object.keys(TTS_SLANG).join("|") + ")(?![\\w'])", "gi");
   function cleanTts(t, speak = false) {
@@ -2199,9 +2217,9 @@
   }
 
   /* Voice tags in !tts (no tag = male voice):
-       [female] [male] [angrymale] [angryfemale] [spongebob]    switches the voice from that point on (at the start = the whole message)
-       <female>...</female>   <angrymale>...</angrymale>   <spongebob>...</spongebob> ...   that voice for just that part */
-  const VOICE_NAMES = "angry[_-]?female|angry[_-]?male|spongebob|female|male";
+       [female] [male] [angrymale] [angryfemale] [weird]    switches the voice from that point on (at the start = the whole message)
+       <female>...</female>   <angrymale>...</angrymale>   <weird>...</weird> ...   that voice for just that part */
+  const VOICE_NAMES = "angry[_-]?female|angry[_-]?male|weird|female|male";
   const VOICE_TAG_SRC = "\\[(" + VOICE_NAMES + ")\\]|<(\\/?)(" + VOICE_NAMES + ")>";
   const voiceStyleOf = (n) => { n = String(n).toLowerCase().replace(/[_-]/g, ""); return n === "male" ? "" : n; };   // "" = the normal male voice
   const stripVoiceTags = (t) => String(t).replace(new RegExp(VOICE_TAG_SRC, "gi"), "");
@@ -2219,7 +2237,7 @@
     return parts;
   }
 
-  // "hello (meow) there" -> [say hello, sfx meow, say there]; each say carries its voice ("" = male, "female", "angrymale", "angryfemale", "spongebob")
+  // "hello (meow) there" -> [say hello, sfx meow, say there]; each say carries its voice ("" = male, "female", "angrymale", "angryfemale", "weird")
   function parseSegments(text) {
     const segs = [];
     let count = 0;
@@ -2361,7 +2379,7 @@
       };
       audio.onended = () => finish();
       audio.onerror = () => finish(ttsError("The voice audio could not be loaded.", "audio-error"));
-      startTimer = setTimeout(() => finish(ttsError("The voice audio did not start.", "audio-error")), 10000);
+      startTimer = setTimeout(() => finish(ttsError("The voice audio did not start.", "audio-error")), 15000);
       capTimer = setTimeout(() => finish(), 60000);          // never hold the queue longer than 60s
       audio.src = url;
       const p = audio.play();
@@ -2378,18 +2396,18 @@
   /* Each voice = an Amazon Polly voice, optionally with a playback effect (rate = speed, pre:false lets pitch follow speed, wobble = [low, high, ms] shakes it).
        ""         normal male     Brian (deep, clearly male)
        female     normal female   Joanna
-       angrymale  deep, gruff, shaky     angryfemale  fast, shrill, shaky     spongebob  squeaky, warbling, cartoon-like
-     These are approximations: Polly has no real "angry" or SpongeBob voice, so the effects are done with playback speed. */
+       angrymale  deep, gruff, shaky     angryfemale  fast, shrill, shaky     weird  squeaky, warbling, cartoon-like
+     These are approximations: Polly has no real "angry" or cartoon voice, so the effects are done with playback speed. */
   const VOICE_STYLES = {
     "":          { voice: params.get("mvoice") || "Brian" },
     female:      { voice: params.get("fvoice") || "Joanna", fem: true },
     angrymale:   { voice: "Russell", fx: { rate: 0.97, pre: false, wobble: [0.9, 1.04, 90] } },
     angryfemale: { voice: "Salli", fem: true, fx: { rate: 1.14, pre: false, wobble: [1.08, 1.24, 80] } },
-    spongebob:   { voice: "Justin", fx: { rate: 1.3, pre: false, wobble: [1.22, 1.42, 110] } }
+    weird:       { voice: "Justin", fx: { rate: 1.3, pre: false, wobble: [1.22, 1.42, 110] } }
   };
   // browser-voice fallback (only used if the online voices cannot be reached): pitch / speed per voice
   const BROWSER_FX = { "": { pitch: 0.85, rate: 1 }, female: { pitch: 1.05, rate: 1 }, angrymale: { pitch: 0.6, rate: 1.15 },
-                       angryfemale: { pitch: 1.3, rate: 1.2 }, spongebob: { pitch: 2, rate: 1.25 } };
+                       angryfemale: { pitch: 1.3, rate: 1.2 }, weird: { pitch: 2, rate: 1.25 } };
   const ttsDownUntil = {};                             // provider -> time before which it is skipped after a failure
   // Long messages are cut at sentence/word ends so each request stays short and reliable
   function ttsChunks(text, max = 200) {
@@ -2405,6 +2423,7 @@
     if (rest) out.push(rest);
     return out;
   }
+  const ttsFails = {};                                 // provider -> failures in a row
   async function speakOnline(text, cfg = settings, style = "") {
     const V = VOICE_STYLES[style] || VOICE_STYLES[""];
     const providers = [
@@ -2413,17 +2432,27 @@
     // The backup proxy only has a female-sounding voice, so it is only used for the female styles (a male voice falls back to a male browser voice instead)
     if (V.fem) providers.push(["netlify", c => "https://tts-api.netlify.app/?text=" + encodeURIComponent(c) + "&lang=en&pitch=1.05&speed=1"]);
     for (const chunk of ttsChunks(text)) {
-      let ok = false;
+      let ok = false, why = "";
       for (const [name, mk] of providers) {
         if ((ttsDownUntil[name] || 0) > Date.now()) continue;
-        try { await playAudioUrl(mk(chunk), V.fx || {}); ok = true; break; }
-        catch (e) {
-          if (e && e.code === "not-allowed") throw e;           // the page needs a click first; keep the text queued
-          ttsDownUntil[name] = Date.now() + 60000;               // skip this provider for a minute
-          console.warn("[TTS] " + name + " failed, trying the next voice:", e && e.message);
+        for (let attempt = 0; attempt < 2 && !ok; attempt++) {      // one quick retry: a single hiccup must not switch the voice
+          try { await playAudioUrl(mk(chunk), V.fx || {}); ok = true; ttsFails[name] = 0; }
+          catch (e) {
+            if (e && e.code === "not-allowed") throw e;               // the page needs a click first; keep the text queued
+            why = (e && e.message) || String(e);
+            if (attempt === 0) await wait(250);
+          }
         }
+        if (ok) break;
+        // Only take a provider out for a while after several failures in a row (not after one odd message)
+        if ((ttsFails[name] = (ttsFails[name] || 0) + 1) >= 3) ttsDownUntil[name] = Date.now() + 15000;
+        console.warn("[TTS] " + name + " failed for \"" + chunk.slice(0, 60) + "\":", why);
       }
-      if (!ok) await speakWithBrowser(chunk, cfg, 0, style);     // last resort: installed browser voice
+      if (!ok) {
+        setStatus("Online voice failed (" + why + "), using the browser voice for this message");
+        setTimeout(() => setStatus(""), 4000);
+        await speakWithBrowser(chunk, cfg, 0, style);                 // last resort: installed browser voice (the Windows "narrator")
+      }
     }
   }
 
@@ -2611,7 +2640,7 @@
   // !gift all 100 [message]    splits the amount between everyone who chatted in the last 10 minutes
   const GIFT_MIN = 5, GIFT_MAX = 70, GIFT_ALL_MAX = 200;      // !gift @name: 5-70, !gift all: 5-200
   function cleanGiftNote(t) {
-    const note = String(t || "").replace(/\[(?:scream|spongebob)\]|<\/?(?:scream|spongebob)>/gi, "")
+    const note = String(t || "").replace(/\[(?:scream|weird)\]|<\/?(?:scream|weird)>/gi, "")
       .replace(/https?:\/\/\S+|www\.\S+/gi, "").replace(/\s+/g, " ").trim().slice(0, 100);
     return note && !ttsBlocked(note) ? note : "";
   }
@@ -2846,7 +2875,6 @@
   };
   /* ---------- 7TV emotes (global + this channel's set). Works on the overlay and on #viewchat ---------- */
   let seventvChannelStarted = false;
-  const SEVENTV_GLOBAL_USER = "twitchyshapes";     // this user's 7TV emote set is available in every chat
   const PINNED = new Set();                        // names from that set win over the global/channel sets on a clash
   /* Loading is hardened: every request is retried, the image URL is read from the files 7TV lists (with or without "https:"),
      and each set is cached in localStorage so emotes still show if 7TV is slow, down, or blocked on this connection. */
@@ -2874,7 +2902,7 @@
     return base.replace(/\/$/, "") + "/" + f.name;
   }
   /* Every loaded set is kept in STV_SETS (url -> { pairs, pinned, sig }); the emote maps are rebuilt from them, so an emote that is
-     added, renamed or removed on 7TV is picked up by the refresh below. Pinned (TwitchyShapes) names win on a clash. */
+     added, renamed or removed on 7TV is picked up by the refresh below.  */
   const STV_SETS = new Map();
   function stvRebuild() {
     SEVENTV.clear(); SEVENTV_LC.clear(); SEVENTV_ALT.clear(); PINNED.clear();
@@ -2923,37 +2951,17 @@
     } finally { stvBusy.delete(url); }
   }
   const STV_GLOBAL_URL = "https://7tv.io/v3/emote-sets/global";
-  let stvUserUrl = null, stvChannelUrl = null;
+  let stvChannelUrl = null;
   seventvLoad(STV_GLOBAL_URL);
-  (async () => {                                   // twitchyshapes' set: look up the Twitch id, then fetch the 7TV set
-    let id = null;
-    try { id = localStorage.getItem(STV_CACHE + "uid"); } catch (_) {}
-    if (!id) {
-      const j = await stvFetchJson("https://api.ivr.fi/v2/twitch/user?login=" + SEVENTV_GLOBAL_USER, undefined, 3);
-      id = j && j[0] && j[0].id;
-    }
-    if (!id) {                                     // fallback: ask 7TV itself
-      const j = await stvFetchJson("https://7tv.io/v3/gql", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: 'query($q:String!){users(query:$q){id username connections{platform id}}}', variables: { q: SEVENTV_GLOBAL_USER } }) }, 3);
-      const u = (((j || {}).data || {}).users || []).find(x => String(x.username).toLowerCase() === SEVENTV_GLOBAL_USER);
-      const c = u && (u.connections || []).find(x => x.platform === "TWITCH"); id = c && c.id;
-    }
-    if (id) {
-      try { localStorage.setItem(STV_CACHE + "uid", id); } catch (_) {}
-      stvUserUrl = "https://7tv.io/v3/users/twitch/" + encodeURIComponent(id);
-      seventvLoad(stvUserUrl, true);
-    }
-  })();
   function seventvLoadChannel(roomId) {
     if (seventvChannelStarted || !roomId) return;
     seventvChannelStarted = true;
     stvChannelUrl = "https://7tv.io/v3/users/twitch/" + encodeURIComponent(roomId);
     seventvLoad(stvChannelUrl);
   }
-  // Refresh every 10 seconds: global set, TwitchyShapes' set and this channel's set (one quick try each; skipped while one is still loading)
+  // Refresh every 10 seconds: the global set and this channel's set (one quick try each; skipped while one is still loading)
   setInterval(() => {
     seventvLoad(STV_GLOBAL_URL, false, 1);
-    if (stvUserUrl) seventvLoad(stvUserUrl, true, 1);
     if (stvChannelUrl) seventvLoad(stvChannelUrl, false, 1);
   }, 10000);
 
@@ -4005,4 +4013,4 @@
 })();
 </script>
 </body>
-</html><
+</html>
