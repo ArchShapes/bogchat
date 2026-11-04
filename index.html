@@ -2206,7 +2206,7 @@
   const TTS_SLANG = {
     ngl: "not gonna lie", btw: "by the way", idk: "i don't know", fym: "fuck you mean",
     dih: "deeh", ts: "this shit", lol: "haha", wdym: "what do you mean", idc: "i don't care",
-    lmao: "laughing my ass off", lfmao: "laughing my fiss ass off", wtf: "what the fuck", fy: "fuck you", wth: "what the hell"
+    lmao: "laughing my ass off", lfmao: "laughing my fiss ass off"
   };
   const TTS_SLANG_RE = new RegExp("(?<![\\w'])(" + Object.keys(TTS_SLANG).join("|") + ")(?![\\w'])", "gi");
   function cleanTts(t, speak = false) {
@@ -2400,9 +2400,9 @@
        angrymale  deep, gruff, shaky     angryfemale  fast, shrill, shaky     weird  squeaky, warbling, cartoon-like
      These are approximations: Polly has no real "angry" or cartoon voice, so the effects are done with playback speed. */
   const VOICE_STYLES = {
-    "":          { voice: params.get("mvoice") || "Brian" },
+    "":          { voice: "Brian", fx: { rate: params.has("mpitch") ? parseFloat(params.get("mpitch")) || 0.82 : 0.82, pre: false } },   // Google has one (female) voice, so "male" = the same voice slowed down, which also lowers the pitch
     female:      { voice: params.get("fvoice") || "Joanna", fem: true },
-    angrymale:   { voice: "Russell", fx: { rate: 0.97, pre: false, wobble: [0.9, 1.04, 90] } },
+    angrymale:   { voice: "Russell", fx: { rate: 0.72, pre: false, wobble: [0.68, 0.78, 90] } },
     angryfemale: { voice: "Salli", fem: true, fx: { rate: 1.14, pre: false, wobble: [1.08, 1.24, 80] } },
     weird:       { voice: "Justin", fx: { rate: 1.3, pre: false, wobble: [1.22, 1.42, 110] } }
   };
