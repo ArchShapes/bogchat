@@ -1364,7 +1364,7 @@
   const saveCookies = () => { if (!OVERLAYMODE) return; try { localStorage.setItem(STORE_KEY, JSON.stringify(cookies)); } catch (e) {} cloudCookiesDirty(); };
   const bal = (u) => cookies[u.toLowerCase()] || 0;
   const addCookies = (u, n) => {
-    if (!OVERLAYMODE) return;
+    if (!OVERLAYMODE || MINIMAL) return;
     const k = u.toLowerCase();
     cookies[k] = Math.max(0, (cookies[k] || 0) + n);
     saveCookies();
@@ -1540,6 +1540,7 @@
   /* ---------- Cookie cards ---------- */
   const noteLast = new Map();
   function addCookieCard(tags, user, short, cost = TTS_COST, what = "TTS") {
+    if (MINIMAL) return;
     const now = Date.now();
     if (now - (noteLast.get(user) || 0) < (short ? 5000 : 1500)) return;     // don't let one person flood cards
     noteLast.set(user, now);
@@ -2117,8 +2118,8 @@
   function doSfxCmd(tags, user, name, message) {
     if (sfxMuted || MUTE || SFX_VOL === 0) return;
     const now = Date.now(), mod = isMod(tags);
-    if (now - sfxGlobalLast < 1200) return;                                   // no pile-ups
-    if (!mod && now - (sfxCmdLast.get(user) || 0) < SFX_CMD_CD) return;       // per-user cooldown
+    if (!MINIMAL && now - sfxGlobalLast < 1200) return;                       // no pile-ups
+    if (!MINIMAL && !mod && now - (sfxCmdLast.get(user) || 0) < SFX_CMD_CD) return;       // per-user cooldown
     const cost = SFX_COSTS[name] ?? SFX_CMD_COST;
     const free = canControlSfx(tags, user) && !(name in SFX_COSTS);          // streamer + lead mods play free (except priced sounds)
     if (cost > 0 && !free) { if (!canPay(tags, user, cost, "!" + name)) return; pay(tags, user, cost); }
@@ -2207,7 +2208,17 @@
     ngl: "not gonna lie", btw: "by the way", idk: "i don't know", fym: "fuck you mean",
     dih: "deeh", ts: "this shit", lol: "haha", wdym: "what do you mean", idc: "i don't care",
     lmao: "laughing my ass off", lfmao: "laughing my fiss ass off",
-    wtf: "what the fuck", fy: "fuck you", wth: "what the hell"
+    wtf: "what the fuck", fy: "fuck you", wth: "what the hell",
+    omg: "oh my god", omfg: "oh my fucking god", smh: "shaking my head", tbh: "to be honest", imo: "in my opinion",
+    imho: "in my humble opinion", rn: "right now", fr: "for real", frfr: "for real for real", wym: "what you mean",
+    brb: "be right back", gtg: "got to go", g2g: "got to go", stfu: "shut the fuck up", gtfo: "get the fuck out",
+    idgaf: "i don't give a fuck", ffs: "for fuck's sake", fml: "fuck my life", wyd: "what are you doing",
+    hbu: "how about you", ikr: "i know right", irl: "in real life", tmi: "too much information",
+    nvm: "nevermind", jk: "just kidding", ily: "i love you", ty: "thank you", yw: "you're welcome", np: "no problem",
+    pls: "please", plz: "please", thx: "thanks", bc: "because", cuz: "because", tho: "though", u: "you", ur: "your",
+    af: "as fuck", asf: "as fuck", lmk: "let me know", icl: "i can't lie", istg: "i swear to god", ong: "on god",
+    rofl: "rolling on the floor laughing", bruh: "bruh", gg: "good game", ez: "easy", wp: "well played",
+    pov: "point of view", tf: "the fuck", dw: "don't worry", ofc: "of course", ppl: "people", bs: "bullshit"
   };
   const TTS_SLANG_RE = new RegExp("(?<![\\w'])(" + Object.keys(TTS_SLANG).join("|") + ")(?![\\w'])", "gi");
   function cleanTts(t, speak = false) {
@@ -2301,6 +2312,8 @@
     return rest[0] || en[0] || null;
   }
 
+  let MINIMAL = false;                              // M key: Minimal mode (no cookies; TTS + sound effects are plain queues, 30 s max each)
+  const MINIMAL_MAX_MS = 30000;
   let allMuted = false, ttsAudioStop = null;     // M key: mutes every sound and TTS
   const ttsQueue = [];
   let ttsBusy = false, ttsLocked = false;
@@ -2509,7 +2522,15 @@
     ttsBusy = true;
     const segs = ttsQueue.shift();
     let blocked = false;
+    // Minimal mode: every queued item plays for 30 seconds at most, then the queue moves on
+    const deadline = Date.now() + MINIMAL_MAX_MS;
+    const capTimer = MINIMAL ? setTimeout(() => {
+      try { if (ttsAudioStop) ttsAudioStop(); } catch (e) {}
+      try { stopAllSfx(); } catch (e) {}
+      try { if ("speechSynthesis" in window) speechSynthesis.cancel(); } catch (e) {}
+    }, MINIMAL_MAX_MS) : null;
     for (let i = 0; i < segs.length; i++) {
+      if (MINIMAL && Date.now() > deadline) break;
       const s = segs[i];
       try {
         if (s.sfx) await playSfx(s.sfx); else await speakText(s.say, settings, s.style);
@@ -2522,6 +2543,7 @@
         console.error("TTS playback failed:", e);   // skip this piece and carry on with the rest
       }
     }
+    if (capTimer) clearTimeout(capTimer);
     ttsBusy = false;
     if (blocked) {
       ttsLocked = true;
@@ -2598,12 +2620,13 @@
   const markCd = (key) => rewardCd.set(key, Date.now());
   const nameOf = (tags, user) => tags["display-name"] || user;
   function canPay(tags, user, cost, what) {
+    if (MINIMAL) return true;                                // Minimal mode: everything is free
     if (tags && tags._global) return true;                   // global messages from #bogchat are free
     if (VIEWCHAT) return true;                               // the chat reader cannot see balances, so it just shows the event
     if (bal(user) < cost) { addCookieCard(tags, user, true, cost, what); return false; }
     return true;
   }
-  const pay = (tags, user, cost) => { if (!VIEWCHAT && !(tags && tags._global)) addCookies(user, -cost); };
+  const pay = (tags, user, cost) => { if (!MINIMAL && !VIEWCHAT && !(tags && tags._global)) addCookies(user, -cost); };
 
   // wheel: can award cookies or take them away; smaller amounts are more likely
   const WHEEL_W = Array.from({ length: 20 }, (_, i) => 1 / Math.pow(i + 1, WHEEL_BIAS));
@@ -2616,6 +2639,7 @@
   }
 
   function doWheel(tags, user) {
+    if (MINIMAL) return;
     if (cdLeft("wheel:" + user, 8000)) return;
     if (!canPay(tags, user, WHEEL_COST, "the wheel")) return;
     const name = nameOf(tags, user);
@@ -2649,6 +2673,7 @@
     return note && !ttsBlocked(note) ? note : "";
   }
   function doGift(tags, user, arg) {
+    if (MINIMAL) return;
     const m = arg.match(/^@?(\w{1,25})\s+(\d{1,6})(?:\s+([\s\S]+))?$/);
     if (!m) return;
     const to = m[1].toLowerCase(), n = parseInt(m[2], 10), note = cleanGiftNote(m[3]);
@@ -3842,7 +3867,16 @@
     if (!popWin) { setStatus("The pop-up was blocked. Allow pop-ups for this page, then press P again."); setTimeout(() => setStatus(""), 5000); }
   }
 
-  // M: mute / unmute everything (sound effects, alerts, cheers and TTS)
+  // M: Minimal mode on / off (no cookies; TTS and sound effects are plain queues, 30 s max each)
+  function toggleMinimal() {
+    MINIMAL = !MINIMAL;
+    const msg = MINIMAL ? "Minimal mode ON: no cookies, TTS and sound effects are just queued (30 s max each). Press M to turn off."
+                        : "Minimal mode OFF: cookies are back.";
+    setStatus(msg);
+    setTimeout(() => { if (statusEl.textContent === msg) setStatus(""); }, 4000);
+  }
+
+  // Shift+M: mute / unmute everything (sound effects, alerts, cheers and TTS)
   function toggleMuteAll() {
     allMuted = !allMuted;
     setSfxMuted(allMuted);
@@ -3997,7 +4031,7 @@
       event.preventDefault();                                   // otherwise the "t" is typed into the text box that just got focus
       if (steBackdrop.classList.contains("closed")) openTextEditor(); else closeTextEditor();
     } else if (event.key.toLowerCase() === "m") {
-      toggleMuteAll();
+      if (event.shiftKey) toggleMuteAll(); else toggleMinimal();     // M = Minimal mode, Shift+M = mute everything
     } else if (event.key.toLowerCase() === "p" && VIEWCHAT) {
       togglePopout();
     } else if (event.key.toLowerCase() === "e") {
