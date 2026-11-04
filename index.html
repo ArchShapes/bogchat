@@ -2205,7 +2205,7 @@
   const TTS_SLANG = {
     ngl: "not gonna lie", btw: "by the way", idk: "i don't know", fym: "fuck you mean",
     dih: "deeh", ts: "this shit", lol: "haha", wdym: "what do you mean", idc: "i don't care",
-    lmao: "laughing my ass off", lfmao: "laughing my fiss ass off"
+    lmao: "laughing my ass off", lfmao: "laughing my fiss ass off", wtf: "what the fuck", fy: "fuck you", wth: "what the hell"
   };
   const TTS_SLANG_RE = new RegExp("(?<![\\w'])(" + Object.keys(TTS_SLANG).join("|") + ")(?![\\w'])", "gi");
   function cleanTts(t, speak = false) {
@@ -2426,11 +2426,10 @@
   const ttsFails = {};                                 // provider -> failures in a row
   async function speakOnline(text, cfg = settings, style = "") {
     const V = VOICE_STYLES[style] || VOICE_STYLES[""];
+    // Google Translate English TTS (no signup). One voice only; the styles (angry / weird) are done with playback effects.
     const providers = [
-      ["se", c => "https://api.streamelements.com/kappa/v2/speech?voice=" + encodeURIComponent(V.voice) + "&text=" + encodeURIComponent(c)]
+      ["google", c => "https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=" + encodeURIComponent(c)]
     ];
-    // The backup proxy only has a female-sounding voice, so it is only used for the female styles (a male voice falls back to a male browser voice instead)
-    if (V.fem) providers.push(["netlify", c => "https://tts-api.netlify.app/?text=" + encodeURIComponent(c) + "&lang=en&pitch=1.05&speed=1"]);
     for (const chunk of ttsChunks(text)) {
       let ok = false, why = "";
       for (const [name, mk] of providers) {
