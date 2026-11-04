@@ -10,7 +10,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
  <head>
-  <title>Bogchat</title>
 
   <!-- This JSON script tells Discord exactly how to render the chat bubble -->
   <script id="discord:component-embed" type="application/json">
@@ -42,7 +41,7 @@
      &tts=0          turn !tts off
      &ttsvol=1       TTS volume 0-1
      &ttsvoice=name  pick a voice (part of its name, e.g. "zira")
-     &mvoice=Matthew &fvoice=Joanna   online voices for the normal / female voice (Polly names: Matthew, Joey, Brian, Joanna, Salli, Kendra, Kimberly, Amy, Emma)
+     &mvoice=Brian &fvoice=Joanna   online voices for the normal male / female voice (Polly names: Brian, Matthew, Joey, Russell, Joanna, Salli, Kendra, Kimberly, Amy, Emma)
      &ttsrate=1      speaking speed (1 = normal)
      &drop=20        % chance a message earns 1 cookie
      &block=a,b      extra words blocked from TTS
@@ -2148,10 +2147,6 @@
     "nigar",
     "nega",
     "niga",
-    "roblox",
-    "roblex",
-    "robux",
-    "robox",
     "fagg",
     "retard",
     "fuckyourself"
@@ -2213,7 +2208,7 @@
   };
   const TTS_SLANG_RE = new RegExp("(?<![\\w'])(" + Object.keys(TTS_SLANG).join("|") + ")(?![\\w'])", "gi");
   function cleanTts(t, speak = false) {
-    return t.replace(/\[(?:scream|spongebob)\]|<\/?(?:scream|spongebob)>/gi, "")
+    return t.replace(/\[scream\]|<\/?scream>/gi, "")
             .replace(TTS_SLANG_RE, w => speak ? TTS_SLANG[w.toLowerCase()] : w)   // slang is only expanded for the spoken voice, never in labels
             .replace(/@\w+/g, "")
             .replace(/([\p{L}\p{N}])\1{4,}/gu, "$1$1$1")      // letters/digits are shortened to 3 in a row; symbols are left as they are
@@ -2221,9 +2216,11 @@
   }
 
   /* Voice tags in !tts (no tag = male voice):
-       [female] / [male]            switches the voice from that point on (at the start = the whole message)
-       <female>...</female>         female voice for just that part  (same with <male>...</male>) */
-  const VOICE_TAG_SRC = "\\[(female|male)\\]|<(\\/?)(female|male)>";
+       [female] [male] [angrymale] [angryfemale] [spongebob]    switches the voice from that point on (at the start = the whole message)
+       <female>...</female>   <angrymale>...</angrymale>   <spongebob>...</spongebob> ...   that voice for just that part */
+  const VOICE_NAMES = "angry[_-]?female|angry[_-]?male|spongebob|female|male";
+  const VOICE_TAG_SRC = "\\[(" + VOICE_NAMES + ")\\]|<(\\/?)(" + VOICE_NAMES + ")>";
+  const voiceStyleOf = (n) => { n = String(n).toLowerCase().replace(/[_-]/g, ""); return n === "male" ? "" : n; };   // "" = the normal male voice
   const stripVoiceTags = (t) => String(t).replace(new RegExp(VOICE_TAG_SRC, "gi"), "");
   function splitVoices(text) {
     const re = new RegExp(VOICE_TAG_SRC, "gi"), parts = [];
@@ -2231,15 +2228,15 @@
     const push = (end) => { if (end > last) parts.push({ text: text.slice(last, end), style: cur }); };
     while ((m = re.exec(text))) {
       push(m.index); last = m.index + m[0].length;
-      if (m[1]) { base = cur = m[1].toLowerCase() === "female" ? "female" : ""; stack = []; }
-      else if (!m[2]) { stack.push(cur); cur = m[3].toLowerCase() === "female" ? "female" : ""; }
+      if (m[1]) { base = cur = voiceStyleOf(m[1]); stack = []; }
+      else if (!m[2]) { stack.push(cur); cur = voiceStyleOf(m[3]); }
       else cur = stack.length ? stack.pop() : base;
     }
     push(text.length);
     return parts;
   }
 
-  // "hello (meow) there" -> [say hello, sfx meow, say there]; each say carries its voice ("female" or "" = male)
+  // "hello (meow) there" -> [say hello, sfx meow, say there]; each say carries its voice ("" = male, "female", "angrymale", "angryfemale", "spongebob")
   function parseSegments(text) {
     const segs = [];
     let count = 0;
@@ -2286,13 +2283,14 @@
   const NATURAL_VOICE = /(natural|neural|online|premium|enhanced|google)/i;
   function pickVoice(voices, cfg = settings, style = "") {
     const en = voices.filter(v => /^en([_-]|$)/i.test(v.lang));
-    const wanted = (style === "female" ? [] : [TTS_VOICE, (cfg.browserVoice || "").toLowerCase()]).filter(Boolean);
+    const isFem = /female/.test(style);
+    const wanted = (isFem ? [] : [TTS_VOICE, (cfg.browserVoice || "").toLowerCase()]).filter(Boolean);
     for (const w of wanted) {
       const hit = en.find(v => v.name.toLowerCase() === w) || en.find(v => v.name.toLowerCase().includes(w));
       if (hit) return hit;
     }
     const lang = (cfg.language || "en-US").replace("_", "-").toLowerCase();
-    const want = style === "female" ? FEMALE_VOICE : MALE_VOICE, other = style === "female" ? MALE_VOICE : FEMALE_VOICE;
+    const want = isFem ? FEMALE_VOICE : MALE_VOICE, other = isFem ? MALE_VOICE : FEMALE_VOICE;
     const rank = v => (NATURAL_VOICE.test(v.name) ? 0 : 2) + (v.lang.replace("_", "-").toLowerCase() === lang ? 0 : 1);
     const pool = en.filter(v => want.test(v.name)).sort((x, y) => rank(x) - rank(y));
     if (pool.length) return pool[0];
@@ -2320,7 +2318,8 @@
         u.volume = TTS_VOL;
         const voice = pickVoice(voices, cfg, style);
         if (voice) { u.voice = voice; u.lang = voice.lang; }
-        u.rate = TTS_RATE; u.pitch = 1;
+        const bf = BROWSER_FX[style] || BROWSER_FX[""];
+        u.rate = TTS_RATE * bf.rate; u.pitch = bf.pitch;
         let done = false, startTimer, maxTimer;
         const finish = err => {
           if (done) return;
@@ -2393,8 +2392,21 @@
        1. StreamElements TTS   2. tts-api.netlify.app at normal speed/pitch   3. the best matching voice installed in the browser
      Nothing is sped up or pitch-shifted any more, so the voices sound like themselves. Change them with &mvoice= / &fvoice= / &ttsrate=. */
   const TTS_RATE = params.has("ttsrate") ? Math.min(2, Math.max(0.5, parseFloat(params.get("ttsrate")) || 1)) : 1;
-  const ONLINE_VOICE = { "": params.get("mvoice") || "Matthew", female: params.get("fvoice") || "Joanna" };
-  const TTS_FX = {};                                   // no speed/pitch tricks on the voices
+  /* Each voice = an Amazon Polly voice, optionally with a playback effect (rate = speed, pre:false lets pitch follow speed, wobble = [low, high, ms] shakes it).
+       ""         normal male     Brian (deep, clearly male)
+       female     normal female   Joanna
+       angrymale  deep, gruff, shaky     angryfemale  fast, shrill, shaky     spongebob  squeaky, warbling, cartoon-like
+     These are approximations: Polly has no real "angry" or SpongeBob voice, so the effects are done with playback speed. */
+  const VOICE_STYLES = {
+    "":          { voice: params.get("mvoice") || "Brian" },
+    female:      { voice: params.get("fvoice") || "Joanna", fem: true },
+    angrymale:   { voice: "Russell", fx: { rate: 0.97, pre: false, wobble: [0.9, 1.04, 90] } },
+    angryfemale: { voice: "Salli", fem: true, fx: { rate: 1.14, pre: false, wobble: [1.08, 1.24, 80] } },
+    spongebob:   { voice: "Justin", fx: { rate: 1.3, pre: false, wobble: [1.22, 1.42, 110] } }
+  };
+  // browser-voice fallback (only used if the online voices cannot be reached): pitch / speed per voice
+  const BROWSER_FX = { "": { pitch: 0.85, rate: 1 }, female: { pitch: 1.05, rate: 1 }, angrymale: { pitch: 0.6, rate: 1.15 },
+                       angryfemale: { pitch: 1.3, rate: 1.2 }, spongebob: { pitch: 2, rate: 1.25 } };
   const ttsDownUntil = {};                             // provider -> time before which it is skipped after a failure
   // Long messages are cut at sentence/word ends so each request stays short and reliable
   function ttsChunks(text, max = 200) {
@@ -2411,16 +2423,17 @@
     return out;
   }
   async function speakOnline(text, cfg = settings, style = "") {
-    const voice = ONLINE_VOICE[style] || ONLINE_VOICE[""];
+    const V = VOICE_STYLES[style] || VOICE_STYLES[""];
     const providers = [
-      ["se", c => "https://api.streamelements.com/kappa/v2/speech?voice=" + encodeURIComponent(voice) + "&text=" + encodeURIComponent(c)],
-      ["netlify", c => "https://tts-api.netlify.app/?text=" + encodeURIComponent(c) + "&lang=en&pitch=" + (style === "female" ? "1.05" : "0.95") + "&speed=1"]
+      ["se", c => "https://api.streamelements.com/kappa/v2/speech?voice=" + encodeURIComponent(V.voice) + "&text=" + encodeURIComponent(c)]
     ];
+    // The backup proxy only has a female-sounding voice, so it is only used for the female styles (a male voice falls back to a male browser voice instead)
+    if (V.fem) providers.push(["netlify", c => "https://tts-api.netlify.app/?text=" + encodeURIComponent(c) + "&lang=en&pitch=1.05&speed=1"]);
     for (const chunk of ttsChunks(text)) {
       let ok = false;
       for (const [name, mk] of providers) {
         if ((ttsDownUntil[name] || 0) > Date.now()) continue;
-        try { await playAudioUrl(mk(chunk), TTS_FX[style] || {}); ok = true; break; }
+        try { await playAudioUrl(mk(chunk), V.fx || {}); ok = true; break; }
         catch (e) {
           if (e && e.code === "not-allowed") throw e;           // the page needs a click first; keep the text queued
           ttsDownUntil[name] = Date.now() + 60000;               // skip this provider for a minute
@@ -4009,4 +4022,4 @@
 })();
 </script>
 </body>
-</html>
+</html><
