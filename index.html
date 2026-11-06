@@ -618,6 +618,7 @@
         <h3>Text-to-speech</h3>
         <div class="setup-checks" style="margin-bottom:12px">
           <label class="setup-check"><input id="cfg-tts-enabled" type="checkbox" checked> Enable <code>!tts</code></label>
+          <label class="setup-check"><input id="cfg-family-enabled" type="checkbox"> Family friendly (the voice says freak, crap, heck&hellip; instead of swear words)</label>
         </div>
         <p class="hint">Voice: Google Translate English TTS. No signup required.</p>
         <div class="setup-tts-test">
@@ -674,7 +675,7 @@
   const SETTINGS_KEY = "global-overlay-settings-v1";
   const defaultSettings = {
     channel: "", ytVideo: "", ytKey: "", twitchClientId: "", twitchToken: "", account: "", textName: "", currency: "Cookies", symbol: "cookie", ttsUrl: "", voice: "", apiKey: "", browserVoice: "", ttsEngine: "online", onlineVoice: "Brian", leadMods: "",
-    language: "en-US", tts: true, alerts: true, chat: true, configured: false
+    language: "en-US", tts: true, family: false, alerts: true, chat: true, configured: false
   };
   let settings = { ...defaultSettings };
   try { settings = { ...defaultSettings, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}") }; } catch (e) {}
@@ -716,6 +717,7 @@
       field.value = value;
     }
     document.getElementById("cfg-tts-enabled").checked = !!settings.tts;
+    document.getElementById("cfg-family-enabled").checked = !!settings.family;
     document.getElementById("cfg-alerts-enabled").checked = !!settings.alerts;
     document.getElementById("cfg-chat-enabled").checked = !!settings.chat;
     updateOverlayLink();
@@ -795,6 +797,7 @@
     settings.currency = settings.currency || "Cookies";
     settings.symbol = settings.symbol || "";
     settings.tts = document.getElementById("cfg-tts-enabled").checked;
+    settings.family = document.getElementById("cfg-family-enabled").checked;
     settings.alerts = document.getElementById("cfg-alerts-enabled").checked;
     settings.chat = document.getElementById("cfg-chat-enabled").checked;
     settings.language = settings.language || "en-US";
@@ -1984,7 +1987,7 @@
   const TTS_SLANG = {
     ngl: "not gonna lie", btw: "by the way", idk: "i don't know", fym: "fuck you mean",
     dih: "deeh", ts: "this shit", lol: "haha", wdym: "what do you mean", idc: "i don't care",
-    lmao: "laughing my ass off", lmfao: "laughing my fiss ass off",
+    lmao: "laughing my ass off", lfmao: "laughing my fiss ass off",
     wtf: "what the fuck", fy: "fuck you", wth: "what the hell",
     omg: "oh my god", omfg: "oh my fucking god", smh: "shaking my head", tbh: "to be honest", imo: "in my opinion",
     imho: "in my humble opinion", rn: "right now", fr: "for real", frfr: "for real for real", wym: "what you mean",
@@ -1995,12 +1998,25 @@
     pls: "please", plz: "please", thx: "thanks", bc: "because", cuz: "because", tho: "though", u: "you", ur: "your",
     af: "as fuck", asf: "as fuck", lmk: "let me know", icl: "i can't lie", istg: "i swear to god", ong: "on god",
     rofl: "rolling on the floor laughing", bruh: "bruh", gg: "good game", ez: "easy", wp: "well played",
-    pov: "point of view", tf: "the fuck", dw: "don't worry", ofc: "of course", ppl: "people", bs: "bullshit"
+    pov: "point of view", tf: "the fuck", dw: "don't worry", ofc: "of course", ppl: "people", bs: "bullshit", gng: "gang"
   };
+  /* Family friendly mode (F2): the same shortcuts with clean wording, and swear words in normal text are replaced too. */
+  const FAMILY_SLANG = { omg: "oh my gosh", omfg: "oh my freaking gosh", istg: "i swear to goodness", ong: "on my life",
+                         af: "as heck", asf: "as heck", lfmao: "laughing my butt off", lmao: "laughing my butt off", dih: "" };
+  const FAMILY_WORDS = {
+    motherfucking: "freaking", motherfucker: "jerk", fucking: "freaking", fucked: "messed", fucker: "freaker", fuck: "freak", fucks: "freaks",
+    bullshit: "baloney", shitty: "crappy", shit: "crap", shits: "craps", asshole: "jerk", assholes: "jerks", ass: "butt", asses: "butts",
+    bitches: "jerks", bitch: "jerk", bastard: "jerk", dickhead: "jerk", dick: "jerk", pissed: "mad", piss: "pee",
+    goddamn: "darn", damn: "darn", dammit: "darn it", hell: "heck", wtf: "what the freak", stfu: "shut up"
+  };
+  let FAMILY = !!settings.family;
+  const FAMILY_RE = new RegExp("(?<![\\w'])(" + Object.keys(FAMILY_WORDS).sort((a, b) => b.length - a.length).join("|") + ")(?![\\w'])", "gi");
+  const matchCase = (w, r) => (w.length > 1 && w === w.toUpperCase()) ? r.toUpperCase() : (w[0] === w[0].toUpperCase() ? r[0].toUpperCase() + r.slice(1) : r);
   const TTS_SLANG_RE = new RegExp("(?<![\\w'])(" + Object.keys(TTS_SLANG).join("|") + ")(?![\\w'])", "gi");
   function cleanTts(t, speak = false) {
     return t.replace(/\[scream\]|<\/?scream>/gi, "")
-            .replace(TTS_SLANG_RE, w => { if (!speak) return w; const x = TTS_SLANG[w.toLowerCase()]; return (w.length > 1 && w === w.toUpperCase()) ? x.toUpperCase() : x; })   // slang is only expanded for the spoken voice, never in labels
+            .replace(TTS_SLANG_RE, w => { if (!speak) return w; const k = w.toLowerCase(), x = (FAMILY && k in FAMILY_SLANG) ? FAMILY_SLANG[k] : TTS_SLANG[k]; return (w.length > 1 && w === w.toUpperCase()) ? x.toUpperCase() : x; })   // slang is only expanded for the spoken voice, never in labels
+            .replace(FAMILY_RE, w => (speak && FAMILY) ? matchCase(w, FAMILY_WORDS[w.toLowerCase()]) : w)   // family friendly: spoken voice only
             .replace(/@\w+/g, "")
             .replace(/([\p{L}\p{N}])\1{4,}/gu, "$1$1$1")      // letters/digits are shortened to 3 in a row; symbols are left as they are
             .replace(/\s+/g, " ").trim();
@@ -2212,14 +2228,14 @@
        angrymale  deep, gruff, shaky     angryfemale  fast, shrill, shaky     weird  squeaky, warbling, cartoon-like
      These are approximations: Polly has no real "angry" or cartoon voice, so the effects are done with playback speed. */
   const VOICE_STYLES = {
-    "":          { voice: "Brian", fx: { rate: params.has("mpitch") ? parseFloat(params.get("mpitch")) || 0.78 : 0.78, pre: false } },   // Google has one (female) voice, so "male" = the same voice slowed down, which also lowers the pitch
+    "":          { voice: "Brian", fx: { rate: params.has("mpitch") ? parseFloat(params.get("mpitch")) || 0.82 : 0.82, pre: false } },   // Google has one (female) voice, so "male" = the same voice slowed down, which also lowers the pitch
     female:      { voice: params.get("fvoice") || "Joanna", fem: true },
     angrymale:   { voice: "Russell", fx: { rate: 0.72, pre: false, wobble: [0.68, 0.78, 90] } },
     angryfemale: { voice: "Salli", fem: true, fx: { rate: 1.14, pre: false, wobble: [1.08, 1.24, 80] } },
     weird:       { voice: "Justin", fx: { rate: 1.3, pre: false, wobble: [1.22, 1.42, 110] } },
     // ALL-CAPS words are screamed: faster, higher and shaky (set automatically, see splitScreams)
-    scream:       { voice: "Brian", fx: { rate: 1.2, pre: false, wobble: [1.1, 1.34, 65] } },
-    screamfemale: { voice: "Joanna", fem: true, fx: { rate: 1.45, pre: false, wobble: [1.32, 1.6, 60] } }
+    scream:       { voice: "Brian", fx: { rate: 1.12, pre: false, wobble: [1.04, 1.2, 70] } },
+    screamfemale: { voice: "Joanna", fem: true, fx: { rate: 1.38, pre: false, wobble: [1.28, 1.48, 65] } }
   };
   // browser-voice fallback (only used if the online voices cannot be reached): pitch / speed per voice
   const BROWSER_FX = { "": { pitch: 0.85, rate: 1 }, female: { pitch: 1.05, rate: 1 }, angrymale: { pitch: 0.6, rate: 1.15 },
@@ -2498,7 +2514,7 @@
     const toName = (activeChatters.get(to) || {}).name || m[1];
     const gName = nameOf(tags, user), cur = currencyLabel(n).toLowerCase();
     queueAlert("cgift", `${gName} just gifted ${n} ${cur} to ${toName}` + (note ? ` and said: ${note}` : ""), "", undefined, whoFor(gName, tags));
-    if (n > 30) speakAlert(`${gName} just gifted ${n} ${cur} to ${toName}`);       // TTS only for bigger gifts
+    if (n > 5) speakAlert(`${gName} just gifted ${n} ${cur} to ${toName}` + (note ? ` and said: ${note}` : ""));       // TTS for gifts above 5
   }
 
   // mods/broadcaster only, silent: !givecookies @name 20 (negative numbers remove cookies)
@@ -3691,6 +3707,7 @@
     persistSettings();
   }
   document.getElementById("cfg-tts-enabled").addEventListener("change", e => setTtsEnabled(e.target.checked));
+  document.getElementById("cfg-family-enabled").addEventListener("change", e => { FAMILY = e.target.checked; settings.family = FAMILY; persistSettings(); });
   document.getElementById("cfg-alerts-enabled").addEventListener("change", e => setAlertsEnabled(e.target.checked));
 
   // M: Minimal mode on / off (no cookies; TTS and sound effects are plain queues, 30 s max each)
