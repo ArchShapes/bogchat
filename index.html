@@ -2207,7 +2207,7 @@
        angrymale  deep, gruff, shaky     angryfemale  fast, shrill, shaky
      These are approximations: Polly has no real "angry" or cartoon voice, so the effects are done with playback speed. */
   const VOICE_STYLES = {
-    "":          { voice: "Brian", fx: { rate: params.has("mpitch") ? parseFloat(params.get("mpitch")) || 0.95 : 0.95, pre: false } },   // Google has one (female) voice, so "male" = the same voice slowed down, which also lowers the pitch
+    "":          { voice: "Brian", fx: { rate: params.has("mpitch") ? parseFloat(params.get("mpitch")) || 1.1 : 1.1, pre: false } },   // Google has one (female) voice, so "male" = the same voice slowed down, which also lowers the pitch
     female:      { voice: params.get("fvoice") || "Joanna", fem: true },
     angrymale:   { voice: "Russell", fx: { rate: 0.72, pre: false, wobble: [0.68, 0.78, 90] } },
     angryfemale: { voice: "Salli", fem: true, fx: { rate: 1.14, pre: false, wobble: [1.08, 1.24, 80] } }
