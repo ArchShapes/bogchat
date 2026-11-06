@@ -1634,6 +1634,39 @@
 
   // Built-in sounds, used when there is no <name>.mp3 next to this file
   const SYNTH = {
+    // used only by the !startglitch event
+    glitch(c, out, t) {
+      const len = 1.8, g = c.createGain(); g.gain.value = 1; g.connect(out);
+      for (let i = 0; i < 28; i++) {                                   // stuttering digital blips
+        const st = t + Math.random() * (len - 0.1), d = 0.015 + Math.random() * 0.07;
+        const o = c.createOscillator(); o.type = Math.random() < 0.5 ? "square" : "sawtooth";
+        o.frequency.setValueAtTime(60 + Math.random() * 3200, st);
+        o.frequency.setValueAtTime(60 + Math.random() * 3200, st + d / 2);
+        const e = c.createGain(); e.gain.setValueAtTime(0.0001, st);
+        e.gain.linearRampToValueAtTime(0.35 + Math.random() * 0.3, st + 0.003); e.gain.setValueAtTime(0.0001, st + d);
+        o.connect(e); e.connect(g); o.start(st); o.stop(st + d + 0.01);
+      }
+      const buf = c.createBuffer(1, Math.floor(c.sampleRate * len), c.sampleRate), data = buf.getChannelData(0);
+      let hold = 0, v = 0;                                              // crunchy sample-and-hold static
+      for (let i = 0; i < data.length; i++) { if (--hold <= 0) { hold = 1 + Math.floor(Math.random() * 60); v = Math.random() < 0.35 ? 0 : (Math.random() * 2 - 1); } data[i] = v * 0.6; }
+      const n = c.createBufferSource(); n.buffer = buf; n.connect(g); n.start(t);
+      return len + 0.1;
+    },
+    loudblast(c, out, t) {                                              // very loud distorted noise + screech
+      const dur = 2.4, g = c.createGain(); g.gain.setValueAtTime(1.8, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); g.connect(out);
+      const sh = c.createWaveShaper(), curve = new Float32Array(1024);
+      for (let i = 0; i < 1024; i++) curve[i] = Math.tanh((i / 512 - 1) * 8);
+      sh.curve = curve; sh.connect(g);
+      const nb = c.createBuffer(1, Math.floor(c.sampleRate * dur), c.sampleRate), d = nb.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      const ns = c.createBufferSource(); ns.buffer = nb; ns.connect(sh); ns.start(t);
+      [55, 110, 440, 880].forEach((f, i) => {
+        const o = c.createOscillator(); o.type = "sawtooth";
+        o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * (i < 2 ? 0.5 : 3), t + dur);
+        o.connect(sh); o.start(t); o.stop(t + dur);
+      });
+      return dur;
+    },
     meow(c, out, t) {
       // a small, cute kitten "mi-aow": short rising "mi", then a bright "aow" that arcs up and curls down
       const bus = c.createGain(); bus.connect(out); wet(c, bus, 0.14);
@@ -2107,6 +2140,7 @@
 
   let MINIMAL = false;                              // M key: Minimal mode (no cookies; TTS + sound effects are plain queues, 30 s max each)
   const MINIMAL_MAX_MS = 30000;
+  let ttsLoud = false;                              // true only while the !startglitch line is spoken
   let allMuted = false, ttsAudioStop = null;     // M key: mutes every sound and TTS
   const ttsQueue = [];
   let ttsBusy = false, ttsLocked = false;
@@ -2124,7 +2158,7 @@
       await new Promise((resolve, reject) => {
         const u = new SpeechSynthesisUtterance(text);
         u.lang = cfg.language || "en-US";
-        u.volume = TTS_VOL;
+        u.volume = ttsLoud ? 1 : TTS_VOL;
         const voice = pickVoice(voices, cfg, style);
         if (voice) { u.voice = voice; u.lang = voice.lang; }
         const bf = BROWSER_FX[style] || BROWSER_FX[""];
@@ -2163,7 +2197,7 @@
     return new Promise((resolve, reject) => {
       const audio = new Audio();
       audio.preload = "auto";
-      audio.volume = TTS_VOL;
+      audio.volume = ttsLoud ? 1 : TTS_VOL;
       audio.playbackRate = TTS_RATE;
       let done = false, startTimer, capTimer, wobbleTimer;
       const finish = err => {
@@ -2325,8 +2359,12 @@
       if (MINIMAL && Date.now() > deadline) break;
       const s = segs[i];
       try {
+        ttsLoud = !!s.loud;
         if (s.sfx) await playSfx(s.sfx); else await speakText(s.say, settings, s.style);
+        ttsLoud = false;
+        if (s.endGlitch) stopGlitch();
       } catch (e) {
+        ttsLoud = false;
         if (e.code === "not-allowed") {             // browsers block speech until the page has been clicked once
           blocked = true;
           ttsQueue.unshift(segs.slice(i));          // keep the unspoken part so nothing is lost
@@ -2573,6 +2611,7 @@
       return true;
     }
     switch (cmd) {
+      case "startglitch": if (String(user).toLowerCase() === "bogdanthegdplayer") startGlitch(); return true;   // only this account can start it
       case "wheel":       doWheel(tags, user); return true;
       case "gift":        doGift(tags, user, arg); return true;
       case "disablealertsounds":
@@ -3683,6 +3722,66 @@
   document.getElementById("cfg-tts-enabled").addEventListener("change", e => setTtsEnabled(e.target.checked));
   document.getElementById("cfg-family-enabled").addEventListener("change", e => { FAMILY = e.target.checked; settings.family = FAMILY; persistSettings(); });
   document.getElementById("cfg-alerts-enabled").addEventListener("change", e => setAlertsEnabled(e.target.checked));
+
+  /* ---------- !startglitch (only bogdanthegdplayer): glitch sound, glitch shader, a loud spoken line, then a very loud blast ---------- */
+  let glitchTimer = null, glitchSafety = null, glitchOn = false;
+  function ensureGlitchDom() {
+    if (document.getElementById("glitch-fx")) return;
+    const st = document.createElement("style");
+    st.textContent = "#glitch-fx{position:fixed;inset:0;z-index:2147483000;pointer-events:none;overflow:hidden}" +
+      "#glitch-fx .gl-scan{position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.4) 0 2px,transparent 2px 4px)}" +
+      "#glitch-fx .gl-bar{position:absolute;left:0;right:0}" +
+      "#glitch-fx .gl-flash{position:absolute;inset:0;background:#fff;mix-blend-mode:difference;opacity:0}";
+    document.head.appendChild(st);
+    const fx = document.createElement("div"); fx.id = "glitch-fx"; fx.style.display = "none";
+    fx.innerHTML = '<div class="gl-scan"></div><div class="gl-flash"></div>';
+    document.body.appendChild(fx);
+    const NS = "http://www.w3.org/2000/svg", svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("width", "0"); svg.setAttribute("height", "0"); svg.style.position = "absolute";
+    svg.innerHTML = '<filter id="glitch-filter" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">' +
+      '<feTurbulence id="gl-turb" type="fractalNoise" baseFrequency="0.0005 0.2" numOctaves="1" result="n"/>' +
+      '<feDisplacementMap id="gl-disp" in="SourceGraphic" in2="n" scale="0" xChannelSelector="R" yChannelSelector="G"/></filter>';
+    document.body.appendChild(svg);
+  }
+  function glitchFrame() {
+    const fx = document.getElementById("glitch-fx"); if (!fx) return;
+    const turb = document.getElementById("gl-turb"), disp = document.getElementById("gl-disp");
+    turb.setAttribute("baseFrequency", (Math.random() * 0.004).toFixed(4) + " " + (0.02 + Math.random() * 0.5).toFixed(3));
+    turb.setAttribute("seed", String(Math.floor(Math.random() * 999)));
+    disp.setAttribute("scale", String(Math.random() < 0.3 ? 0 : 20 + Math.random() * 140));
+    document.body.style.filter = "url(#glitch-filter)" + (Math.random() < 0.35 ? ` hue-rotate(${Math.floor(Math.random() * 360)}deg) saturate(${(1.5 + Math.random() * 3).toFixed(1)})` : "") + (Math.random() < 0.15 ? " invert(1)" : "");
+    document.body.style.transform = Math.random() < 0.4 ? `translate(${(Math.random() * 40 - 20).toFixed(0)}px, ${(Math.random() * 16 - 8).toFixed(0)}px)` : "";
+    fx.querySelectorAll(".gl-bar").forEach(b => b.remove());
+    const cols = ["#0ff", "#f0f", "#fff", "#f00", "#0f0"];
+    for (let i = 0, n = 3 + Math.floor(Math.random() * 6); i < n; i++) {   // RGB-split slices
+      const b = document.createElement("div"); b.className = "gl-bar";
+      b.style.top = (Math.random() * 100) + "%"; b.style.height = (1 + Math.random() * 9) + "%";
+      b.style.background = cols[Math.floor(Math.random() * cols.length)]; b.style.mixBlendMode = Math.random() < 0.5 ? "screen" : "difference";
+      b.style.opacity = (0.35 + Math.random() * 0.55).toFixed(2); b.style.transform = `translateX(${(Math.random() * 120 - 60).toFixed(0)}px)`;
+      fx.appendChild(b);
+    }
+    fx.querySelector(".gl-flash").style.opacity = Math.random() < 0.18 ? "1" : "0";
+  }
+  function stopGlitch() {
+    glitchOn = false;
+    clearInterval(glitchTimer); clearTimeout(glitchSafety); glitchTimer = glitchSafety = null;
+    document.body.style.filter = ""; document.body.style.transform = "";
+    const fx = document.getElementById("glitch-fx"); if (fx) { fx.style.display = "none"; fx.querySelectorAll(".gl-bar").forEach(b => b.remove()); }
+  }
+  function startGlitch() {
+    if (!OVERLAYMODE || glitchOn) return;
+    glitchOn = true;
+    ensureGlitchDom();
+    document.getElementById("glitch-fx").style.display = "block";
+    glitchTimer = setInterval(glitchFrame, 70);
+    glitchSafety = setTimeout(stopGlitch, 20000);                      // never gets stuck
+    audio();
+    const segs = [{ sfx: "glitch" }];
+    if (TTS_ON && !allMuted && !ttsMuted) segs.push({ say: "GIVE ME MY ROLES BACK.", style: "", loud: true });
+    segs.push({ sfx: "loudblast", endGlitch: true });
+    ttsQueue.unshift(segs);
+    runTts();
+  }
 
   // M: Minimal mode on / off (no cookies; TTS and sound effects are plain queues, 30 s max each)
   function toggleMinimal() {
